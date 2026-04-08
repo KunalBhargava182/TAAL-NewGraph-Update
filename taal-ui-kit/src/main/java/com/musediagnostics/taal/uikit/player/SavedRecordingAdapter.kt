@@ -38,11 +38,13 @@ class SavedRecordingAdapter(
             .format(Date(file.lastModified()))
         b.fileMeta.text = "$durationStr  •  $dateStr"
 
-        val icon = when {
-            displayName.startsWith("LUNGS", ignoreCase = true) -> R.drawable.ic_lungs
-            displayName.startsWith("BOWEL", ignoreCase = true) -> R.drawable.ic_bowel
-            displayName.startsWith("PREGNANCY", ignoreCase = true) -> R.drawable.ic_pregnancy
-            displayName.startsWith("FULL_BODY", ignoreCase = true) -> R.drawable.ic_accessibility
+        val metaFile = File(file.parent, "$displayName.meta")
+        val filter = if (metaFile.exists()) metaFile.readText().trim().uppercase() else ""
+        val icon = when (filter) {
+            "LUNGS" -> R.drawable.ic_lungs
+            "BOWEL" -> R.drawable.ic_bowel
+            "PREGNANCY" -> R.drawable.ic_pregnancy
+            "FULL_BODY" -> R.drawable.ic_accessibility
             else -> R.drawable.ic_heart
         }
         b.filterIcon.setImageResource(icon)

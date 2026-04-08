@@ -12,7 +12,8 @@ import java.util.Locale
 
 class SavedRecordingAdapter(
     private val files: List<File>,
-    private val onPlay: (File) -> Unit
+    private val onPlay: (File) -> Unit,
+    private val onShare: (File) -> Unit
 ) : RecyclerView.Adapter<SavedRecordingAdapter.ViewHolder>() {
 
     inner class ViewHolder(val binding: ItemSavedRecordingBinding) :
@@ -42,21 +43,41 @@ class SavedRecordingAdapter(
             .format(Date(file.lastModified()))
         b.fileMeta.text = "$durationStr  •  $dateStr"
 
-        // Filter icon based on name prefix
-        val icon = when {
-            displayName.startsWith("LUNGS", ignoreCase = true) -> R.drawable.ic_lungs
-            displayName.startsWith("BOWEL", ignoreCase = true) -> R.drawable.ic_bowel
-            displayName.startsWith("PREGNANCY", ignoreCase = true) -> R.drawable.ic_pregnancy
-            displayName.startsWith("FULL_BODY", ignoreCase = true) -> R.drawable.ic_accessibility
+        // Filter icon: prefer sidecar .meta file, fall back to name prefix for older recordings
+        val filterName = readFilterMeta(file) ?: when {
+            displayName.startsWith("LUNGS", ignoreCase = true) -> "LUNGS"
+            displayName.startsWith("BOWEL", ignoreCase = true) -> "BOWEL"
+            displayName.startsWith("PREGNANCY", ignoreCase = true) -> "PREGNANCY"
+            displayName.startsWith("FULL_BODY", ignoreCase = true) -> "FULL_BODY"
+            else -> "HEART"
+        }
+        val icon = when (filterName.uppercase()) {
+            "LUNGS" -> R.drawable.ic_lungs
+            "BOWEL" -> R.drawable.ic_bowel
+            "PREGNANCY" -> R.drawable.ic_pregnancy
+            "FULL_BODY" -> R.drawable.ic_accessibility
             else -> R.drawable.ic_heart
         }
         b.filterIcon.setImageResource(icon)
 
         b.playButton.setOnClickListener { onPlay(file) }
         b.root.setOnClickListener { onPlay(file) }
+        b.root.setOnLongClickListener {
+            onShare(file)
+            true
+        }
     }
 
     override fun getItemCount() = files.size
+
+    private fun readFilterMeta(wavFile: File): String? {
+        return try {
+            val meta = File(wavFile.parent, "${wavFile.nameWithoutExtension}.meta")
+            if (meta.exists()) meta.readText().trim().uppercase() else null
+        } catch (_: Exception) {
+            null
+        }
+    }
 
     private fun getWavDuration(file: File): Int {
         return try {

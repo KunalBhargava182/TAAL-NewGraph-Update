@@ -1,9 +1,11 @@
 package com.musediagnostics.taal.app.ui.library
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.content.FileProvider
 import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -51,16 +53,36 @@ class SavedRecordingsFragment : Fragment() {
         } else {
             binding.emptyState.visibility = View.GONE
             binding.recordingsList.visibility = View.VISIBLE
-            binding.recordingsList.adapter = SavedRecordingAdapter(files) { file ->
-                val filterName = extractFilterName(file.nameWithoutExtension)
-                val bundle = Bundle().apply {
-                    putString("filePath", file.absolutePath)
-                    putBoolean("isNewRecording", false)
-                    putString("filterName", filterName)
-                }
-                findNavController().navigate(R.id.action_savedRecordings_to_player, bundle)
-            }
+            binding.recordingsList.adapter = SavedRecordingAdapter(
+                files,
+                onPlay = { file ->
+                    val filterName = extractFilterName(file.nameWithoutExtension)
+                    val bundle = Bundle().apply {
+                        putString("filePath", file.absolutePath)
+                        putBoolean("isNewRecording", false)
+                        putString("filterName", filterName)
+                    }
+                    findNavController().navigate(R.id.action_savedRecordings_to_player, bundle)
+                },
+                onShare = { file -> shareRecording(file) }
+            )
         }
+    }
+
+    private fun shareRecording(file: File) {
+        val uri = FileProvider.getUriForFile(
+            requireContext(),
+            "${requireContext().packageName}.fileprovider",
+            file
+        )
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "audio/wav"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            putExtra(Intent.EXTRA_SUBJECT, file.nameWithoutExtension)
+            putExtra(Intent.EXTRA_TITLE, file.nameWithoutExtension)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        startActivity(Intent.createChooser(intent, file.nameWithoutExtension))
     }
 
     // Try longest match first so FULL_BODY isn't mis-parsed as FULL

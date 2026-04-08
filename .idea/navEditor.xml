@@ -293,6 +293,11 @@
                                 <LayoutPositions />
                               </value>
                             </entry>
+                            <entry key="action_player_to_saveRecording">
+                              <value>
+                                <LayoutPositions />
+                              </value>
+                            </entry>
                           </map>
                         </option>
                       </LayoutPositions>
@@ -363,6 +368,11 @@
                                 <LayoutPositions />
                               </value>
                             </entry>
+                            <entry key="action_recording_to_savedRecordings">
+                              <value>
+                                <LayoutPositions />
+                              </value>
+                            </entry>
                             <entry key="action_recording_to_signIn">
                               <value>
                                 <LayoutPositions />
@@ -390,6 +400,48 @@
                               </value>
                             </entry>
                             <entry key="action_library_to_player">
+                              <value>
+                                <LayoutPositions />
+                              </value>
+                            </entry>
+                          </map>
+                        </option>
+                      </LayoutPositions>
+                    </value>
+                  </entry>
+                  <entry key="saveRecordingFragment">
+                    <value>
+                      <LayoutPositions>
+                        <option name="myPosition">
+                          <Point>
+                            <option name="x" value="12" />
+                            <option name="y" value="12" />
+                          </Point>
+                        </option>
+                        <option name="myPositions">
+                          <map>
+                            <entry key="action_saveRecording_to_savedRecordings">
+                              <value>
+                                <LayoutPositions />
+                              </value>
+                            </entry>
+                          </map>
+                        </option>
+                      </LayoutPositions>
+                    </value>
+                  </entry>
+                  <entry key="savedRecordingsFragment">
+                    <value>
+                      <LayoutPositions>
+                        <option name="myPosition">
+                          <Point>
+                            <option name="x" value="256" />
+                            <option name="y" value="12" />
+                          </Point>
+                        </option>
+                        <option name="myPositions">
+                          <map>
+                            <entry key="action_savedRecordings_to_player">
                               <value>
                                 <LayoutPositions />
                               </value>

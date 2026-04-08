@@ -73,6 +73,9 @@ dependencies {
     // MPAndroidChart (for waveform)
     implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
 
+    // ViewPager2 (filter placement image slider)
+    implementation("androidx.viewpager2:viewpager2:1.0.0")
+
     // Biometric
     implementation("androidx.biometric:biometric:1.1.0")
 

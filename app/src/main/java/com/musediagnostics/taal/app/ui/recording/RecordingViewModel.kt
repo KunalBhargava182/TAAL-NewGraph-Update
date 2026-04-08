@@ -35,6 +35,8 @@ class RecordingViewModel(application: Application) : AndroidViewModel(applicatio
 
     var currentRecordingPath: String = ""
     var currentFilteredPath: String = ""
+    /** Path to the 8kHz AI-testing WAV file generated during recording. */
+    var currentAiTestingPath: String = ""
 
     fun setUiState(state: RecordingUiState) {
         _uiState.value = state

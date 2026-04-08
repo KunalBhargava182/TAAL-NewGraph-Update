@@ -90,6 +90,13 @@ class TaalSaveDialog(
                 }
             }
 
+            // Write a .meta file for every variant so each WAV resolves its own icon
+            try {
+                for (suffix in listOf("_filtered", "_raw", "_8kdown")) {
+                    File(savedDir, "$safeName$suffix.meta").writeText(filterName)
+                }
+            } catch (_: Exception) {}
+
             dismiss()
             onSaved(filteredSaved.absolutePath)
         }

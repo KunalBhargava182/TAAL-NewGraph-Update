@@ -48,6 +48,10 @@ class PlayerFragment : Fragment() {
         val filePath = arguments?.getString("filePath") ?: ""
         val isNewRecording = arguments?.getBoolean("isNewRecording", false) ?: false
         val filterName = arguments?.getString("filterName") ?: "HEART"
+        // AI testing file path — carried forward for save/discard lifecycle management.
+        // PlayerFragment does not use this file itself; it is passed to downstream
+        // fragments so the file is properly renamed on save or deleted on discard.
+        val aiTestingFilePath = arguments?.getString("aiTestingFilePath") ?: ""
 
         binding.saveDiscardBar.visibility = if (isNewRecording) View.VISIBLE else View.GONE
 
@@ -84,6 +88,7 @@ class PlayerFragment : Fragment() {
                 val bundle = Bundle().apply {
                     putString("filePath", filePath)
                     putString("rawFilePath", rawFilePath)
+                    putString("aiTestingFilePath", aiTestingFilePath)
                     putString("filterName", filterName)
                 }
                 findNavController().navigate(R.id.action_player_to_saveRecording, bundle)
@@ -149,15 +154,27 @@ class PlayerFragment : Fragment() {
     }
 
     private fun loadFullWaveform(filePath: String, filterName: String) {
-        // Read raw bytes directly — file is pre-filtered (written in real-time during recording),
-        // so no AudioFilterEngine computation needed here. This is near-instant.
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
             val file = File(filePath)
             if (!file.exists()) return@launch
             val bytes = file.readBytes()
+
+            // Read the actual sample rate from the WAV header (bytes 24–27, little-endian).
+            // Using a hardcoded 44100 breaks any file whose sample rate differs —
+            // e.g. an 8kHz AI-testing file would show 3s duration instead of 17s,
+            // because 136,000 samples / 44100 = 3.08 ≈ 3, not 17.
+            val fileSampleRate: Float = if (bytes.size >= 28) {
+                val rate = ((bytes[24].toInt() and 0xff) or
+                            ((bytes[25].toInt() and 0xff) shl 8) or
+                            ((bytes[26].toInt() and 0xff) shl 16) or
+                            ((bytes[27].toInt() and 0xff) shl 24))
+                if (rate > 0) rate.toFloat() else INPUT_SAMPLE_RATE
+            } else INPUT_SAMPLE_RATE
+
             val dataSize = bytes.size - 44
             val totalSamples = dataSize / 2
-            val durationSecs = (totalSamples / INPUT_SAMPLE_RATE).toInt()
+            // Duration and waveform X-axis both depend on the correct sample rate.
+            val durationSecs = (totalSamples / fileSampleRate).toInt()
             val maxPoints = 3000
             val step = maxOf(1, totalSamples / maxPoints)
             val entries = ArrayList<Entry>()
@@ -168,7 +185,10 @@ class PlayerFragment : Fragment() {
                 val low = bytes[bytePos].toInt() and 0xFF
                 val high = bytes[bytePos + 1].toInt() shl 8
                 val sample = (high or low).toShort().toFloat() / 32768f
-                entries.add(Entry(i.toFloat() / INPUT_SAMPLE_RATE, sample))
+                // X value in seconds — must use fileSampleRate so the waveform width
+                // matches the actual playback duration and the scrolling playhead stays
+                // in sync with the audio position.
+                entries.add(Entry(i.toFloat() / fileSampleRate, sample))
                 i += step
             }
             withContext(Dispatchers.Main) {
@@ -202,9 +222,12 @@ class PlayerFragment : Fragment() {
         try {
             player = TaalPlayer(requireContext()).apply {
                 setDataSource(filePath)
-                // Pre-filtered files (_filtered.wav) already have DSP applied in real-time
-                // during recording — skip preset filter to avoid double-filtering.
-                if (!File(filePath).name.contains("_filtered")) {
+                // Skip filter for files that are already processed:
+                //  _filtered  — bandpass-filtered in real-time during recording
+                //  _8k_downsampling — HEART-filtered + downsampled to 8kHz by HeartResampler
+                // Applying a second filter pass on these would distort the audio.
+                val fileName = File(filePath).name
+                if (!fileName.contains("_filtered") && !fileName.contains("_8k_downsampling")) {
                     val preFilter = try { PreFilter.valueOf(filterName) } catch (_: Exception) { PreFilter.HEART }
                     setPreFilter(preFilter)
                 }
@@ -297,6 +320,7 @@ class PlayerFragment : Fragment() {
 
     private fun showDiscardConfirmation(filePath: String) {
         val rawFilePath = arguments?.getString("rawFilePath") ?: ""
+        val aiTestingFilePath = arguments?.getString("aiTestingFilePath") ?: ""
         com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
             .setTitle("Discard Recording")
             .setMessage("Are you sure you want to discard this recording? It will be permanently deleted.")
@@ -304,6 +328,10 @@ class PlayerFragment : Fragment() {
                 try { java.io.File(filePath).delete() } catch (_: Exception) {}
                 if (rawFilePath.isNotEmpty()) {
                     try { java.io.File(rawFilePath).delete() } catch (_: Exception) {}
+                }
+                // Delete the 8kHz AI testing temp file alongside raw and filtered
+                if (aiTestingFilePath.isNotEmpty()) {
+                    try { java.io.File(aiTestingFilePath).delete() } catch (_: Exception) {}
                 }
                 findNavController().navigateUp()
             }.setNegativeButton("Cancel", null).show()

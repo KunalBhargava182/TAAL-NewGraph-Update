@@ -13,11 +13,19 @@ class TaalPlayer(private val context: Context) {
 
     private var audioTrack: AudioTrack? = null
     private var playbackJob: Job? = null
-    private val filterEngine = AudioFilterEngine()
+    private var filterEngine = AudioFilterEngine()
 
     private var audioFile: File? = null
     @Volatile private var isPlaying = false
     private var isLooping = false
+
+    /**
+     * Sample rate read from the WAV header in setDataSource().
+     * Defaults to 44100 Hz so clinical recordings work without any header read.
+     * For 8kHz AI testing files this becomes 8000 Hz, ensuring AudioTrack plays
+     * the file at the correct speed instead of 5.5x too fast.
+     */
+    private var wavSampleRate = 44100
 
     var onPlaybackProgress: ((Double, FloatArray) -> Unit)? = null
 
@@ -26,6 +34,34 @@ class TaalPlayer(private val context: Context) {
         if (!audioFile!!.exists() || audioFile!!.extension != "wav") {
             throw InvalidFileNameException()
         }
+        // Read the actual sample rate from the WAV header (bytes 24–27, little-endian).
+        // This allows TaalPlayer to play both 44100 Hz clinical recordings and
+        // 8000 Hz AI testing files at the correct speed without any caller changes.
+        wavSampleRate = readWavSampleRate(audioFile!!)
+        // Recreate the filter engine so its biquad coefficients are calculated for
+        // the correct sample rate. A 44100 Hz filter applied to 8000 Hz audio would
+        // have a completely wrong frequency response.
+        filterEngine = AudioFilterEngine(wavSampleRate)
+    }
+
+    /**
+     * Read the sample rate field from a WAV file header.
+     *
+     * WAV format: bytes 24–27 hold the sample rate as a 32-bit little-endian integer.
+     * Falls back to 44100 Hz on any read failure so clinical recordings are unaffected.
+     */
+    private fun readWavSampleRate(file: File): Int {
+        return try {
+            FileInputStream(file).use { fis ->
+                val header = ByteArray(28)
+                if (fis.read(header) < 28) return 44100
+                val rate = (header[24].toInt() and 0xff) or
+                           ((header[25].toInt() and 0xff) shl 8) or
+                           ((header[26].toInt() and 0xff) shl 16) or
+                           ((header[27].toInt() and 0xff) shl 24)
+                if (rate > 0) rate else 44100
+            }
+        } catch (_: Exception) { 44100 }
     }
 
     fun setLooping(loop: Boolean) {
@@ -46,7 +82,7 @@ class TaalPlayer(private val context: Context) {
 
     fun prepare() {
         val bufferSize = AudioTrack.getMinBufferSize(
-            44100,
+            wavSampleRate,
             AudioFormat.CHANNEL_OUT_MONO,
             AudioFormat.ENCODING_PCM_16BIT
         )
@@ -61,7 +97,7 @@ class TaalPlayer(private val context: Context) {
             .setAudioFormat(
                 AudioFormat.Builder()
                     .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                    .setSampleRate(44100)
+                    .setSampleRate(wavSampleRate)
                     .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
                     .build()
             )
@@ -131,7 +167,7 @@ class TaalPlayer(private val context: Context) {
                         // Without this, fis.read() + audioTrack.write() complete in
                         // microseconds and fire hundreds of callbacks per second, causing
                         // the waveform to flicker because the main thread can't keep up.
-                        val audioFrameDurationMs = (sampleCount * 1000L) / 44100L
+                        val audioFrameDurationMs = (sampleCount * 1000L) / wavSampleRate
                         val minCallbackIntervalMs = 33L // ~30 Hz ceiling
                         if (audioFrameDurationMs < minCallbackIntervalMs) {
                             delay(minCallbackIntervalMs - audioFrameDurationMs)
