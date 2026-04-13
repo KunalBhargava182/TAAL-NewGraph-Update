@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="74dp"
+    android:height="74dp"
+    android:viewportWidth="74"
+    android:viewportHeight="74">
+    <!-- Red circle background -->
+    <path
+        android:fillColor="#EB5757"
+        android:pathData="M36.65,73.3C16.41,73.3 0,56.89 0,36.65C0,16.41 16.41,0 36.65,0C56.89,0 73.3,16.41 73.3,36.65C73.3,56.89 56.89,73.3 36.65,73.3Z"/>
+    <!-- White square stop icon -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M25,25h23v23H25z"/>
+</vector>

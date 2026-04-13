@@ -36,6 +36,8 @@ class SaveRecordingFragment : Fragment() {
     private var rawTempPath = ""
     private var aiTestingTempPath = ""
     private var filterName = "HEART"
+    /** Additional AI downsampling temp files — renamed into saved/ alongside the main files. */
+    private var extraAiTempPaths: List<String> = emptyList()
 
     // Holds the safe file name between the internal save and the permission callback.
     // Only populated on API 24–28 when WRITE_EXTERNAL_STORAGE has not been granted yet.
@@ -60,13 +62,18 @@ class SaveRecordingFragment : Fragment() {
 
         if (granted) {
             val savedDir = File(requireContext().filesDir, "saved")
+            val extraSaved = extraAiTempPaths.map { tempPath ->
+                val suffix = File(tempPath).name.removePrefix("recording_").substringAfter('_')
+                File(savedDir, "${safeName}_$suffix").absolutePath
+            }
             lifecycleScope.launch(Dispatchers.IO) {
                 // Copy the already-renamed files from internal storage to device storage
                 copyAllToDeviceStorage(
                     requireContext(),
                     File(savedDir, "${safeName}_filtered.wav").absolutePath,
                     File(savedDir, "${safeName}_raw.wav").absolutePath,
-                    File(savedDir, "${safeName}_8k_downsampling.wav").absolutePath
+                    File(savedDir, "${safeName}_8k_downsampling.wav").absolutePath,
+                    extraSaved
                 )
             }
         } else {
@@ -94,6 +101,7 @@ class SaveRecordingFragment : Fragment() {
         rawTempPath       = arguments?.getString("rawFilePath") ?: ""
         aiTestingTempPath = arguments?.getString("aiTestingFilePath") ?: ""
         filterName        = arguments?.getString("filterName") ?: "HEART"
+        extraAiTempPaths  = arguments?.getStringArrayList("extraAiFilePaths")?.toList() ?: emptyList()
 
         binding.filterChip.visibility = View.GONE
 
@@ -149,12 +157,17 @@ class SaveRecordingFragment : Fragment() {
                     // API 29+ (MediaStore, no permission needed) OR
                     // API 24–28 with permission already granted
                     val savedDir = File(ctx.filesDir, "saved")
+                    val extraSaved = extraAiTempPaths.map { tempPath ->
+                        val suffix = File(tempPath).name.removePrefix("recording_").substringAfter('_')
+                        File(savedDir, "${safeName}_$suffix").absolutePath
+                    }
                     lifecycleScope.launch(Dispatchers.IO) {
                         copyAllToDeviceStorage(
                             ctx,
                             File(savedDir, "${safeName}_filtered.wav").absolutePath,
                             File(savedDir, "${safeName}_raw.wav").absolutePath,
-                            File(savedDir, "${safeName}_8k_downsampling.wav").absolutePath
+                            File(savedDir, "${safeName}_8k_downsampling.wav").absolutePath,
+                            extraSaved
                         )
                     }
                     navigateAfterSave()
@@ -182,6 +195,17 @@ class SaveRecordingFragment : Fragment() {
                     ?.renameTo(File(savedDir, "${safeName}_8k_downsampling.wav"))
             }
 
+            // Rename every additional AI downsampling file into saved/.
+            // Suffix is extracted from the temp file name:
+            //   "recording_{ts}_{suffix}.wav" → "{suffix}.wav"
+            // Saved as "{safeName}_{suffix}.wav" (e.g. "MyRecording_4k_heart_downsampling.wav").
+            for (tempPath in extraAiTempPaths) {
+                val fileName = File(tempPath).name
+                val suffix = fileName.removePrefix("recording_").substringAfter('_')
+                File(tempPath).takeIf { it.exists() }
+                    ?.renameTo(File(savedDir, "${safeName}_$suffix"))
+            }
+
             // Write filter metadata for every variant so the recordings list shows the correct icon
             File(savedDir, "${safeName}_filtered.meta").writeText(filterName)
             File(savedDir, "${safeName}_raw.meta").writeText(filterName)
@@ -206,11 +230,13 @@ class SaveRecordingFragment : Fragment() {
         ctx: android.content.Context,
         filteredPath: String,
         rawPath: String,
-        aiTestingPath: String
+        aiTestingPath: String,
+        extraPaths: List<String> = emptyList()
     ) {
         copyOneFile(ctx, filteredPath)
         copyOneFile(ctx, rawPath)
         if (aiTestingPath.isNotEmpty()) copyOneFile(ctx, aiTestingPath)
+        for (path in extraPaths) copyOneFile(ctx, path)
     }
 
     /**

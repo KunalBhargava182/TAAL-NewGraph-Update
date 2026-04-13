@@ -35,8 +35,15 @@ class RecordingViewModel(application: Application) : AndroidViewModel(applicatio
 
     var currentRecordingPath: String = ""
     var currentFilteredPath: String = ""
-    /** Path to the 8kHz AI-testing WAV file generated during recording. */
+    /** Path to the 8kHz HEART AI-testing WAV file (managed by save/discard flow). */
     var currentAiTestingPath: String = ""
+    /**
+     * Paths to every additional AI downsampling file created by DownsamplingStream.
+     * HEART filter → [4kHz, 1kHz, 500Hz] HEART files.
+     * LUNGS filter → [8kHz, 4kHz, 3kHz, 2kHz] LUNGS files.
+     * Cleared on resetToIdle(). Passed to PlayerFragment for save/discard handling.
+     */
+    var extraAiFilePaths: List<String> = emptyList()
 
     fun setUiState(state: RecordingUiState) {
         _uiState.value = state

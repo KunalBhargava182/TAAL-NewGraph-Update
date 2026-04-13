@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/white">
+
+    <!-- Back button -->
+    <ImageButton
+        android:id="@+id/backButton"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        android:src="@drawable/ic_arrow_back"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="Back"
+        android:padding="10dp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <!-- Title -->
+    <TextView
+        android:id="@+id/titleText"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/shared_recordings"
+        android:textSize="22sp"
+        android:textColor="@color/text_primary"
+        android:textStyle="bold"
+        android:gravity="center"
+        app:layout_constraintTop_toBottomOf="@id/backButton"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- Search bar -->
+    <LinearLayout
+        android:id="@+id/searchBar"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginTop="16dp"
+        android:background="@drawable/bg_input_field"
+        android:gravity="center_vertical"
+        android:paddingStart="12dp"
+        android:paddingEnd="4dp"
+        app:layout_constraintTop_toBottomOf="@id/titleText">
+
+        <ImageView
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:src="@drawable/ic_search"
+            android:contentDescription="Search" />
+
+        <EditText
+            android:id="@+id/searchInput"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            android:background="@android:color/transparent"
+            android:hint="@string/search_recording"
+            android:textSize="14sp"
+            android:textColor="@color/text_primary"
+            android:textColorHint="@color/text_hint"
+            android:inputType="text"
+            android:singleLine="true" />
+
+        <ImageButton
+            android:id="@+id/filterButton"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:src="@drawable/ic_filter_list"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Filter"
+            android:scaleType="centerInside"
+            app:tint="@color/teal_primary" />
+    </LinearLayout>
+
+    <!-- Filter chips -->
+    <HorizontalScrollView
+        android:id="@+id/filterChipsScroll"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:scrollbars="none"
+        app:layout_constraintTop_toBottomOf="@id/searchBar">
+
+        <RadioGroup
+            android:id="@+id/filterChips"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp">
+
+            <RadioButton
+                android:id="@+id/filterAll"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:text="@string/filter_all"
+                android:checked="true"
+                android:textSize="12sp"
+                android:layout_marginEnd="8dp"
+                android:button="@android:color/transparent"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:gravity="center"
+                android:background="@drawable/selector_chip_background"
+                android:textColor="@color/selector_chip_text_color" />
+
+            <RadioButton
+                android:id="@+id/filterHeartChip"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:text="@string/filter_heart"
+                android:textSize="12sp"
+                android:layout_marginEnd="8dp"
+                android:button="@android:color/transparent"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:gravity="center"
+                android:background="@drawable/selector_chip_background"
+                android:textColor="@color/selector_chip_text_color" />
+
+            <RadioButton
+                android:id="@+id/filterLungChip"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:text="@string/filter_lungs"
+                android:textSize="12sp"
+                android:layout_marginEnd="8dp"
+                android:button="@android:color/transparent"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:gravity="center"
+                android:background="@drawable/selector_chip_background"
+                android:textColor="@color/selector_chip_text_color" />
+
+            <RadioButton
+                android:id="@+id/filterBowelChip"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:text="@string/filter_bowel"
+                android:textSize="12sp"
+                android:layout_marginEnd="8dp"
+                android:button="@android:color/transparent"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:gravity="center"
+                android:background="@drawable/selector_chip_background"
+                android:textColor="@color/selector_chip_text_color" />
+
+            <RadioButton
+                android:id="@+id/filterPregnancyChip"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:text="@string/filter_pregnancy"
+                android:textSize="12sp"
+                android:layout_marginEnd="8dp"
+                android:button="@android:color/transparent"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:gravity="center"
+                android:background="@drawable/selector_chip_background"
+                android:textColor="@color/selector_chip_text_color" />
+
+            <RadioButton
+                android:id="@+id/filterFullBodyChip"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:text="@string/filter_full_body"
+                android:textSize="12sp"
+                android:button="@android:color/transparent"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:gravity="center"
+                android:background="@drawable/selector_chip_background"
+                android:textColor="@color/selector_chip_text_color" />
+        </RadioGroup>
+    </HorizontalScrollView>
+
+    <!-- RecyclerView -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/sharedRecordingsRecyclerView"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginTop="8dp"
+        android:clipToPadding="false"
+        android:paddingBottom="16dp"
+        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+        app:layout_constraintTop_toBottomOf="@id/filterChipsScroll"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- Empty State -->
+    <TextView
+        android:id="@+id/emptyStateText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="No shared recordings"
+        android:textSize="16sp"
+        android:textColor="@color/text_secondary"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="@id/sharedRecordingsRecyclerView"
+        app:layout_constraintBottom_toBottomOf="@id/sharedRecordingsRecyclerView"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

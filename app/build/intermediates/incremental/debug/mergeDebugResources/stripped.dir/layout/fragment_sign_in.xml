@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/white"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:padding="32dp">
+
+        <!-- Top spacing -->
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="40dp" />
+
+        <!-- Logo -->
+        <ImageView
+            android:id="@+id/logoImage"
+            android:layout_width="110dp"
+            android:layout_height="152dp"
+            android:src="@drawable/ic_logo_mdsurr"
+            android:scaleType="fitCenter" />
+
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="24dp" />
+
+        <!-- Sign In title -->
+        <TextView
+            android:id="@+id/titleText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Sign In"
+            android:textSize="36sp"
+            android:textColor="#333333"
+            android:textStyle="italic"
+            android:fontFamily="serif" />
+
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="32dp" />
+
+        <!-- Google Sign In button -->
+        <LinearLayout
+            android:id="@+id/googleButton"
+            android:layout_width="262dp"
+            android:layout_height="55dp"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:background="@drawable/bg_button_outlined"
+            android:clickable="true"
+            android:focusable="true">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:src="@drawable/ic_google"
+                android:layout_marginEnd="16dp"
+                android:scaleType="fitCenter" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Sign in with Google"
+                android:textSize="16sp"
+                android:textColor="#333333" />
+
+        </LinearLayout>
+
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="16dp" />
+
+        <!-- Or divider -->
+        <LinearLayout
+            android:layout_width="262dp"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1"
+                android:background="@color/divider" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Or"
+                android:textSize="14sp"
+                android:textColor="#999999"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1"
+                android:background="@color/divider" />
+
+        </LinearLayout>
+
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="16dp" />
+
+        <!-- Login with OTP button -->
+        <Button
+            android:id="@+id/otpButton"
+            android:layout_width="262dp"
+            android:layout_height="55dp"
+            android:text="Login with OTP"
+            android:textSize="16sp"
+            android:textColor="@color/white"
+            android:textAllCaps="false"
+            android:background="@drawable/bg_button_teal" />
+
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="24dp" />
+
+        <!-- Terms text -->
+        <TextView
+            android:id="@+id/termsText"
+            android:layout_width="262dp"
+            android:layout_height="wrap_content"
+            android:text="By signing up you accept the Terms of service and Privacy Policy"
+            android:textSize="14sp"
+            android:textColor="#999999"
+            android:gravity="center" />
+
+        <!-- Spacer to push sign up link to bottom -->
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <!-- Sign up link -->
+        <TextView
+            android:id="@+id/signUpLink"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Don't have account? Sign up now"
+            android:textSize="14sp"
+            android:textColor="#999999"
+            android:gravity="center"
+            android:clickable="true"
+            android:focusable="true" />
+
+    </LinearLayout>
+
+</ScrollView>

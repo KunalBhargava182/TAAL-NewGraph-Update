@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Primary Brand Colors -->
+    <color name="teal_primary">#2ABFBF</color>
+    <color name="teal_dark">#1FA3A3</color>
+    <color name="teal_device">#008DB9</color>
+
+    <!-- Neutral Colors -->
+    <color name="white">#FFFFFF</color>
+    <color name="background">#F5F5F5</color>
+    <color name="divider">#E0E0E0</color>
+    <color name="input_background">#F0F0F0</color>
+
+    <!-- Text Colors -->
+    <color name="text_primary">#333333</color>
+    <color name="text_secondary">#999999</color>
+    <color name="text_hint">#BBBBBB</color>
+
+    <!-- Status Colors -->
+    <color name="recording_red">#E85555</color>
+    <color name="success_green">#4CAF50</color>
+
+    <!-- Waveform -->
+    <color name="waveform_blue">#2D7DD2</color>
+
+    <!-- Placement point states -->
+    <color name="point_done">#4CAF50</color>
+    <color name="point_pending">#2ABFBF</color>
+</resources>

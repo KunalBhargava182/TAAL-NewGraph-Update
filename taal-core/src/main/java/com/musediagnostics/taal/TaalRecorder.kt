@@ -37,6 +37,11 @@ class TaalRecorder(private val context: Context) {
         }
 
         audioCapture.onAudioData = { data, timestamp ->
+            // Notify listeners with raw (pre-filter) audio before any DSP is applied.
+            // Callers can override onRawProgressUpdate to tap the unprocessed signal
+            // (e.g. for AI model input). The default implementation is a no-op.
+            onInfoListener?.onRawProgressUpdate(data)
+
             val filtered = filterEngine.processBlock(data)
 
             // Write filtered bytes to the filtered file in real-time (same IO thread as recording)
@@ -229,6 +234,8 @@ class TaalRecorder(private val context: Context) {
     interface OnInfoListener {
         fun onStateChange(state: RecorderState)
         fun onProgressUpdate(sampleRate: Int, bufferSize: Int, timeStamp: Double, data: FloatArray)
+        /** Called with raw (pre-filter, pre-amp) audio on the same IO thread as onProgressUpdate. Default is a no-op. */
+        fun onRawProgressUpdate(data: FloatArray) {}
     }
 
     interface OnLiveStreamListener {

@@ -1,0 +1,3 @@
+com.musediagnostics.taal.app.test
+style WhiteBackgroundDialogTheme
+style WhiteBackgroundTheme

@@ -1,0 +1,434 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/recordingFragment">
+
+    <!-- Splash Screen -->
+    <fragment
+        android:id="@+id/splashFragment"
+        android:name="com.musediagnostics.taal.app.ui.SplashFragment"
+        android:label="Splash"
+        tools:layout="@layout/fragment_splash">
+        <action
+            android:id="@+id/action_splash_to_signIn"
+            app:destination="@id/signInFragment"
+            app:popUpTo="@id/splashFragment"
+            app:popUpToInclusive="true" />
+        <action
+            android:id="@+id/action_splash_to_recording"
+            app:destination="@id/recordingFragment"
+            app:popUpTo="@id/splashFragment"
+            app:popUpToInclusive="true" />
+        <action
+            android:id="@+id/action_splash_to_pinLogin"
+            app:destination="@id/pinLoginFragment"
+            app:popUpTo="@id/splashFragment"
+            app:popUpToInclusive="true" />
+    </fragment>
+
+    <!-- Sign In Screen (new entry point) -->
+    <fragment
+        android:id="@+id/signInFragment"
+        android:name="com.musediagnostics.taal.app.ui.auth.SignInFragment"
+        android:label="@string/sign_in"
+        tools:layout="@layout/fragment_sign_in">
+        <action
+            android:id="@+id/action_signIn_to_enterMobile"
+            app:destination="@id/loginFragment" />
+        <action
+            android:id="@+id/action_signIn_to_signUp"
+            app:destination="@id/signUpFragment" />
+        <action
+            android:id="@+id/action_signIn_to_recording"
+            app:destination="@id/recordingFragment"
+            app:popUpTo="@id/signInFragment"
+            app:popUpToInclusive="true" />
+    </fragment>
+
+    <!-- Enter Mobile Number Screen -->
+    <fragment
+        android:id="@+id/loginFragment"
+        android:name="com.musediagnostics.taal.app.ui.auth.LoginFragment"
+        android:label="Enter Mobile"
+        tools:layout="@layout/fragment_login">
+        <action
+            android:id="@+id/action_login_to_otp"
+            app:destination="@id/otpFragment" />
+        <action
+            android:id="@+id/action_login_to_recording"
+            app:destination="@id/recordingFragment"
+            app:popUpTo="@id/signInFragment"
+            app:popUpToInclusive="true" />
+    </fragment>
+
+    <!-- OTP Verification -->
+    <fragment
+        android:id="@+id/otpFragment"
+        android:name="com.musediagnostics.taal.app.ui.auth.OtpFragment"
+        android:label="OTP Verification"
+        tools:layout="@layout/fragment_otp">
+        <argument
+            android:name="phoneNumber"
+            app:argType="string" />
+        <action
+            android:id="@+id/action_otp_to_setPin"
+            app:destination="@id/setPinFragment" />
+        <action
+            android:id="@+id/action_otp_to_recording"
+            app:destination="@id/recordingFragment"
+            app:popUpTo="@id/signInFragment"
+            app:popUpToInclusive="true" />
+    </fragment>
+
+    <!-- Sign Up -->
+    <fragment
+        android:id="@+id/signUpFragment"
+        android:name="com.musediagnostics.taal.app.ui.auth.SignUpFragment"
+        android:label="@string/sign_up"
+        tools:layout="@layout/fragment_sign_up">
+        <action
+            android:id="@+id/action_signUp_to_setPin"
+            app:destination="@id/setPinFragment" />
+    </fragment>
+
+    <!-- Set PIN -->
+    <fragment
+        android:id="@+id/setPinFragment"
+        android:name="com.musediagnostics.taal.app.ui.auth.SetPinFragment"
+        android:label="@string/set_pin"
+        tools:layout="@layout/fragment_set_pin">
+        <action
+            android:id="@+id/action_setPin_to_pinConfirmed"
+            app:destination="@id/pinConfirmedFragment" />
+        <action
+            android:id="@+id/action_setPin_to_recording"
+            app:destination="@id/recordingFragment"
+            app:popUpTo="@id/nav_graph"
+            app:popUpToInclusive="true" />
+    </fragment>
+
+    <!-- Confirm PIN -->
+    <fragment
+        android:id="@+id/pinConfirmedFragment"
+        android:name="com.musediagnostics.taal.app.ui.auth.PinConfirmedFragment"
+        android:label="Confirm PIN"
+        tools:layout="@layout/fragment_pin_confirmed">
+        <argument
+            android:name="firstPin"
+            android:defaultValue=""
+            app:argType="string" />
+        <action
+            android:id="@+id/action_pinConfirmed_to_fingerprint"
+            app:destination="@id/fingerprintSetupFragment" />
+        <action
+            android:id="@+id/action_pinConfirmed_to_recording"
+            app:destination="@id/recordingFragment"
+            app:popUpTo="@id/nav_graph"
+            app:popUpToInclusive="true" />
+    </fragment>
+
+    <!-- PIN Login -->
+    <fragment
+        android:id="@+id/pinLoginFragment"
+        android:name="com.musediagnostics.taal.app.ui.auth.PinLoginFragment"
+        android:label="PIN Login"
+        tools:layout="@layout/fragment_pin_login">
+        <action
+            android:id="@+id/action_pinLogin_to_recording"
+            app:destination="@id/recordingFragment"
+            app:popUpTo="@id/pinLoginFragment"
+            app:popUpToInclusive="true" />
+        <action
+            android:id="@+id/action_pinLogin_to_signIn"
+            app:destination="@id/signInFragment"
+            app:popUpTo="@id/pinLoginFragment"
+            app:popUpToInclusive="true" />
+    </fragment>
+
+    <!-- Fingerprint Setup -->
+    <fragment
+        android:id="@+id/fingerprintSetupFragment"
+        android:name="com.musediagnostics.taal.app.ui.auth.FingerprintSetupFragment"
+        android:label="@string/set_fingerprint"
+        tools:layout="@layout/fragment_fingerprint_setup">
+        <action
+            android:id="@+id/action_fingerprintSetup_to_fingerprintConfirm"
+            app:destination="@id/fingerprintConfirmFragment" />
+        <action
+            android:id="@+id/action_fingerprintSetup_to_recording"
+            app:destination="@id/recordingFragment"
+            app:popUpTo="@id/nav_graph"
+            app:popUpToInclusive="true" />
+    </fragment>
+
+    <!-- Fingerprint Confirm -->
+    <fragment
+        android:id="@+id/fingerprintConfirmFragment"
+        android:name="com.musediagnostics.taal.app.ui.auth.FingerprintConfirmFragment"
+        android:label="Fingerprint Confirm"
+        tools:layout="@layout/fragment_fingerprint_confirm">
+        <action
+            android:id="@+id/action_fingerprintConfirm_to_recording"
+            app:destination="@id/recordingFragment"
+            app:popUpTo="@id/nav_graph"
+            app:popUpToInclusive="true" />
+    </fragment>
+
+    <!-- Main App Flow -->
+    <fragment
+        android:id="@+id/recordingFragment"
+        android:name="com.musediagnostics.taal.app.ui.recording.RecordingFragment"
+        android:label="@string/new_recording"
+        tools:layout="@layout/fragment_recording">
+        <action
+            android:id="@+id/action_recording_to_player"
+            app:destination="@id/playerFragment" />
+        <action
+            android:id="@+id/action_recording_to_addPatient"
+            app:destination="@id/addPatientFragment" />
+        <action
+            android:id="@+id/action_recording_to_profile"
+            app:destination="@id/profileFragment" />
+        <action
+            android:id="@+id/action_recording_to_changePin"
+            app:destination="@id/changePinFragment" />
+        <action
+            android:id="@+id/action_recording_to_signIn"
+            app:destination="@id/signInFragment"
+            app:popUpTo="@id/nav_graph"
+            app:popUpToInclusive="true" />
+        <action
+            android:id="@+id/action_recording_to_library"
+            app:destination="@id/recordingLibraryFragment" />
+        <action
+            android:id="@+id/action_recording_to_savedRecordings"
+            app:destination="@id/savedRecordingsFragment" />
+        <action
+            android:id="@+id/action_recording_to_newRecording"
+            app:destination="@id/newRecordingFragment" />
+    </fragment>
+
+    <!-- Experimental new recording UI — for testing only -->
+    <fragment
+        android:id="@+id/newRecordingFragment"
+        android:name="com.musediagnostics.taal.app.ui.recording.NewRecordingFragment"
+        android:label="New Recording UI"
+        tools:layout="@layout/fragment_new_recording" />
+
+    <fragment
+        android:id="@+id/playerFragment"
+        android:name="com.musediagnostics.taal.app.ui.player.PlayerFragment"
+        android:label="@string/play_recording"
+        tools:layout="@layout/fragment_player">
+        <argument
+            android:name="recordingId"
+            android:defaultValue="-1"
+            app:argType="integer" />
+        <argument
+            android:name="filePath"
+            android:defaultValue=""
+            app:argType="string" />
+        <argument
+            android:name="isNewRecording"
+            android:defaultValue="false"
+            app:argType="boolean" />
+        <argument
+            android:name="filterName"
+            android:defaultValue="HEART"
+            app:argType="string" />
+        <action
+            android:id="@+id/action_player_to_equalizer"
+            app:destination="@id/equalizerFragment" />
+        <action
+            android:id="@+id/action_player_to_crop"
+            app:destination="@id/cropRecordingFragment" />
+        <action
+            android:id="@+id/action_player_to_addPatient"
+            app:destination="@id/addPatientFragment" />
+        <action
+            android:id="@+id/action_player_to_saveRecording"
+            app:destination="@id/saveRecordingFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/equalizerFragment"
+        android:name="com.musediagnostics.taal.app.ui.player.EqualizerFragment"
+        android:label="@string/edit_equalizer"
+        tools:layout="@layout/fragment_equalizer">
+        <argument
+            android:name="filePath"
+            android:defaultValue=""
+            app:argType="string" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/cropRecordingFragment"
+        android:name="com.musediagnostics.taal.app.ui.recording.CropRecordingFragment"
+        android:label="@string/crop_recording"
+        tools:layout="@layout/fragment_crop_recording">
+        <argument
+            android:name="filePath"
+            android:defaultValue=""
+            app:argType="string" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/editRecordingFragment"
+        android:name="com.musediagnostics.taal.app.ui.recording.EditRecordingFragment"
+        android:label="@string/edit_recording"
+        tools:layout="@layout/fragment_edit_recording">
+        <argument
+            android:name="recordingId"
+            android:defaultValue="-1"
+            app:argType="integer" />
+        <argument
+            android:name="filePath"
+            android:defaultValue=""
+            app:argType="string" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/recordingLibraryFragment"
+        android:name="com.musediagnostics.taal.app.ui.library.RecordingLibraryFragment"
+        android:label="@string/library"
+        tools:layout="@layout/fragment_recording_library">
+        <action
+            android:id="@+id/action_library_to_player"
+            app:destination="@id/playerFragment" />
+        <action
+            android:id="@+id/action_library_to_editRecording"
+            app:destination="@id/editRecordingFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/addPatientFragment"
+        android:name="com.musediagnostics.taal.app.ui.patient.AddPatientFragment"
+        android:label="@string/add_new_patient"
+        tools:layout="@layout/fragment_add_patient">
+        <argument
+            android:name="recordingFilePath"
+            android:defaultValue=""
+            app:argType="string" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/profileFragment"
+        android:name="com.musediagnostics.taal.app.ui.profile.ProfileFragment"
+        android:label="@string/doctor_profile"
+        tools:layout="@layout/fragment_profile" />
+
+    <fragment
+        android:id="@+id/changePinFragment"
+        android:name="com.musediagnostics.taal.app.ui.settings.ChangePinFragment"
+        android:label="@string/reset_pin"
+        tools:layout="@layout/fragment_change_pin" />
+
+    <!-- Info Screens -->
+    <fragment
+        android:id="@+id/faqFragment"
+        android:name="com.musediagnostics.taal.app.ui.info.FaqFragment"
+        android:label="@string/faq"
+        tools:layout="@layout/fragment_faq" />
+
+    <fragment
+        android:id="@+id/privacyPolicyFragment"
+        android:name="com.musediagnostics.taal.app.ui.info.PrivacyPolicyFragment"
+        android:label="@string/terms_conditions"
+        tools:layout="@layout/fragment_privacy_policy" />
+
+    <fragment
+        android:id="@+id/subscriptionFragment"
+        android:name="com.musediagnostics.taal.app.ui.info.SubscriptionFragment"
+        android:label="@string/subscription"
+        tools:layout="@layout/fragment_subscription" />
+
+    <fragment
+        android:id="@+id/userManualFragment"
+        android:name="com.musediagnostics.taal.app.ui.info.UserManualFragment"
+        android:label="@string/user_manual"
+        tools:layout="@layout/fragment_user_manual" />
+
+    <fragment
+        android:id="@+id/aboutUsFragment"
+        android:name="com.musediagnostics.taal.app.ui.info.AboutUsFragment"
+        android:label="@string/about_us"
+        tools:layout="@layout/fragment_about_us" />
+
+    <!-- Loading Screen -->
+    <fragment
+        android:id="@+id/loadingFragment"
+        android:name="com.musediagnostics.taal.app.ui.LoadingFragment"
+        android:label="@string/loading_description"
+        tools:layout="@layout/fragment_loading" />
+
+    <!-- Shared Recordings -->
+    <fragment
+        android:id="@+id/sharedRecordingsFragment"
+        android:name="com.musediagnostics.taal.app.ui.library.SharedRecordingsFragment"
+        android:label="@string/shared_recordings"
+        tools:layout="@layout/fragment_shared_recordings" />
+
+    <fragment
+        android:id="@+id/testRecordingFragment"
+        android:name="com.musediagnostics.taal.app.ui.recording.TestRecordingFragment"
+        android:label="Test Recording"
+        tools:layout="@layout/fragment_test_recording">
+
+        <action
+            android:id="@+id/action_testRecording_to_testPlayer"
+            app:destination="@id/testPlayerFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/testPlayerFragment"
+        android:name="com.musediagnostics.taal.app.ui.player.TestPlayerFragment"
+        android:label="Test Player"
+        tools:layout="@layout/fragment_test_player">
+
+        <argument
+            android:name="filePath"
+            android:defaultValue=""
+            app:argType="string" />
+        <argument
+            android:name="isNewRecording"
+            android:defaultValue="false"
+            app:argType="boolean" />
+
+        <action
+            android:id="@+id/action_testPlayer_to_addPatient"
+            app:destination="@id/addPatientFragment" />
+    </fragment>
+
+    <!-- Save Recording Screen -->
+    <fragment
+        android:id="@+id/saveRecordingFragment"
+        android:name="com.musediagnostics.taal.app.ui.recording.SaveRecordingFragment"
+        android:label="Save Recording"
+        tools:layout="@layout/fragment_save_recording">
+        <argument
+            android:name="filePath"
+            android:defaultValue=""
+            app:argType="string" />
+        <argument
+            android:name="filterName"
+            android:defaultValue="HEART"
+            app:argType="string" />
+        <action
+            android:id="@+id/action_saveRecording_to_savedRecordings"
+            app:destination="@id/savedRecordingsFragment" />
+    </fragment>
+
+    <!-- Saved Recordings List Screen -->
+    <fragment
+        android:id="@+id/savedRecordingsFragment"
+        android:name="com.musediagnostics.taal.app.ui.library.SavedRecordingsFragment"
+        android:label="Saved Recordings"
+        tools:layout="@layout/fragment_saved_recordings">
+        <action
+            android:id="@+id/action_savedRecordings_to_player"
+            app:destination="@id/playerFragment" />
+    </fragment>
+
+</navigation>

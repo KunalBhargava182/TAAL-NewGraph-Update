@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/preset_custom_1"
+        android:title="@string/custom_1" />
+    <item
+        android:id="@+id/preset_custom_2"
+        android:title="@string/custom_2" />
+    <item
+        android:id="@+id/preset_custom_3"
+        android:title="@string/custom_3" />
+</menu>

@@ -126,7 +126,13 @@
       "Bash(cp taal-sdk/src/main/java/com/musediagnostics/taal/TaalPlayer.kt taal-core/src/main/java/com/musediagnostics/taal/)",
       "Bash(cp taal-sdk/src/main/java/com/musediagnostics/taal/core/TaalAudioCapture.kt taal-core/src/main/java/com/musediagnostics/taal/core/)",
       "Bash(cp taal-sdk/src/main/java/com/musediagnostics/taal/dsp/AudioFilterEngine.kt taal-core/src/main/java/com/musediagnostics/taal/dsp/)",
-      "Bash(cp taal-sdk/src/main/java/com/musediagnostics/taal/utils/SurrUtils.kt taal-core/src/main/java/com/musediagnostics/taal/utils/)"
+      "Bash(cp taal-sdk/src/main/java/com/musediagnostics/taal/utils/SurrUtils.kt taal-core/src/main/java/com/musediagnostics/taal/utils/)",
+      "Bash(grep -E \"fragment.*\\\\.xml$\")",
+      "Bash(xargs -I {} basename {} .xml)",
+      "Read(//c/Users/kunal/AppData/Local/Android/Sdk/platform-tools/**)",
+      "Bash(\"/c/Users/kunal/AppData/Local/Android/Sdk/platform-tools/adb.exe\" logcat:*)",
+      "Bash(/c/Users/kunal/AppData/Local/Android/Sdk/platform-tools/adb.exe devices:*)",
+      "Bash(\"/c/Users/kunal/AppData/Local/Android/Sdk/platform-tools/adb.exe\" -s \"adb-d5f21fe2-NNYSiG._adb-tls-connect._tcp\" logcat -d)"
     ]
   }
 }

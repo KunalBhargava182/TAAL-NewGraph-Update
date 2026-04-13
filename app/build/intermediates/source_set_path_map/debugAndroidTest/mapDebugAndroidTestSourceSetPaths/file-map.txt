@@ -1,0 +1,6 @@
+com.musediagnostics.taal.app.test.app-annotation-experimental-1.3.0-0 C:\Users\kunal\.gradle\caches\8.10.2\transforms\7cfa250bf7700ae19b0269f8d23277aa\transformed\annotation-experimental-1.3.0\res
+com.musediagnostics.taal.app.test.app-core-1.5.0-1 C:\Users\kunal\.gradle\caches\8.10.2\transforms\be072f37513e67c4a5c70e2a49750116\transformed\core-1.5.0\res
+com.musediagnostics.taal.app.test.app-androidTest-2 E:\AndroidProjects\TaalDemoApp\app\build\generated\res\resValues\androidTest\debug
+com.musediagnostics.taal.app.test.app-mergeDebugAndroidTestResources-3 E:\AndroidProjects\TaalDemoApp\app\build\intermediates\incremental\debugAndroidTest\mergeDebugAndroidTestResources\merged.dir
+com.musediagnostics.taal.app.test.app-mergeDebugAndroidTestResources-4 E:\AndroidProjects\TaalDemoApp\app\build\intermediates\incremental\debugAndroidTest\mergeDebugAndroidTestResources\stripped.dir
+com.musediagnostics.taal.app.test.app-debugAndroidTest-5 E:\AndroidProjects\TaalDemoApp\app\build\intermediates\merged_res\debugAndroidTest\mergeDebugAndroidTestResources

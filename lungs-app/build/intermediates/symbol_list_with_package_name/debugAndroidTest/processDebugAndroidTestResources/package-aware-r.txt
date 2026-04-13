@@ -1,0 +1,3 @@
+com.musediagnostics.taal.lungs.test
+style WhiteBackgroundDialogTheme
+style WhiteBackgroundTheme

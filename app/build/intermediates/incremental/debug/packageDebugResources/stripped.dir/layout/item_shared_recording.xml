@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:background="@drawable/bg_recording_card"
+    android:layout_marginStart="16dp"
+    android:layout_marginEnd="16dp"
+    android:layout_marginTop="4dp"
+    android:layout_marginBottom="4dp"
+    android:padding="12dp">
+
+    <!-- Doctor Avatar + Name -->
+    <LinearLayout
+        android:layout_width="56dp"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center_horizontal">
+
+        <ImageView
+            android:id="@+id/doctorAvatar"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@drawable/ic_person"
+            android:background="@drawable/bg_avatar_circle"
+            android:scaleType="centerInside"
+            android:padding="8dp" />
+
+        <TextView
+            android:id="@+id/doctorName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="Doctor"
+            android:textSize="9sp"
+            android:textColor="@color/teal_primary"
+            android:maxLines="2"
+            android:gravity="center"
+            android:ellipsize="end" />
+    </LinearLayout>
+
+    <!-- Recording info -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:layout_marginStart="8dp">
+
+        <TextView
+            android:id="@+id/recordingFileName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="recording.surr"
+            android:textSize="14sp"
+            android:textColor="@color/text_primary"
+            android:textStyle="bold"
+            android:singleLine="true"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/recordingDate"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="Date"
+            android:textSize="12sp"
+            android:textColor="@color/teal_primary" />
+    </LinearLayout>
+
+    <!-- Recording type icon -->
+    <ImageView
+        android:id="@+id/recordingTypeIcon"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:src="@drawable/ic_heart"
+        android:scaleType="centerInside" />
+
+</LinearLayout>
