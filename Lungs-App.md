@@ -2,7 +2,26 @@
 
 > **Purpose of this file:** Complete technical reference for the `:lungs-app` Android module.
 > Share this file with any AI assistant to give it full context before making changes.
-> Last updated: 2026-04-13 (session screen, tabs, bug fixes, icon, Drive stub)
+> Last updated: 2026-05-08 (ZIP export, ic_zip icon, placement dot fix, crash hardening, edit patient)
+
+---
+
+## Changelog
+
+### 2026-05-08
+- **Export ZIP** (`PatientSessionFragment`): Added `btnExportZip` ImageButton (`ic_zip`) in the top bar. Always visible. Tapping it zips all 16 saved WAV files using `java.util.zip.ZipOutputStream` (no new dependency) and shares via `Intent.ACTION_SEND` type `application/zip` through the existing `FileProvider`. ZIP named `Patient_01.zip`. If < 16 recordings, shows a Toast with the count instead of exporting.
+- **Top bar layout fix** (`fragment_patient_session.xml`): `screenTitle` changed from `wrap_content` to `0dp` constrained between `backButton` and `btnExportZip` to prevent title/icon overlap on all screen widths. Top bar icon order (right→left): Share Report | Edit | Export ZIP | Upload Drive (hidden).
+- **Placement dot screen-size fix** (`PlacementFragment`): Added `getImageDisplayRect()` helper that computes the actual displayed image bounds accounting for `fitCenter` letterboxing. Dots are now positioned relative to the real image content area — not the full FrameLayout — so they land on the same anatomical point on every phone. Drag-calibration Toast fractions are also image-rect-relative so copied values stay accurate across screen sizes.
+- **Patient edit mode** (`PatientFormFragment`): Added full edit-mode support. Accepts `patientId` nav arg (`-1L` = new patient, any other = edit). In edit mode: form pre-filled, button shows "Save Changes", calls `repo.update()`. Nav action `action_session_to_edit_patient` added in `lungs_nav_graph.xml`. `btnEditPatient` (pencil icon) added to session top bar.
+- **Drag-to-calibrate toggle**: `ACTION_MOVE` block in `PlacementFragment.addPointButton()` is currently commented out (dots are fixed). Tap-to-record is active. Re-enable by uncommenting `ACTION_MOVE` block.
+- **Crash hardening** (2026-05-08):
+  - `LungsPlayerFragment.saveRecording()`: `requireContext()` was called on IO thread — captured as `val ctx` before the coroutine.
+  - `PatientSessionFragment.exportZip()`: Same `requireContext()` on IO thread fix.
+  - `PatientSessionFragment.confirmDelete()`: Same fix — `val ctx = requireContext()` captured in the dialog button lambda before `launch(Dispatchers.IO)`.
+  - `PatientSessionFragment.openPlayer()`: Added `if (!isAdded || _binding == null) return` guard — prevents crash on rapid double-tap of a play button.
+  - `PatientFormFragment.validateAndProceed()`: Added `if (!isAdded || _binding == null) return@launch` guards after each `withContext(Dispatchers.IO)` call before navigation.
+  - `PatientFormFragment.saveEdit()`: Same guards added after IO and before `navigateUp()`.
+  - `PlacementFragment.addPointButton()` tap: Added `&& isAdded && _binding != null` to the tap-to-record condition.
 
 ---
 
@@ -256,6 +275,7 @@ PatientSessionFragment
 | `action_saved_to_session` | savedPatientsFragment → patientSessionFragment |
 | `action_session_to_placement` | patientSessionFragment → placementFragment |
 | `action_session_to_player` | patientSessionFragment → lungsPlayerFragment |
+| `action_session_to_edit_patient` | patientSessionFragment → patientFormFragment (edit mode) |
 
 ### Nav Args
 
@@ -265,6 +285,7 @@ PatientSessionFragment
 | lungsRecordingFragment | `patientId: long`, `patientSeqNum: int`, `pointCode: string` |
 | lungsPlayerFragment | `filePath: string`, `rawFilePath: string`, `patientId: long`, `patientSeqNum: int`, `pointCode: string`, `isReviewMode: boolean (default=false)` |
 | patientSessionFragment | `patientId: long`, `patientSeqNum: int` |
+| patientFormFragment (edit) | `patientId: long` (non `-1L` triggers edit mode) |
 
 ---
 
@@ -309,7 +330,7 @@ data class LungRecordingEntity(
 
 ### DAOs
 
-**LungPatientDao**: `insert`, `getAllPatients(): Flow`, `getById(id)`, `getCount(): Int`, `deleteById(id)`
+**LungPatientDao**: `insert`, `getAllPatients(): Flow`, `getById(id)`, `getCount(): Int`, `update(patient)`, `deleteById(id)`
 
 **LungRecordingDao**: `insert`, `getRecordingsForPatient(patientId): Flow`, `getRecordingCountForPatient(patientId): Int`, `getRecordingForPoint(patientId, pointCode)`, `deleteById(id)`
 
@@ -369,8 +390,10 @@ Anterior Left images are present. All others still needed.
 - Fields: sex (ChipGroup: Male/Female/Other), age, chest circumference (cm), height (cm), weight (kg)
 - **BMI**: Auto-computed via `MediatorLiveData` watching height + weight — live display, `--` until both valid
 - **Inch→cm converter**: toggle row with `btnInchConverter`; auto-fills chest field
-- **Patient ID**: read-only, pre-populated with `getCount() + 1`
-- On "Next": validates → inserts `LungPatientEntity` → navigate with patientId + patientSeqNum
+- **Patient ID**: read-only, pre-populated via `repo.getNextSequenceNumber()` (`getCount() + 1`)
+- **New patient mode** (`patientId = -1L`): validates → inserts `LungPatientEntity` → navigate to placementFragment
+- **Edit mode** (`patientId ≠ -1L`): pre-fills all fields from DB, button shows "Save Changes" → calls `repo.update()` → `navigateUp()`
+- Both flows guarded with `if (!isAdded || _binding == null) return@launch` after every IO suspend
 
 ### PlacementFragment + PlacementViewModel
 
@@ -387,11 +410,16 @@ Anterior Left images are present. All others still needed.
 - Button text: `point.label.take(4)` when pending; `"✓"` when done
 - Done buttons: alpha 0.8, not interactive
 
-#### Drag calibration (CURRENTLY DISABLED for testing)
-- `ACTION_MOVE` block is commented out
-- `hasDragged` toast in `ACTION_UP` is commented out
-- To re-enable: uncomment both blocks in `addPointButton()` (clearly marked)
-- **Tap to record: ACTIVE** — `ACTION_UP` with `!hasDragged && !isDone` navigates to recording screen
+#### Drag calibration (CURRENTLY DISABLED)
+- `ACTION_MOVE` block is commented out (dots are fixed in place)
+- `hasDragged` toast in `ACTION_UP` is still present but `hasDragged` will never be true while drag is off
+- To re-enable: uncomment `ACTION_MOVE` block in `addPointButton()` (clearly marked)
+- **Tap to record: ACTIVE** — `ACTION_UP` with `!hasDragged && !isDone && isAdded && _binding != null` navigates to recording screen
+
+#### Placement dot positioning (screen-size safe — 2026-05-08)
+- `getImageDisplayRect()` computes the actual displayed image rect within the `anatomyImage` (accounts for `fitCenter` letterboxing)
+- Dots positioned as: `imgRect.left + imgRect.width() * xFraction` — not raw `containerW * xFraction`
+- Falls back to full container rect if drawable has no intrinsic size (no crash)
 
 #### PlacementViewModel
 - `init(patientId, repo)` — idempotent, guards with `if (this.patientId == patientId) return`
@@ -440,13 +468,16 @@ audioTrack = AudioTrack.Builder()
   - `SessionListItem.PointRow(point, recording?)` → `item_recording.xml`
 - **Recorded row**: green status dot + filename + duration + Play / Share / Delete buttons
 - **Unrecorded row**: grey dot + "Not recorded" label, no action buttons
-- **Play** → `action_session_to_player` with `isReviewMode=true`
+- **Play** → `action_session_to_player` with `isReviewMode=true` (guarded: `isAdded && _binding != null`)
 - **Share** → `FileProvider.getUriForFile()` + `Intent.ACTION_SEND` type `audio/wav`
-- **Delete** → `MaterialAlertDialogBuilder` → `deleteById(id)` + `File.delete()` on IO thread
+- **Delete** → `MaterialAlertDialogBuilder` → `deleteById(id)` + `File.delete()` on IO thread (ctx captured before launch)
 - **Share Report** → builds plain-text report with patient info + all 16 statuses → `Intent.ACTION_SEND` type `text/plain`
+- **Export ZIP** (`btnExportZip`, `ic_zip` icon in top bar) → zips all 16 WAVs → `Intent.ACTION_SEND` type `application/zip`; shows Toast with count if < 16 done; ZIP named `Patient_01.zip` in `filesDir`
+- **Edit Patient** (`btnEditPatient`, pencil icon in top bar) → `action_session_to_edit_patient` → `PatientFormFragment` in edit mode
 - **Upload to Drive** → button is `visibility=gone` (see Drive section below)
 - **Continue Recording** → visible only when < 16 recordings; navigates to `placementFragment`
 - **Recording count**: `tvRecordingCount` shows "X / 16 points recorded" or "All 16 points recorded"
+- **Top bar icon order** (right→left): Share Report | Edit | Export ZIP | Upload Drive (hidden)
 
 ### SavedPatientsFragment
 - Lists all patients from Room as `item_patient.xml` cards
@@ -585,8 +616,10 @@ lungs-app/build/outputs/apk/debug/lungs-app-debug.apk
 ## 18. Pending / In-Progress Work
 
 ### Button position calibration (in progress)
-- Drag-to-calibrate is **temporarily disabled** in `PlacementFragment.addPointButton()`
-- To re-enable: uncomment `ACTION_MOVE` block + `hasDragged` branch in `ACTION_UP`
+- Dots are now screen-size-independent (image-rect-relative positioning, 2026-05-08)
+- Drag-to-calibrate is **currently disabled** — `ACTION_MOVE` block commented out in `PlacementFragment.addPointButton()`
+- Tap-to-record is **active**
+- To re-enable drag: uncomment `ACTION_MOVE` block (clearly marked in code)
 - Once positions are finalised, update `xFraction`/`yFraction` values in `LungPoints.kt`
 
 ### Point placement images needed

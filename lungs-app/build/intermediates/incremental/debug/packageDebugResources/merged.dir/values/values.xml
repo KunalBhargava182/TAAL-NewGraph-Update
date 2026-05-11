@@ -37,12 +37,14 @@
     <string name="btn_delete_confirm">Delete</string>
     <string name="btn_discard">Discard</string>
     <string name="btn_discard_confirm">Discard</string>
+    <string name="btn_export_zip">Export ZIP</string>
     <string name="btn_finish">Finish</string>
     <string name="btn_keep">Keep</string>
     <string name="btn_next">Next</string>
     <string name="btn_next_region">Next Region →</string>
     <string name="btn_record_again">Record Again</string>
     <string name="btn_save">Save</string>
+    <string name="btn_save_changes">Save Changes</string>
     <string name="btn_share_report">Share Report</string>
     <string name="btn_upload_drive">Upload to Drive</string>
     <string name="convert_inch_to_cm">inch → cm</string>
@@ -64,6 +66,7 @@
     <string name="lungs_filter_active">LUNGS filter active</string>
     <string name="no_patients_yet">No patients recorded yet.</string>
     <string name="open_in_drive">Open in Drive</string>
+    <string name="patient_edit_title">Edit Patient</string>
     <string name="patient_form_title">Patient Details</string>
     <string name="placement_title">Lung Placement</string>
     <string name="play_recording">Play Recording</string>
@@ -88,6 +91,8 @@
     <string name="upload_progress">Uploading %1$d of %2$d…</string>
     <string name="upload_title">Uploading to Google Drive</string>
     <string name="view_saved_patients">View Saved Recordings</string>
+    <string name="zip_export_failed">Export failed</string>
+    <string name="zip_incomplete">%1$d / 16 recordings done — export requires all 16.</string>
     <style name="TaalText.Timer" parent="android:Widget.TextView">
         <item name="android:textSize">20sp</item>
         <item name="android:textColor">@color/teal_primary</item>

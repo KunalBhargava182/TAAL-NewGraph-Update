@@ -17,6 +17,10 @@ import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import java.io.BufferedOutputStream
+import java.io.FileOutputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 import com.musediagnostics.taal.lungs.R
 import com.musediagnostics.taal.lungs.data.db.LungsDatabase
 import com.musediagnostics.taal.lungs.data.db.entity.LungPatientEntity
@@ -71,7 +75,16 @@ class PatientSessionFragment : Fragment() {
 
         binding.backButton.setOnClickListener { findNavController().navigateUp() }
 
+        binding.btnEditPatient.setOnClickListener {
+            findNavController().navigate(
+                R.id.action_session_to_edit_patient,
+                Bundle().apply { putLong("patientId", patientId) }
+            )
+        }
+
         binding.btnShareReport.setOnClickListener { shareReport() }
+
+        binding.btnExportZip.setOnClickListener { exportZip() }
 
         binding.btnUploadDrive.setOnClickListener { startDriveUpload() }
 
@@ -158,6 +171,7 @@ class PatientSessionFragment : Fragment() {
     // Actions
 
     private fun openPlayer(recording: LungRecordingEntity, point: LungPoint) {
+        if (!isAdded || _binding == null) return
         findNavController().navigate(
             R.id.action_session_to_player,
             Bundle().apply {
@@ -201,8 +215,9 @@ class PatientSessionFragment : Fragment() {
             .setTitle(getString(R.string.delete_recording_title))
             .setMessage("$fileName ${getString(R.string.delete_recording_message)}")
             .setPositiveButton(getString(R.string.btn_delete_confirm)) { _, _ ->
+                val ctx = requireContext()
                 viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
-                    val db = LungsDatabase.getInstance(requireContext())
+                    val db = LungsDatabase.getInstance(ctx)
                     db.lungRecordingDao().deleteById(recording.id)
                     try { File(recording.filePath).delete() } catch (_: Exception) {}
                 }
@@ -291,6 +306,72 @@ class PatientSessionFragment : Fragment() {
                 }
             } finally {
                 if (isAdded) binding.btnUploadDrive.isEnabled = true
+            }
+        }
+    }
+
+    private fun exportZip() {
+        val recordings = adapter.currentItems()
+            .filterIsInstance<SessionListItem.PointRow>()
+            .mapNotNull { it.recording }
+
+        if (recordings.size < 16) {
+            Toast.makeText(
+                requireContext(),
+                getString(R.string.zip_incomplete, recordings.size),
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        binding.btnExportZip.isEnabled = false
+
+        // Capture context before switching to IO — requireContext() is unsafe on background threads
+        val ctx = requireContext()
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val zipFile = withContext(Dispatchers.IO) {
+                    val seqStr = "%02d".format(patientSeqNum)
+                    val dest = File(ctx.filesDir, "Patient_${seqStr}.zip")
+                    ZipOutputStream(BufferedOutputStream(FileOutputStream(dest))).use { zos ->
+                        recordings.forEach { recording ->
+                            val wav = File(recording.filePath)
+                            if (wav.exists()) {
+                                zos.putNextEntry(ZipEntry(wav.name))
+                                wav.inputStream().use { it.copyTo(zos) }
+                                zos.closeEntry()
+                            }
+                        }
+                    }
+                    dest
+                }
+
+                if (!isAdded || _binding == null) return@launch
+
+                val uri = FileProvider.getUriForFile(
+                    ctx,
+                    "${ctx.packageName}.fileprovider",
+                    zipFile
+                )
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = "application/zip"
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    putExtra(Intent.EXTRA_SUBJECT, zipFile.name)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                startActivity(Intent.createChooser(intent, zipFile.name))
+
+            } catch (e: Exception) {
+                if (isAdded) {
+                    Toast.makeText(
+                        requireContext(),
+                        "${getString(R.string.zip_export_failed)}: ${e.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            } finally {
+                if (isAdded) binding.btnExportZip.isEnabled = true
             }
         }
     }

@@ -40,6 +40,7 @@ drawable ic_arrow_back
 drawable ic_check
 drawable ic_cloud_upload
 drawable ic_delete
+drawable ic_edit
 drawable ic_launcher_foreground
 drawable ic_lungs
 drawable ic_lungs_outline
@@ -48,6 +49,7 @@ drawable ic_recording_start1
 drawable ic_recording_stop
 drawable ic_share
 drawable ic_volume_up
+drawable ic_zip
 drawable icon_taal
 drawable placeholder_anterior_left
 drawable placeholder_anterior_right
@@ -77,6 +79,7 @@ id action_lungs_recording_to_player
 id action_patient_form_to_placement
 id action_placement_to_recording
 id action_saved_to_session
+id action_session_to_edit_patient
 id action_session_to_placement
 id action_session_to_player
 id ampLabel
@@ -91,6 +94,8 @@ id backButton
 id btnAddPatient
 id btnContinueRecording
 id btnDelete
+id btnEditPatient
+id btnExportZip
 id btnInchConverter
 id btnNext
 id btnPlay
@@ -190,12 +195,14 @@ string btn_continue_recording
 string btn_delete_confirm
 string btn_discard
 string btn_discard_confirm
+string btn_export_zip
 string btn_finish
 string btn_keep
 string btn_next
 string btn_next_region
 string btn_record_again
 string btn_save
+string btn_save_changes
 string btn_share_report
 string btn_upload_drive
 string convert_inch_to_cm
@@ -217,6 +224,7 @@ string label_weight
 string lungs_filter_active
 string no_patients_yet
 string open_in_drive
+string patient_edit_title
 string patient_form_title
 string placement_title
 string play_recording
@@ -241,6 +249,8 @@ string upload_preparing
 string upload_progress
 string upload_title
 string view_saved_patients
+string zip_export_failed
+string zip_incomplete
 style TaalText.Timer
 style Theme.LungsApp
 xml file_provider_paths

@@ -44,6 +44,10 @@
         "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/drawable/point_aill.png"
     },
     {
+        "merged": "com.musediagnostics.taal.lungs.lungs-app-debug-53:/drawable_ic_edit.xml.flat",
+        "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/drawable/ic_edit.xml"
+    },
+    {
         "merged": "com.musediagnostics.taal.lungs.lungs-app-debug-53:/layout_fragment_placement.xml.flat",
         "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/fragment_placement.xml"
     },
@@ -186,6 +190,10 @@
     {
         "merged": "com.musediagnostics.taal.lungs.lungs-app-debug-53:/drawable_bg_point_button_pending.xml.flat",
         "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/drawable/bg_point_button_pending.xml"
+    },
+    {
+        "merged": "com.musediagnostics.taal.lungs.lungs-app-debug-53:/drawable_ic_zip.xml.flat",
+        "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/drawable/ic_zip.xml"
     },
     {
         "merged": "com.musediagnostics.taal.lungs.lungs-app-debug-53:/drawable_placeholder_anterior_right.png.flat",

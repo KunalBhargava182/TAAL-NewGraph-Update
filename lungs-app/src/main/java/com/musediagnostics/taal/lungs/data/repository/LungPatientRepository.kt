@@ -14,5 +14,7 @@ class LungPatientRepository(private val dao: LungPatientDao) {
 
     suspend fun getNextSequenceNumber(): Int = dao.getCount() + 1
 
+    suspend fun update(patient: LungPatientEntity) = dao.update(patient)
+
     suspend fun deleteById(id: Long) = dao.deleteById(id)
 }

@@ -3,8 +3,7 @@ package com.musediagnostics.taal.lungs.domain
 /**
  * The 4 sequential anatomical regions shown one at a time in PlacementFragment.
  * Each region has a placeholder drawable that will be replaced with real anatomy images.
- * xFraction and yFraction (0.0–1.0) are relative to the anatomy ImageView bounds and
- * will be adjusted once real images are finalized.
+ * xFraction and yFraction (0.0–1.0) are relative to the anatomy ImageView bounds.
  */
 enum class LungRegion(
     val label: String,
@@ -36,35 +35,47 @@ data class LungPoint(
 )
 
 /**
- * All 16 lung auscultation points grouped by region.
- * Coordinates are mapped to align with the 1, 2, 3, 4 numbered markers on the base images.
+ * All 16 lung auscultation points.
+ *
+ * Coordinates calibrated against the standardised 1792x2400 placeholder images
+ * (Anterior R/L and Posterior R/L) generated for the app.
+ *
+ * Convention used in the images:
+ *   - R label is on the viewer's LEFT, L label is on the viewer's RIGHT (radiological convention).
+ *   - "Anterior Right" highlights the patient's right lung (viewer's left side of image).
+ *   - "Anterior Left"  highlights the patient's left lung  (viewer's right side of image).
+ *   - "Posterior Right" highlights the right side of the back (viewer's left of spine).
+ *   - "Posterior Left"  highlights the left side of the back  (viewer's right of spine).
+ *
+ * Anterior dots follow the mid-clavicular line at standard ICS levels.
+ * Posterior dots follow the paravertebral (paraspinal) line on the highlighted side.
  */
 object LungPoints {
 
     val all: List<LungPoint> = listOf(
-        // Region 1: Anterior Right (Front Right)
-        LungPoint("aar",  "Apex Right",     LungRegion.ANTERIOR_RIGHT, 0.61f, 0.32f),
-        LungPoint("aslr", "Superior Right", LungRegion.ANTERIOR_RIGHT, 0.66f, 0.41f),
-        LungPoint("amlr", "Middle Right",   LungRegion.ANTERIOR_RIGHT, 0.71f, 0.52f),
-        LungPoint("ailr", "Inferior Right", LungRegion.ANTERIOR_RIGHT, 0.72f, 0.64f),
+        // Region 1: Anterior Right (patient's right lung — appears on viewer's LEFT)
+        LungPoint("aar",  "Apex Right",     LungRegion.ANTERIOR_RIGHT, 0.40f, 0.32f),
+        LungPoint("aslr", "Superior Right", LungRegion.ANTERIOR_RIGHT, 0.36f, 0.40f),
+        LungPoint("amlr", "Middle Right",   LungRegion.ANTERIOR_RIGHT, 0.36f, 0.48f),
+        LungPoint("ailr", "Inferior Right", LungRegion.ANTERIOR_RIGHT, 0.36f, 0.57f),
 
-        // Region 2: Anterior Left (Front Left)
-        LungPoint("aal",  "Apex Left",            LungRegion.ANTERIOR_LEFT,  0.50f, 0.28f),
-        LungPoint("asll", "Superior Left",        LungRegion.ANTERIOR_LEFT,  0.32f, 0.40f),
-        LungPoint("amll", "Middle Left",          LungRegion.ANTERIOR_LEFT,  0.30f, 0.51f),
-        LungPoint("aill", "Inferior Left",        LungRegion.ANTERIOR_LEFT,  0.27f, 0.63f),
+        // Region 2: Anterior Left (patient's left lung — appears on viewer's RIGHT)
+        LungPoint("aal",  "Apex Left",     LungRegion.ANTERIOR_LEFT, 0.61f, 0.31f),
+        LungPoint("asll", "Superior Left", LungRegion.ANTERIOR_LEFT, 0.65f, 0.38f),
+        LungPoint("amll", "Middle Left",   LungRegion.ANTERIOR_LEFT, 0.66f, 0.48f),
+        LungPoint("aill", "Inferior Left", LungRegion.ANTERIOR_LEFT, 0.66f, 0.58f),
 
-        // Region 3: Posterior Right (Back Right)
-        LungPoint("par",  "Post. Apex Right",     LungRegion.POSTERIOR_RIGHT, 0.63f, 0.33f),
-        LungPoint("pslr", "Post. Superior Right", LungRegion.POSTERIOR_RIGHT, 0.59f, 0.44f),
-        LungPoint("pmlr", "Post. Middle Right",   LungRegion.POSTERIOR_RIGHT, 0.59f, 0.55f),
-        LungPoint("pilr", "Post. Inferior Right", LungRegion.POSTERIOR_RIGHT, 0.60f, 0.65f),
+        // Region 3: Posterior Right (paraspinal, viewer's LEFT of spine)
+        LungPoint("par",  "Post. Apex Right",     LungRegion.POSTERIOR_RIGHT, 0.42f, 0.35f),
+        LungPoint("pslr", "Post. Superior Right", LungRegion.POSTERIOR_RIGHT, 0.42f, 0.43f),
+        LungPoint("pmlr", "Post. Middle Right",   LungRegion.POSTERIOR_RIGHT, 0.42f, 0.50f),
+        LungPoint("pilr", "Post. Inferior Right", LungRegion.POSTERIOR_RIGHT, 0.42f, 0.58f),
 
-        // Region 4: Posterior Left (Back Left)
-        LungPoint("pal",  "Post. Apex Left",      LungRegion.POSTERIOR_LEFT,  0.41f, 0.34f),
-        LungPoint("psll", "Post. Superior Left",  LungRegion.POSTERIOR_LEFT,  0.41f, 0.44f),
-        LungPoint("pmll", "Post. Middle Left",    LungRegion.POSTERIOR_LEFT,  0.41f, 0.56f),
-        LungPoint("pill", "Post. Inferior Left",  LungRegion.POSTERIOR_LEFT,  0.41f, 0.67f)
+        // Region 4: Posterior Left (paraspinal, viewer's RIGHT of spine)
+        LungPoint("pal",  "Post. Apex Left",     LungRegion.POSTERIOR_LEFT, 0.59f, 0.34f),
+        LungPoint("psll", "Post. Superior Left", LungRegion.POSTERIOR_LEFT, 0.59f, 0.40f),
+        LungPoint("pmll", "Post. Middle Left",   LungRegion.POSTERIOR_LEFT, 0.59f, 0.48f),
+        LungPoint("pill", "Post. Inferior Left", LungRegion.POSTERIOR_LEFT, 0.59f, 0.58f)
     )
 
     fun byRegion(region: LungRegion): List<LungPoint> = all.filter { it.region == region }

@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import com.musediagnostics.taal.lungs.data.db.entity.LungPatientEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -21,6 +22,9 @@ interface LungPatientDao {
 
     @Query("SELECT COUNT(*) FROM lung_patients")
     suspend fun getCount(): Int
+
+    @Update
+    suspend fun update(patient: LungPatientEntity)
 
     @Query("DELETE FROM lung_patients WHERE id = :id")
     suspend fun deleteById(id: Long)

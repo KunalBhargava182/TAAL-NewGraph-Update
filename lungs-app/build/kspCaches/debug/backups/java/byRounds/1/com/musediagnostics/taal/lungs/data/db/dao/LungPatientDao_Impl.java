@@ -5,6 +5,7 @@ import android.os.CancellationSignal;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.room.CoroutinesRoom;
+import androidx.room.EntityDeletionOrUpdateAdapter;
 import androidx.room.EntityInsertionAdapter;
 import androidx.room.RoomDatabase;
 import androidx.room.RoomSQLiteQuery;
@@ -37,6 +38,8 @@ public final class LungPatientDao_Impl implements LungPatientDao {
 
   private final EntityInsertionAdapter<LungPatientEntity> __insertionAdapterOfLungPatientEntity;
 
+  private final EntityDeletionOrUpdateAdapter<LungPatientEntity> __updateAdapterOfLungPatientEntity;
+
   private final SharedSQLiteStatement __preparedStmtOfDeleteById;
 
   public LungPatientDao_Impl(@NonNull final RoomDatabase __db) {
@@ -62,6 +65,28 @@ public final class LungPatientDao_Impl implements LungPatientDao {
         statement.bindLong(9, entity.getCreatedAt());
       }
     };
+    this.__updateAdapterOfLungPatientEntity = new EntityDeletionOrUpdateAdapter<LungPatientEntity>(__db) {
+      @Override
+      @NonNull
+      protected String createQuery() {
+        return "UPDATE OR ABORT `lung_patients` SET `id` = ?,`sequenceNumber` = ?,`sex` = ?,`age` = ?,`chestCircumferenceCm` = ?,`heightCm` = ?,`weightKg` = ?,`bmi` = ?,`createdAt` = ? WHERE `id` = ?";
+      }
+
+      @Override
+      protected void bind(@NonNull final SupportSQLiteStatement statement,
+          @NonNull final LungPatientEntity entity) {
+        statement.bindLong(1, entity.getId());
+        statement.bindLong(2, entity.getSequenceNumber());
+        statement.bindString(3, entity.getSex());
+        statement.bindLong(4, entity.getAge());
+        statement.bindDouble(5, entity.getChestCircumferenceCm());
+        statement.bindDouble(6, entity.getHeightCm());
+        statement.bindDouble(7, entity.getWeightKg());
+        statement.bindDouble(8, entity.getBmi());
+        statement.bindLong(9, entity.getCreatedAt());
+        statement.bindLong(10, entity.getId());
+      }
+    };
     this.__preparedStmtOfDeleteById = new SharedSQLiteStatement(__db) {
       @Override
       @NonNull
@@ -84,6 +109,25 @@ public final class LungPatientDao_Impl implements LungPatientDao {
           final Long _result = __insertionAdapterOfLungPatientEntity.insertAndReturnId(patient);
           __db.setTransactionSuccessful();
           return _result;
+        } finally {
+          __db.endTransaction();
+        }
+      }
+    }, $completion);
+  }
+
+  @Override
+  public Object update(final LungPatientEntity patient,
+      final Continuation<? super Unit> $completion) {
+    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
+      @Override
+      @NonNull
+      public Unit call() throws Exception {
+        __db.beginTransaction();
+        try {
+          __updateAdapterOfLungPatientEntity.handle(patient);
+          __db.setTransactionSuccessful();
+          return Unit.INSTANCE;
         } finally {
           __db.endTransaction();
         }

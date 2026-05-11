@@ -256,10 +256,13 @@ class LungsPlayerFragment : Fragment() {
         binding.saveButton.isEnabled = false
         binding.saveButton.text = getString(R.string.saving_recording)
 
+        // Capture context before switching to IO — requireContext() is unsafe on background threads
+        val ctx = requireContext()
+
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
             try {
                 val seqStr = "%02d".format(patientSeqNum)
-                val destDir = File(requireContext().filesDir, "lungs/$seqStr")
+                val destDir = File(ctx.filesDir, "lungs/$seqStr")
                 destDir.mkdirs()
 
                 val destFile = File(destDir, "${seqStr}_${pointCode}.wav")
@@ -282,7 +285,7 @@ class LungsPlayerFragment : Fragment() {
                 } catch (_: Exception) { 0 }
 
                 // Insert into Room
-                val db = LungsDatabase.getInstance(requireContext())
+                val db = LungsDatabase.getInstance(ctx)
                 db.lungRecordingDao().insert(
                     LungRecordingEntity(
                         patientId = patientId,

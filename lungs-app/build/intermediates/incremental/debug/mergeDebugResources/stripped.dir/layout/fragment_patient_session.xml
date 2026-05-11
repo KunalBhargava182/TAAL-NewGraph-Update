@@ -29,14 +29,39 @@
 
         <TextView
             android:id="@+id/screenTitle"
-            android:layout_width="wrap_content"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:text="@string/session_title"
             android:textColor="@color/text_primary"
             android:textSize="18sp"
             android:textStyle="bold"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
+            android:gravity="center"
+            app:layout_constraintStart_toEndOf="@id/backButton"
+            app:layout_constraintEnd_toStartOf="@id/btnExportZip"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent" />
+
+        <ImageButton
+            android:id="@+id/btnEditPatient"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_edit"
+            android:contentDescription="Edit patient"
+            app:tint="@color/text_primary"
+            app:layout_constraintEnd_toStartOf="@id/btnShareReport"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent" />
+
+        <ImageButton
+            android:id="@+id/btnExportZip"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_zip"
+            android:contentDescription="Export ZIP"
+            app:tint="@color/text_primary"
+            app:layout_constraintEnd_toStartOf="@id/btnEditPatient"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent" />
 
@@ -47,7 +72,7 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@drawable/ic_cloud_upload"
             android:contentDescription="Upload to Drive"
-            app:layout_constraintEnd_toStartOf="@id/btnShareReport"
+            app:layout_constraintEnd_toStartOf="@id/btnExportZip"
             app:layout_constraintTop_toTopOf="parent"
             android:visibility="gone"
             app:layout_constraintBottom_toBottomOf="parent" />

@@ -16,13 +16,18 @@ import com.musediagnostics.taal.lungs.data.db.LungsDatabase
 import com.musediagnostics.taal.lungs.data.db.entity.LungPatientEntity
 import com.musediagnostics.taal.lungs.data.repository.LungPatientRepository
 import com.musediagnostics.taal.lungs.databinding.FragmentPatientFormBinding
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class PatientFormFragment : Fragment() {
 
     private var _binding: FragmentPatientFormBinding? = null
     private val binding get() = _binding!!
     private val viewModel: PatientFormViewModel by viewModels()
+
+    // -1L = new patient mode; any other value = edit mode
+    private var editPatientId: Long = -1L
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -34,14 +39,33 @@ class PatientFormFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        editPatientId = arguments?.getLong("patientId") ?: -1L
+        val isEditMode = editPatientId != -1L
+
         binding.backButton.setOnClickListener { findNavController().navigateUp() }
 
-        // Pre-load next patient sequence number
         val db = LungsDatabase.getInstance(requireContext())
         val repo = LungPatientRepository(db.lungPatientDao())
-        viewLifecycleOwner.lifecycleScope.launch {
-            val nextSeq = repo.getNextSequenceNumber()
-            binding.patientIdValue.text = "%02d".format(nextSeq)
+
+        if (isEditMode) {
+            // ── Edit mode ─────────────────────────────────────────────────────
+            binding.btnNext.text = getString(R.string.btn_save_changes)
+
+            viewLifecycleOwner.lifecycleScope.launch {
+                val patient = withContext(Dispatchers.IO) { repo.getById(editPatientId) }
+                if (patient == null) {
+                    toast("Patient not found")
+                    findNavController().navigateUp()
+                    return@launch
+                }
+                populateForm(patient)
+            }
+        } else {
+            // ── New patient mode ───────────────────────────────────────────────
+            viewLifecycleOwner.lifecycleScope.launch {
+                val nextSeq = withContext(Dispatchers.IO) { repo.getNextSequenceNumber() }
+                binding.patientIdValue.text = "%02d".format(nextSeq)
+            }
         }
 
         // Height watcher → update ViewModel
@@ -80,7 +104,6 @@ class PatientFormFragment : Fragment() {
                 if (inches != null) {
                     val cm = inches * 2.54f
                     binding.tvConvertedCm.text = "%.1f cm".format(cm)
-                    // Auto-fill the chest circumference field
                     binding.etChest.setText("%.1f".format(cm))
                 } else {
                     binding.tvConvertedCm.text = "-- cm"
@@ -90,25 +113,46 @@ class PatientFormFragment : Fragment() {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
         })
 
-        binding.btnNext.setOnClickListener { validateAndProceed(repo) }
+        binding.btnNext.setOnClickListener {
+            if (isEditMode) saveEdit(repo) else validateAndProceed(repo)
+        }
     }
 
-    private fun validateAndProceed(repo: LungPatientRepository) {
-        val selectedSexId = binding.chipGroupSex.checkedChipId
-        val sex = when (selectedSexId) {
-            R.id.chipMale -> "Male"
+    /** Pre-fill all fields with the existing patient's data. */
+    private fun populateForm(patient: LungPatientEntity) {
+        binding.patientIdValue.text = "%02d".format(patient.sequenceNumber)
+
+        when (patient.sex) {
+            "Male"   -> binding.chipGroupSex.check(R.id.chipMale)
+            "Female" -> binding.chipGroupSex.check(R.id.chipFemale)
+            "Other"  -> binding.chipGroupSex.check(R.id.chipOther)
+        }
+        binding.etAge.setText(patient.age.toString())
+        binding.etChest.setText("%.1f".format(patient.chestCircumferenceCm))
+        binding.etHeight.setText("%.1f".format(patient.heightCm))
+        binding.etWeight.setText("%.1f".format(patient.weightKg))
+
+        // Seed ViewModel so BMI MediatorLiveData fires immediately
+        viewModel.setHeight(patient.heightCm)
+        viewModel.setWeight(patient.weightKg)
+    }
+
+    /** Validate → UPDATE existing patient → pop back to session screen. */
+    private fun saveEdit(repo: LungPatientRepository) {
+        val sex = when (binding.chipGroupSex.checkedChipId) {
+            R.id.chipMale   -> "Male"
             R.id.chipFemale -> "Female"
-            R.id.chipOther -> "Other"
+            R.id.chipOther  -> "Other"
             else -> null
         }
-        val age = binding.etAge.text.toString().toIntOrNull()
-        val chest = binding.etChest.text.toString().toFloatOrNull()
+        val age    = binding.etAge.text.toString().toIntOrNull()
+        val chest  = binding.etChest.text.toString().toFloatOrNull()
         val height = binding.etHeight.text.toString().toFloatOrNull()
         val weight = binding.etWeight.text.toString().toFloatOrNull()
 
-        if (sex == null) { toast("Please select sex"); return }
-        if (age == null || age <= 0) { toast("Please enter a valid age"); return }
-        if (chest == null || chest <= 0) { toast("Please enter chest circumference"); return }
+        if (sex == null)               { toast("Please select sex"); return }
+        if (age == null || age <= 0)   { toast("Please enter a valid age"); return }
+        if (chest == null || chest <= 0)  { toast("Please enter chest circumference"); return }
         if (height == null || height <= 0) { toast("Please enter height"); return }
         if (weight == null || weight <= 0) { toast("Please enter weight"); return }
 
@@ -117,25 +161,78 @@ class PatientFormFragment : Fragment() {
         binding.btnNext.isEnabled = false
 
         viewLifecycleOwner.lifecycleScope.launch {
-            val seqNum = repo.getNextSequenceNumber()
-            val patient = LungPatientEntity(
-                sequenceNumber = seqNum,
-                sex = sex,
-                age = age,
-                chestCircumferenceCm = chest,
-                heightCm = height,
-                weightKg = weight,
-                bmi = bmi
-            )
-            val newId = repo.insert(patient)
-
-            findNavController().navigate(
-                R.id.action_patient_form_to_placement,
-                Bundle().apply {
-                    putLong("patientId", newId)
-                    putInt("patientSeqNum", seqNum)
+            try {
+                val existing = withContext(Dispatchers.IO) { repo.getById(editPatientId) }
+                if (!isAdded || _binding == null) return@launch
+                if (existing == null) {
+                    toast("Patient not found")
+                    return@launch
                 }
-            )
+                val updated = existing.copy(
+                    sex = sex,
+                    age = age,
+                    chestCircumferenceCm = chest,
+                    heightCm = height,
+                    weightKg = weight,
+                    bmi = bmi
+                )
+                withContext(Dispatchers.IO) { repo.update(updated) }
+                if (!isAdded || _binding == null) return@launch
+                findNavController().navigateUp()
+            } finally {
+                if (isAdded) binding.btnNext.isEnabled = true
+            }
+        }
+    }
+
+    /** Validate → INSERT new patient → navigate to placement. */
+    private fun validateAndProceed(repo: LungPatientRepository) {
+        val sex = when (binding.chipGroupSex.checkedChipId) {
+            R.id.chipMale   -> "Male"
+            R.id.chipFemale -> "Female"
+            R.id.chipOther  -> "Other"
+            else -> null
+        }
+        val age    = binding.etAge.text.toString().toIntOrNull()
+        val chest  = binding.etChest.text.toString().toFloatOrNull()
+        val height = binding.etHeight.text.toString().toFloatOrNull()
+        val weight = binding.etWeight.text.toString().toFloatOrNull()
+
+        if (sex == null)               { toast("Please select sex"); return }
+        if (age == null || age <= 0)   { toast("Please enter a valid age"); return }
+        if (chest == null || chest <= 0)  { toast("Please enter chest circumference"); return }
+        if (height == null || height <= 0) { toast("Please enter height"); return }
+        if (weight == null || weight <= 0) { toast("Please enter weight"); return }
+
+        val bmi = weight / ((height / 100f) * (height / 100f))
+
+        binding.btnNext.isEnabled = false
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val seqNum = withContext(Dispatchers.IO) { repo.getNextSequenceNumber() }
+                if (!isAdded || _binding == null) return@launch
+                val patient = LungPatientEntity(
+                    sequenceNumber = seqNum,
+                    sex = sex,
+                    age = age,
+                    chestCircumferenceCm = chest,
+                    heightCm = height,
+                    weightKg = weight,
+                    bmi = bmi
+                )
+                val newId = withContext(Dispatchers.IO) { repo.insert(patient) }
+                if (!isAdded || _binding == null) return@launch
+                findNavController().navigate(
+                    R.id.action_patient_form_to_placement,
+                    Bundle().apply {
+                        putLong("patientId", newId)
+                        putInt("patientSeqNum", seqNum)
+                    }
+                )
+            } finally {
+                if (isAdded) binding.btnNext.isEnabled = true
+            }
         }
     }
 

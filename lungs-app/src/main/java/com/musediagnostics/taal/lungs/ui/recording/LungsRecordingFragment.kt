@@ -46,6 +46,8 @@ class LungsRecordingFragment : Fragment() {
     private var lastPeakUpdateTime = 0L
     private var totalSamplesProcessed = 0L
 
+    private var autoStopTriggered = false
+
     // Nav args
     private var patientId: Long = -1L
     private var patientSeqNum: Int = 1
@@ -58,6 +60,7 @@ class LungsRecordingFragment : Fragment() {
         private const val WARMUP_MS = 2000L
         private const val HEADROOM = 1.5f
         private const val MIN_PEAK = 0.02f
+        private const val MAX_RECORDING_SECONDS = 20
     }
 
     private val permissionLauncher = registerForActivityResult(
@@ -274,6 +277,10 @@ class LungsRecordingFragment : Fragment() {
                             if (isAdded && _binding != null) {
                                 updateWaveform(timeStamp, displayData)
                                 viewModel.updateTimer(timeStamp.toInt())
+                                if (timeStamp >= MAX_RECORDING_SECONDS && !autoStopTriggered) {
+                                    autoStopTriggered = true
+                                    stopRecording()
+                                }
                             }
                         }
                     }
@@ -281,6 +288,7 @@ class LungsRecordingFragment : Fragment() {
             }
 
             // Reset waveform state
+            autoStopTriggered = false
             waveformEntries.clear()
             waveformDataSet = null
             peakAmplitude = 1.0f; warmupPeak = 0f; warmupDone = false
@@ -321,6 +329,7 @@ class LungsRecordingFragment : Fragment() {
     }
 
     private fun resetToIdle() {
+        autoStopTriggered = false
         viewModel.setUiState(LungsRecordingUiState.IDLE)
         viewModel.currentRecordingPath = ""
         viewModel.currentFilteredPath = ""

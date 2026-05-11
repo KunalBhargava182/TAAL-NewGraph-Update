@@ -132,7 +132,9 @@
       "Read(//c/Users/kunal/AppData/Local/Android/Sdk/platform-tools/**)",
       "Bash(\"/c/Users/kunal/AppData/Local/Android/Sdk/platform-tools/adb.exe\" logcat:*)",
       "Bash(/c/Users/kunal/AppData/Local/Android/Sdk/platform-tools/adb.exe devices:*)",
-      "Bash(\"/c/Users/kunal/AppData/Local/Android/Sdk/platform-tools/adb.exe\" -s \"adb-d5f21fe2-NNYSiG._adb-tls-connect._tcp\" logcat -d)"
+      "Bash(\"/c/Users/kunal/AppData/Local/Android/Sdk/platform-tools/adb.exe\" -s \"adb-d5f21fe2-NNYSiG._adb-tls-connect._tcp\" logcat -d)",
+      "Bash(Get-ChildItem -Path \"E:\\\\AndroidProjects\\\\TaalDemoApp\\\\lungs-app\" -Recurse -Filter \"*.kt\" -File)",
+      "Bash(Select-Object -ExpandProperty FullName)"
     ]
   }
 }

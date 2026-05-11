@@ -31,6 +31,12 @@ public final class FragmentPatientSessionBinding implements ViewBinding {
   public final Button btnContinueRecording;
 
   @NonNull
+  public final ImageButton btnEditPatient;
+
+  @NonNull
+  public final ImageButton btnExportZip;
+
+  @NonNull
   public final ImageButton btnShareReport;
 
   @NonNull
@@ -83,6 +89,7 @@ public final class FragmentPatientSessionBinding implements ViewBinding {
 
   private FragmentPatientSessionBinding(@NonNull ConstraintLayout rootView,
       @NonNull ImageButton backButton, @NonNull Button btnContinueRecording,
+      @NonNull ImageButton btnEditPatient, @NonNull ImageButton btnExportZip,
       @NonNull ImageButton btnShareReport, @NonNull ImageButton btnUploadDrive,
       @NonNull MaterialCardView patientInfoCard, @NonNull LinearLayout recordingHeaderRow,
       @NonNull MaterialCardView recordingsCard, @NonNull RecyclerView recyclerRecordings,
@@ -93,6 +100,8 @@ public final class FragmentPatientSessionBinding implements ViewBinding {
     this.rootView = rootView;
     this.backButton = backButton;
     this.btnContinueRecording = btnContinueRecording;
+    this.btnEditPatient = btnEditPatient;
+    this.btnExportZip = btnExportZip;
     this.btnShareReport = btnShareReport;
     this.btnUploadDrive = btnUploadDrive;
     this.patientInfoCard = patientInfoCard;
@@ -148,6 +157,18 @@ public final class FragmentPatientSessionBinding implements ViewBinding {
       id = R.id.btnContinueRecording;
       Button btnContinueRecording = ViewBindings.findChildViewById(rootView, id);
       if (btnContinueRecording == null) {
+        break missingId;
+      }
+
+      id = R.id.btnEditPatient;
+      ImageButton btnEditPatient = ViewBindings.findChildViewById(rootView, id);
+      if (btnEditPatient == null) {
+        break missingId;
+      }
+
+      id = R.id.btnExportZip;
+      ImageButton btnExportZip = ViewBindings.findChildViewById(rootView, id);
+      if (btnExportZip == null) {
         break missingId;
       }
 
@@ -254,9 +275,10 @@ public final class FragmentPatientSessionBinding implements ViewBinding {
       }
 
       return new FragmentPatientSessionBinding((ConstraintLayout) rootView, backButton,
-          btnContinueRecording, btnShareReport, btnUploadDrive, patientInfoCard, recordingHeaderRow,
-          recordingsCard, recyclerRecordings, screenTitle, topBar, tvAge, tvBmi, tvChest,
-          tvCreatedAt, tvHeight, tvPatientTitle, tvRecordingCount, tvSex, tvWeight);
+          btnContinueRecording, btnEditPatient, btnExportZip, btnShareReport, btnUploadDrive,
+          patientInfoCard, recordingHeaderRow, recordingsCard, recyclerRecordings, screenTitle,
+          topBar, tvAge, tvBmi, tvChest, tvCreatedAt, tvHeight, tvPatientTitle, tvRecordingCount,
+          tvSex, tvWeight);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));

@@ -18,6 +18,8 @@
     <string name="label_weight">Weight (kg)</string>
     <string name="label_bmi">BMI (auto-calculated)</string>
     <string name="btn_next">Next</string>
+    <string name="btn_save_changes">Save Changes</string>
+    <string name="patient_edit_title">Edit Patient</string>
     <string name="convert_inch_to_cm">inch → cm</string>
     <string name="inch_converter_hint">Enter inches</string>
 
@@ -65,6 +67,11 @@
     <string name="session_complete">All 16 points recorded</string>
     <string name="session_partial">%1$d / 16 points recorded</string>
     <string name="file_not_found">File not found</string>
+
+    <!-- ZIP Export -->
+    <string name="btn_export_zip">Export ZIP</string>
+    <string name="zip_incomplete">%1$d / 16 recordings done — export requires all 16.</string>
+    <string name="zip_export_failed">Export failed</string>
 
     <!-- Drive Upload -->
     <string name="btn_upload_drive">Upload to Drive</string>

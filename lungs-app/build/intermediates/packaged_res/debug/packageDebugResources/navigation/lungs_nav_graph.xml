@@ -17,11 +17,15 @@
             app:destination="@id/savedPatientsFragment" />
     </fragment>
 
-    <!-- Patient details form -->
+    <!-- Patient details form (new: patientId=-1, edit: patientId=existing id) -->
     <fragment
         android:id="@+id/patientFormFragment"
         android:name="com.musediagnostics.taal.lungs.ui.patient.PatientFormFragment"
         android:label="Patient Details">
+        <argument
+            android:name="patientId"
+            app:argType="long"
+            android:defaultValue="-1L" />
         <action
             android:id="@+id/action_patient_form_to_placement"
             app:destination="@id/placementFragment" />
@@ -118,6 +122,9 @@
         <action
             android:id="@+id/action_session_to_player"
             app:destination="@id/lungsPlayerFragment" />
+        <action
+            android:id="@+id/action_session_to_edit_patient"
+            app:destination="@id/patientFormFragment" />
     </fragment>
 
 </navigation>

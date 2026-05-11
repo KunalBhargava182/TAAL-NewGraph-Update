@@ -1,6 +1,7 @@
 package com.musediagnostics.taal.lungs.ui.placement
 
 import android.graphics.Color
+import android.graphics.RectF
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -69,6 +70,7 @@ class PlacementFragment : Fragment() {
                 if (isSyncingTab) return
                 viewModel.setRegion(tab.position)
             }
+
             override fun onTabUnselected(tab: TabLayout.Tab) {}
             override fun onTabReselected(tab: TabLayout.Tab) {}
         })
@@ -143,11 +145,32 @@ class PlacementFragment : Fragment() {
         }
     }
 
+    /**
+     * Returns the actual displayed image rect within anatomyImage (fitCenter scaleType).
+     * On different screen sizes the image letterboxes — dots must be placed relative to
+     * this rect, not the full container, so they stay on the correct anatomy location.
+     * Falls back to the full container rect if the drawable has no intrinsic size.
+     */
+    private fun getImageDisplayRect(): RectF {
+        val iv = binding.anatomyImage
+        val drawable = iv.drawable
+        val iw = drawable?.intrinsicWidth?.toFloat() ?: 0f
+        val ih = drawable?.intrinsicHeight?.toFloat() ?: 0f
+        val vw = iv.width.toFloat()
+        val vh = iv.height.toFloat()
+        if (iw <= 0f || ih <= 0f || vw <= 0f || vh <= 0f) {
+            return RectF(0f, 0f, vw, vh)
+        }
+        val scale = minOf(vw / iw, vh / ih)
+        val dw = iw * scale
+        val dh = ih * scale
+        val left = (vw - dw) / 2f
+        val top = (vh - dh) / 2f
+        return RectF(left, top, left + dw, top + dh)
+    }
+
     private fun addPointButton(
-        point: LungPoint,
-        isDone: Boolean,
-        containerW: Float,
-        containerH: Float
+        point: LungPoint, isDone: Boolean, containerW: Float, containerH: Float
     ) {
         val btnSize = resources.getDimensionPixelSize(R.dimen.point_button_size)
         val btn = TextView(requireContext()).apply {
@@ -156,17 +179,19 @@ class PlacementFragment : Fragment() {
             setTextColor(Color.WHITE)
             gravity = android.view.Gravity.CENTER
             background = ContextCompat.getDrawable(
-                requireContext(),
-                if (isDone) R.drawable.bg_point_button_done
+                requireContext(), if (isDone) R.drawable.bg_point_button_done
                 else R.drawable.bg_point_button_pending
             )
             isEnabled = !isDone
             alpha = if (isDone) 0.8f else 1.0f
         }
 
+        // Position relative to the actual displayed image area (accounts for fitCenter
+        // letterboxing so dots stay on the same anatomy point on every screen size).
+        val imgRect = getImageDisplayRect()
         val params = FrameLayout.LayoutParams(btnSize, btnSize).apply {
-            leftMargin = (containerW * point.xFraction - btnSize / 2).toInt()
-            topMargin = (containerH * point.yFraction - btnSize / 2).toInt()
+            leftMargin = (imgRect.left + imgRect.width() * point.xFraction - btnSize / 2).toInt()
+            topMargin = (imgRect.top + imgRect.height() * point.yFraction - btnSize / 2).toInt()
         }
 
         // ── Touch handler ────────────────────────────────────────────────────────
@@ -182,10 +207,9 @@ class PlacementFragment : Fragment() {
         // the hasDragged branch inside ACTION_UP below.
         // ─────────────────────────────────────────────────────────────────────
 
-        // Variables used by the drag logic (kept so the commented code still compiles when restored)
-        @Suppress("UNUSED_VARIABLE") var touchOffsetX = 0f
-        @Suppress("UNUSED_VARIABLE") var touchOffsetY = 0f
-        @Suppress("UNUSED_VARIABLE") var hasDragged = false
+        var touchOffsetX = 0f
+        var touchOffsetY = 0f
+        var hasDragged = false
 
         btn.setOnTouchListener { v, event ->
             val lp = v.layoutParams as FrameLayout.LayoutParams
@@ -199,52 +223,42 @@ class PlacementFragment : Fragment() {
                     true
                 }
 
-                android.view.MotionEvent.ACTION_MOVE -> {
-                    // ── DRAG DISABLED FOR TESTING ──────────────────────────────────────
-                    // Uncomment this entire block to restore drag-to-calibrate behaviour.
-                    //
-                    // val containerLoc = IntArray(2)
-                    // binding.anatomyContainer.getLocationOnScreen(containerLoc)
-                    // val newLeft = (event.rawX - containerLoc[0] - touchOffsetX)
-                    //     .toInt().coerceIn(0, containerW.toInt() - v.width)
-                    // val newTop = (event.rawY - containerLoc[1] - touchOffsetY)
-                    //     .toInt().coerceIn(0, containerH.toInt() - v.height)
-                    // if (Math.abs(newLeft - lp.leftMargin) > 8 || Math.abs(newTop - lp.topMargin) > 8) {
-                    //     hasDragged = true
-                    // }
-                    // lp.leftMargin = newLeft
-                    // lp.topMargin = newTop
-                    // v.layoutParams = lp
-                    // ──────────────────────────────────────────────────────────────────
-                    true
-                }
+                // DRAG-TO-CALIBRATE disabled — re-enable when needed:
+//                android.view.MotionEvent.ACTION_MOVE -> {
+//                    val containerLoc = IntArray(2)
+//                    binding.anatomyContainer.getLocationOnScreen(containerLoc)
+//                    val newLeft = (event.rawX - containerLoc[0] - touchOffsetX).toInt()
+//                        .coerceIn(0, containerW.toInt() - v.width)
+//                    val newTop = (event.rawY - containerLoc[1] - touchOffsetY).toInt()
+//                        .coerceIn(0, containerH.toInt() - v.height)
+//                    if (Math.abs(newLeft - lp.leftMargin) > 8 || Math.abs(newTop - lp.topMargin) > 8) {
+//                        hasDragged = true
+//                    }
+//                    lp.leftMargin = newLeft
+//                    lp.topMargin = newTop
+//                    v.layoutParams = lp
+//                    true
+//                }
 
                 android.view.MotionEvent.ACTION_UP -> {
-                    // ── DRAG TOAST DISABLED FOR TESTING ───────────────────────────────
-                    // Uncomment this block (together with ACTION_MOVE above) to restore
-                    // the calibration toast that prints the new x/y fractions.
-                    //
-                    // if (hasDragged) {
-                    //     val newXFrac = (lp.leftMargin + v.width / 2f) / containerW
-                    //     val newYFrac = (lp.topMargin + v.height / 2f) / containerH
-                    //     android.widget.Toast.makeText(
-                    //         requireContext(),
-                    //         "${point.code}: x=${"%.2f".format(newXFrac)}f, y=${"%.2f".format(newYFrac)}f",
-                    //         android.widget.Toast.LENGTH_LONG
-                    //     ).show()
-                    // } else
-                    // ──────────────────────────────────────────────────────────────────
-
-                    // TAP — navigate to recording screen (only for points not yet recorded)
-                    if (!isDone) {
+                    if (hasDragged) {
+                        val r = getImageDisplayRect()
+                        val newXFrac = ((lp.leftMargin + v.width / 2f) - r.left) / r.width()
+                        val newYFrac = ((lp.topMargin + v.height / 2f) - r.top) / r.height()
+                        android.widget.Toast.makeText(
+                            requireContext(), "${point.code}: x=${"%.2f".format(newXFrac)}f, y=${
+                                "%.2f".format(
+                                    newYFrac
+                                )
+                            }f", android.widget.Toast.LENGTH_LONG
+                        ).show()
+                    } else if (!isDone && isAdded && _binding != null) {
                         findNavController().navigate(
-                            R.id.action_placement_to_recording,
-                            Bundle().apply {
+                            R.id.action_placement_to_recording, Bundle().apply {
                                 putLong("patientId", patientId)
                                 putInt("patientSeqNum", patientSeqNum)
                                 putString("pointCode", point.code)
-                            }
-                        )
+                            })
                     }
                     true
                 }
