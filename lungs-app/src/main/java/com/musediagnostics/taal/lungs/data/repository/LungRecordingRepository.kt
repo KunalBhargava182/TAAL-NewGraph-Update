@@ -9,13 +9,19 @@ class LungRecordingRepository(private val dao: LungRecordingDao) {
     fun getRecordingsForPatient(patientId: Long): Flow<List<LungRecordingEntity>> =
         dao.getRecordingsForPatient(patientId)
 
+    fun getRecordingsForSession(sessionId: Long): Flow<List<LungRecordingEntity>> =
+        dao.getRecordingsForSession(sessionId)
+
     suspend fun insert(recording: LungRecordingEntity): Long = dao.insert(recording)
 
     suspend fun getRecordingCountForPatient(patientId: Long): Int =
         dao.getRecordingCountForPatient(patientId)
 
-    suspend fun getRecordingForPoint(patientId: Long, pointCode: String): LungRecordingEntity? =
-        dao.getRecordingForPoint(patientId, pointCode)
+    suspend fun getRecordingCountForSession(sessionId: Long): Int =
+        dao.getRecordingCountForSession(sessionId)
+
+    suspend fun getRecordingForPointInSession(sessionId: Long, pointCode: String): LungRecordingEntity? =
+        dao.getRecordingForPointInSession(sessionId, pointCode)
 
     suspend fun deleteById(id: Long) = dao.deleteById(id)
 }

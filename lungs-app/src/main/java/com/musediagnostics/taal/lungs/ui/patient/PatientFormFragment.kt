@@ -10,11 +10,14 @@ import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
+import androidx.navigation.NavOptions
 import androidx.navigation.fragment.findNavController
 import com.musediagnostics.taal.lungs.R
 import com.musediagnostics.taal.lungs.data.db.LungsDatabase
 import com.musediagnostics.taal.lungs.data.db.entity.LungPatientEntity
+import com.musediagnostics.taal.lungs.data.db.entity.LungSessionEntity
 import com.musediagnostics.taal.lungs.data.repository.LungPatientRepository
+import com.musediagnostics.taal.lungs.data.repository.LungSessionRepository
 import com.musediagnostics.taal.lungs.databinding.FragmentPatientFormBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -46,6 +49,7 @@ class PatientFormFragment : Fragment() {
 
         val db = LungsDatabase.getInstance(requireContext())
         val repo = LungPatientRepository(db.lungPatientDao())
+        val sessionRepo = LungSessionRepository(db.lungSessionDao())
 
         if (isEditMode) {
             // ── Edit mode ─────────────────────────────────────────────────────
@@ -114,7 +118,7 @@ class PatientFormFragment : Fragment() {
         })
 
         binding.btnNext.setOnClickListener {
-            if (isEditMode) saveEdit(repo) else validateAndProceed(repo)
+            if (isEditMode) saveEdit(repo) else validateAndProceed(repo, sessionRepo)
         }
     }
 
@@ -185,8 +189,8 @@ class PatientFormFragment : Fragment() {
         }
     }
 
-    /** Validate → INSERT new patient → navigate to placement. */
-    private fun validateAndProceed(repo: LungPatientRepository) {
+    /** Validate → INSERT new patient + Session 1 → navigate to placement. */
+    private fun validateAndProceed(repo: LungPatientRepository, sessionRepo: LungSessionRepository) {
         val sex = when (binding.chipGroupSex.checkedChipId) {
             R.id.chipMale   -> "Male"
             R.id.chipFemale -> "Female"
@@ -223,12 +227,21 @@ class PatientFormFragment : Fragment() {
                 )
                 val newId = withContext(Dispatchers.IO) { repo.insert(patient) }
                 if (!isAdded || _binding == null) return@launch
+                val sessionId = withContext(Dispatchers.IO) {
+                    sessionRepo.insert(LungSessionEntity(patientId = newId, sessionNumber = 1))
+                }
+                if (!isAdded || _binding == null) return@launch
                 findNavController().navigate(
                     R.id.action_patient_form_to_placement,
                     Bundle().apply {
                         putLong("patientId", newId)
                         putInt("patientSeqNum", seqNum)
-                    }
+                        putLong("sessionId", sessionId)
+                        putInt("sessionNumber", 1)
+                    },
+                    NavOptions.Builder()
+                        .setPopUpTo(R.id.homeFragment, false)
+                        .build()
                 )
             } finally {
                 if (isAdded) binding.btnNext.isEnabled = true

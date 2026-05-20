@@ -13,15 +13,22 @@ import androidx.room.PrimaryKey
             parentColumns = ["id"],
             childColumns = ["patientId"],
             onDelete = ForeignKey.CASCADE
+        ),
+        ForeignKey(
+            entity = LungSessionEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["sessionId"],
+            onDelete = ForeignKey.CASCADE
         )
     ],
-    indices = [Index("patientId")]
+    indices = [Index("patientId"), Index("sessionId")]
 )
 data class LungRecordingEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val patientId: Long,
-    val pointCode: String,             // e.g., "aar", "pslr", "pill"
-    val filePath: String,              // absolute path: filesDir/lungs/{seqNum}/{seqNum}_{pointCode}.wav
+    val sessionId: Long,
+    val pointCode: String,
+    val filePath: String,
     val durationSeconds: Int,
     val createdAt: Long = System.currentTimeMillis()
 )

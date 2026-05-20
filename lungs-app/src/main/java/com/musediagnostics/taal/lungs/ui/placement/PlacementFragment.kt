@@ -9,6 +9,7 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.core.content.ContextCompat
+import androidx.core.view.doOnLayout
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
@@ -29,6 +30,8 @@ class PlacementFragment : Fragment() {
 
     private var patientId: Long = -1L
     private var patientSeqNum: Int = 1
+    private var sessionId: Long = -1L
+    private var sessionNumber: Int = 1
 
     /** Prevents the tab-selected listener from calling setRegion during programmatic tab sync. */
     private var isSyncingTab = false
@@ -48,10 +51,12 @@ class PlacementFragment : Fragment() {
 
         patientId = arguments?.getLong("patientId") ?: -1L
         patientSeqNum = arguments?.getInt("patientSeqNum") ?: 1
+        sessionId = arguments?.getLong("sessionId") ?: -1L
+        sessionNumber = arguments?.getInt("sessionNumber") ?: 1
 
         val db = LungsDatabase.getInstance(requireContext())
         val repo = LungRecordingRepository(db.lungRecordingDao())
-        viewModel.init(patientId, repo)
+        viewModel.init(sessionId, repo)
 
         binding.backButton.setOnClickListener { findNavController().navigateUp() }
 
@@ -116,11 +121,16 @@ class PlacementFragment : Fragment() {
             if (_binding == null) return@Runnable
             val extra2 = binding.anatomyContainer.childCount - 1
             if (extra2 > 0) binding.anatomyContainer.removeViews(1, extra2)
-            val containerW = binding.anatomyContainer.width.toFloat()
-            val containerH = binding.anatomyContainer.height.toFloat()
-            if (containerW > 0 && containerH > 0) {
-                points.forEach { point ->
-                    addPointButton(point, doneCodes[point.code] == true, containerW, containerH)
+            binding.anatomyImage.doOnLayout {
+                if (_binding == null) return@doOnLayout
+                val extra3 = binding.anatomyContainer.childCount - 1
+                if (extra3 > 0) binding.anatomyContainer.removeViews(1, extra3)
+                val containerW = binding.anatomyContainer.width.toFloat()
+                val containerH = binding.anatomyContainer.height.toFloat()
+                if (containerW > 0 && containerH > 0) {
+                    points.forEach { point ->
+                        addPointButton(point, doneCodes[point.code] == true, containerW, containerH)
+                    }
                 }
             }
         }
@@ -137,8 +147,10 @@ class PlacementFragment : Fragment() {
             binding.nextRegionButton.isEnabled = true
             binding.nextRegionButton.alpha = 1f
             binding.nextRegionButton.setOnClickListener {
-                // Pop all the way back to Home
-                findNavController().popBackStack(R.id.homeFragment, false)
+                // Return to sessions list if navigated from there, otherwise home
+                if (!findNavController().popBackStack(R.id.patientSessionsListFragment, false)) {
+                    findNavController().popBackStack(R.id.homeFragment, false)
+                }
             }
         } else {
             binding.nextRegionButton.text = getString(R.string.btn_next_region)
@@ -257,6 +269,8 @@ class PlacementFragment : Fragment() {
                             R.id.action_placement_to_recording, Bundle().apply {
                                 putLong("patientId", patientId)
                                 putInt("patientSeqNum", patientSeqNum)
+                                putLong("sessionId", sessionId)
+                                putInt("sessionNumber", sessionNumber)
                                 putString("pointCode", point.code)
                             })
                     }

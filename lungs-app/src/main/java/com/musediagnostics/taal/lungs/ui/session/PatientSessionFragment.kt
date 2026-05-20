@@ -56,6 +56,8 @@ class PatientSessionFragment : Fragment() {
 
     private var patientId: Long = -1L
     private var patientSeqNum: Int = 1
+    private var sessionId: Long = -1L
+    private var sessionNumber: Int = 1
     private var currentPatient: LungPatientEntity? = null
 
     private lateinit var adapter: SessionAdapter
@@ -72,6 +74,8 @@ class PatientSessionFragment : Fragment() {
 
         patientId = arguments?.getLong("patientId") ?: -1L
         patientSeqNum = arguments?.getInt("patientSeqNum") ?: 1
+        sessionId = arguments?.getLong("sessionId") ?: -1L
+        sessionNumber = arguments?.getInt("sessionNumber") ?: 1
 
         binding.backButton.setOnClickListener { findNavController().navigateUp() }
 
@@ -86,6 +90,16 @@ class PatientSessionFragment : Fragment() {
 
         binding.btnExportZip.setOnClickListener { exportZip() }
 
+        binding.btnDenoiser.setOnClickListener {
+            findNavController().navigate(
+                R.id.action_session_to_denoiser,
+                Bundle().apply {
+                    putLong("patientId", patientId)
+                    putInt("patientSeqNum", patientSeqNum)
+                }
+            )
+        }
+
         binding.btnUploadDrive.setOnClickListener { startDriveUpload() }
 
         binding.btnContinueRecording.setOnClickListener {
@@ -94,6 +108,8 @@ class PatientSessionFragment : Fragment() {
                 Bundle().apply {
                     putLong("patientId", patientId)
                     putInt("patientSeqNum", patientSeqNum)
+                    putLong("sessionId", sessionId)
+                    putInt("sessionNumber", sessionNumber)
                 }
             )
         }
@@ -118,9 +134,9 @@ class PatientSessionFragment : Fragment() {
             patient?.let { displayPatient(it) }
         }
 
-        // Observe recordings reactively (handles deletions too)
+        // Observe recordings for this session only
         viewLifecycleOwner.lifecycleScope.launch {
-            recordingRepo.getRecordingsForPatient(patientId).collectLatest { recordings ->
+            recordingRepo.getRecordingsForSession(sessionId).collectLatest { recordings ->
                 val items = buildSessionList(recordings)
                 adapter.submitList(items)
                 val count = recordings.size
@@ -138,8 +154,8 @@ class PatientSessionFragment : Fragment() {
     // Patient info
 
     private fun displayPatient(p: LungPatientEntity) {
-        binding.screenTitle.text = "Patient %02d — Session".format(p.sequenceNumber)
-        binding.tvPatientTitle.text = "Patient %02d".format(p.sequenceNumber)
+        binding.screenTitle.text = "Patient %02d.%d".format(p.sequenceNumber, sessionNumber)
+        binding.tvPatientTitle.text = "Patient %02d — Session %d".format(p.sequenceNumber, sessionNumber)
         binding.tvSex.text = p.sex
         binding.tvAge.text = "${p.age} yrs"
         binding.tvBmi.text = "%.1f".format(p.bmi)
@@ -179,6 +195,8 @@ class PatientSessionFragment : Fragment() {
                 putString("rawFilePath", "")
                 putLong("patientId", patientId)
                 putInt("patientSeqNum", patientSeqNum)
+                putLong("sessionId", sessionId)
+                putInt("sessionNumber", sessionNumber)
                 putString("pointCode", point.code)
                 putBoolean("isReviewMode", true)
             }
@@ -333,7 +351,7 @@ class PatientSessionFragment : Fragment() {
             try {
                 val zipFile = withContext(Dispatchers.IO) {
                     val seqStr = "%02d".format(patientSeqNum)
-                    val dest = File(ctx.filesDir, "Patient_${seqStr}.zip")
+                    val dest = File(ctx.filesDir, "Patient_${seqStr}.${sessionNumber}.zip")
                     ZipOutputStream(BufferedOutputStream(FileOutputStream(dest))).use { zos ->
                         recordings.forEach { recording ->
                             val wav = File(recording.filePath)

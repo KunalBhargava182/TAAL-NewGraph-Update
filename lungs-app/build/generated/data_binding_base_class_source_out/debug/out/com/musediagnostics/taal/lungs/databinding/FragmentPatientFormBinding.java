@@ -14,6 +14,7 @@ import androidx.core.widget.NestedScrollView;
 import androidx.viewbinding.ViewBinding;
 import androidx.viewbinding.ViewBindings;
 import com.google.android.material.button.MaterialButton;
+import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.chip.Chip;
 import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.textfield.TextInputEditText;
@@ -35,6 +36,12 @@ public final class FragmentPatientFormBinding implements ViewBinding {
 
   @NonNull
   public final MaterialButton btnNext;
+
+  @NonNull
+  public final MaterialCardView cardBmi;
+
+  @NonNull
+  public final MaterialCardView cardPatientId;
 
   @NonNull
   public final Chip chipFemale;
@@ -67,16 +74,13 @@ public final class FragmentPatientFormBinding implements ViewBinding {
   public final LinearLayout inchConverterRow;
 
   @NonNull
-  public final TextView labelBmi;
-
-  @NonNull
-  public final TextView labelPatientId;
-
-  @NonNull
   public final TextView labelSex;
 
   @NonNull
   public final TextView patientIdValue;
+
+  @NonNull
+  public final LinearLayout rowHeightWeight;
 
   @NonNull
   public final TextInputLayout tilAge;
@@ -104,13 +108,14 @@ public final class FragmentPatientFormBinding implements ViewBinding {
 
   private FragmentPatientFormBinding(@NonNull NestedScrollView rootView,
       @NonNull ImageButton backButton, @NonNull MaterialButton btnInchConverter,
-      @NonNull MaterialButton btnNext, @NonNull Chip chipFemale, @NonNull ChipGroup chipGroupSex,
-      @NonNull Chip chipMale, @NonNull Chip chipOther, @NonNull TextInputEditText etAge,
-      @NonNull TextInputEditText etChest, @NonNull TextInputEditText etHeight,
-      @NonNull TextInputEditText etInches, @NonNull TextInputEditText etWeight,
-      @NonNull LinearLayout inchConverterRow, @NonNull TextView labelBmi,
-      @NonNull TextView labelPatientId, @NonNull TextView labelSex,
-      @NonNull TextView patientIdValue, @NonNull TextInputLayout tilAge,
+      @NonNull MaterialButton btnNext, @NonNull MaterialCardView cardBmi,
+      @NonNull MaterialCardView cardPatientId, @NonNull Chip chipFemale,
+      @NonNull ChipGroup chipGroupSex, @NonNull Chip chipMale, @NonNull Chip chipOther,
+      @NonNull TextInputEditText etAge, @NonNull TextInputEditText etChest,
+      @NonNull TextInputEditText etHeight, @NonNull TextInputEditText etInches,
+      @NonNull TextInputEditText etWeight, @NonNull LinearLayout inchConverterRow,
+      @NonNull TextView labelSex, @NonNull TextView patientIdValue,
+      @NonNull LinearLayout rowHeightWeight, @NonNull TextInputLayout tilAge,
       @NonNull TextInputLayout tilChest, @NonNull TextInputLayout tilHeight,
       @NonNull TextInputLayout tilInches, @NonNull TextInputLayout tilWeight,
       @NonNull ConstraintLayout topBar, @NonNull TextView tvBmi, @NonNull TextView tvConvertedCm) {
@@ -118,6 +123,8 @@ public final class FragmentPatientFormBinding implements ViewBinding {
     this.backButton = backButton;
     this.btnInchConverter = btnInchConverter;
     this.btnNext = btnNext;
+    this.cardBmi = cardBmi;
+    this.cardPatientId = cardPatientId;
     this.chipFemale = chipFemale;
     this.chipGroupSex = chipGroupSex;
     this.chipMale = chipMale;
@@ -128,10 +135,9 @@ public final class FragmentPatientFormBinding implements ViewBinding {
     this.etInches = etInches;
     this.etWeight = etWeight;
     this.inchConverterRow = inchConverterRow;
-    this.labelBmi = labelBmi;
-    this.labelPatientId = labelPatientId;
     this.labelSex = labelSex;
     this.patientIdValue = patientIdValue;
+    this.rowHeightWeight = rowHeightWeight;
     this.tilAge = tilAge;
     this.tilChest = tilChest;
     this.tilHeight = tilHeight;
@@ -184,6 +190,18 @@ public final class FragmentPatientFormBinding implements ViewBinding {
       id = R.id.btnNext;
       MaterialButton btnNext = ViewBindings.findChildViewById(rootView, id);
       if (btnNext == null) {
+        break missingId;
+      }
+
+      id = R.id.cardBmi;
+      MaterialCardView cardBmi = ViewBindings.findChildViewById(rootView, id);
+      if (cardBmi == null) {
+        break missingId;
+      }
+
+      id = R.id.cardPatientId;
+      MaterialCardView cardPatientId = ViewBindings.findChildViewById(rootView, id);
+      if (cardPatientId == null) {
         break missingId;
       }
 
@@ -247,18 +265,6 @@ public final class FragmentPatientFormBinding implements ViewBinding {
         break missingId;
       }
 
-      id = R.id.labelBmi;
-      TextView labelBmi = ViewBindings.findChildViewById(rootView, id);
-      if (labelBmi == null) {
-        break missingId;
-      }
-
-      id = R.id.labelPatientId;
-      TextView labelPatientId = ViewBindings.findChildViewById(rootView, id);
-      if (labelPatientId == null) {
-        break missingId;
-      }
-
       id = R.id.labelSex;
       TextView labelSex = ViewBindings.findChildViewById(rootView, id);
       if (labelSex == null) {
@@ -268,6 +274,12 @@ public final class FragmentPatientFormBinding implements ViewBinding {
       id = R.id.patientIdValue;
       TextView patientIdValue = ViewBindings.findChildViewById(rootView, id);
       if (patientIdValue == null) {
+        break missingId;
+      }
+
+      id = R.id.rowHeightWeight;
+      LinearLayout rowHeightWeight = ViewBindings.findChildViewById(rootView, id);
+      if (rowHeightWeight == null) {
         break missingId;
       }
 
@@ -320,10 +332,10 @@ public final class FragmentPatientFormBinding implements ViewBinding {
       }
 
       return new FragmentPatientFormBinding((NestedScrollView) rootView, backButton,
-          btnInchConverter, btnNext, chipFemale, chipGroupSex, chipMale, chipOther, etAge, etChest,
-          etHeight, etInches, etWeight, inchConverterRow, labelBmi, labelPatientId, labelSex,
-          patientIdValue, tilAge, tilChest, tilHeight, tilInches, tilWeight, topBar, tvBmi,
-          tvConvertedCm);
+          btnInchConverter, btnNext, cardBmi, cardPatientId, chipFemale, chipGroupSex, chipMale,
+          chipOther, etAge, etChest, etHeight, etInches, etWeight, inchConverterRow, labelSex,
+          patientIdValue, rowHeightWeight, tilAge, tilChest, tilHeight, tilInches, tilWeight,
+          topBar, tvBmi, tvConvertedCm);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));

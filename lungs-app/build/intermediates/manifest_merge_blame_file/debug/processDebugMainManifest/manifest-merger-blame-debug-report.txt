@@ -47,8 +47,8 @@
 29-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:13:5-44:19
 30        android:name="com.musediagnostics.taal.lungs.LungsApplication"
 30-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:14:9-41
-31        android:allowBackup="true"
-31-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:15:9-35
+31        android:allowBackup="false"
+31-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:15:9-36
 32        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
 32-->[androidx.core:core:1.12.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\6b72184f8aca7fd115d76680139b0e9b\transformed\core-1.12.0\AndroidManifest.xml:28:18-86
 33        android:debuggable="true"

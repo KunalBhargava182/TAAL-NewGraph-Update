@@ -12,6 +12,7 @@ import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.viewbinding.ViewBinding;
 import androidx.viewbinding.ViewBindings;
 import com.google.android.material.button.MaterialButton;
+import com.google.android.material.card.MaterialCardView;
 import com.musediagnostics.taal.lungs.R;
 import java.lang.NullPointerException;
 import java.lang.Override;
@@ -36,15 +37,20 @@ public final class FragmentHomeBinding implements ViewBinding {
   @NonNull
   public final MaterialButton btnViewSaved;
 
+  @NonNull
+  public final MaterialCardView iconContainer;
+
   private FragmentHomeBinding(@NonNull ConstraintLayout rootView, @NonNull ImageView appIcon,
       @NonNull TextView appSubtitle, @NonNull TextView appTitle,
-      @NonNull MaterialButton btnAddPatient, @NonNull MaterialButton btnViewSaved) {
+      @NonNull MaterialButton btnAddPatient, @NonNull MaterialButton btnViewSaved,
+      @NonNull MaterialCardView iconContainer) {
     this.rootView = rootView;
     this.appIcon = appIcon;
     this.appSubtitle = appSubtitle;
     this.appTitle = appTitle;
     this.btnAddPatient = btnAddPatient;
     this.btnViewSaved = btnViewSaved;
+    this.iconContainer = iconContainer;
   }
 
   @Override
@@ -104,8 +110,14 @@ public final class FragmentHomeBinding implements ViewBinding {
         break missingId;
       }
 
+      id = R.id.iconContainer;
+      MaterialCardView iconContainer = ViewBindings.findChildViewById(rootView, id);
+      if (iconContainer == null) {
+        break missingId;
+      }
+
       return new FragmentHomeBinding((ConstraintLayout) rootView, appIcon, appSubtitle, appTitle,
-          btnAddPatient, btnViewSaved);
+          btnAddPatient, btnViewSaved, iconContainer);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));

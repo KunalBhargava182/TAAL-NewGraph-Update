@@ -31,6 +31,9 @@ public final class FragmentPatientSessionBinding implements ViewBinding {
   public final Button btnContinueRecording;
 
   @NonNull
+  public final ImageButton btnDenoiser;
+
+  @NonNull
   public final ImageButton btnEditPatient;
 
   @NonNull
@@ -89,17 +92,19 @@ public final class FragmentPatientSessionBinding implements ViewBinding {
 
   private FragmentPatientSessionBinding(@NonNull ConstraintLayout rootView,
       @NonNull ImageButton backButton, @NonNull Button btnContinueRecording,
-      @NonNull ImageButton btnEditPatient, @NonNull ImageButton btnExportZip,
-      @NonNull ImageButton btnShareReport, @NonNull ImageButton btnUploadDrive,
-      @NonNull MaterialCardView patientInfoCard, @NonNull LinearLayout recordingHeaderRow,
-      @NonNull MaterialCardView recordingsCard, @NonNull RecyclerView recyclerRecordings,
-      @NonNull TextView screenTitle, @NonNull ConstraintLayout topBar, @NonNull TextView tvAge,
-      @NonNull TextView tvBmi, @NonNull TextView tvChest, @NonNull TextView tvCreatedAt,
-      @NonNull TextView tvHeight, @NonNull TextView tvPatientTitle,
-      @NonNull TextView tvRecordingCount, @NonNull TextView tvSex, @NonNull TextView tvWeight) {
+      @NonNull ImageButton btnDenoiser, @NonNull ImageButton btnEditPatient,
+      @NonNull ImageButton btnExportZip, @NonNull ImageButton btnShareReport,
+      @NonNull ImageButton btnUploadDrive, @NonNull MaterialCardView patientInfoCard,
+      @NonNull LinearLayout recordingHeaderRow, @NonNull MaterialCardView recordingsCard,
+      @NonNull RecyclerView recyclerRecordings, @NonNull TextView screenTitle,
+      @NonNull ConstraintLayout topBar, @NonNull TextView tvAge, @NonNull TextView tvBmi,
+      @NonNull TextView tvChest, @NonNull TextView tvCreatedAt, @NonNull TextView tvHeight,
+      @NonNull TextView tvPatientTitle, @NonNull TextView tvRecordingCount, @NonNull TextView tvSex,
+      @NonNull TextView tvWeight) {
     this.rootView = rootView;
     this.backButton = backButton;
     this.btnContinueRecording = btnContinueRecording;
+    this.btnDenoiser = btnDenoiser;
     this.btnEditPatient = btnEditPatient;
     this.btnExportZip = btnExportZip;
     this.btnShareReport = btnShareReport;
@@ -157,6 +162,12 @@ public final class FragmentPatientSessionBinding implements ViewBinding {
       id = R.id.btnContinueRecording;
       Button btnContinueRecording = ViewBindings.findChildViewById(rootView, id);
       if (btnContinueRecording == null) {
+        break missingId;
+      }
+
+      id = R.id.btnDenoiser;
+      ImageButton btnDenoiser = ViewBindings.findChildViewById(rootView, id);
+      if (btnDenoiser == null) {
         break missingId;
       }
 
@@ -275,10 +286,10 @@ public final class FragmentPatientSessionBinding implements ViewBinding {
       }
 
       return new FragmentPatientSessionBinding((ConstraintLayout) rootView, backButton,
-          btnContinueRecording, btnEditPatient, btnExportZip, btnShareReport, btnUploadDrive,
-          patientInfoCard, recordingHeaderRow, recordingsCard, recyclerRecordings, screenTitle,
-          topBar, tvAge, tvBmi, tvChest, tvCreatedAt, tvHeight, tvPatientTitle, tvRecordingCount,
-          tvSex, tvWeight);
+          btnContinueRecording, btnDenoiser, btnEditPatient, btnExportZip, btnShareReport,
+          btnUploadDrive, patientInfoCard, recordingHeaderRow, recordingsCard, recyclerRecordings,
+          screenTitle, topBar, tvAge, tvBmi, tvChest, tvCreatedAt, tvHeight, tvPatientTitle,
+          tvRecordingCount, tvSex, tvWeight);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));

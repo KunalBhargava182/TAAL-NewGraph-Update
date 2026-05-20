@@ -54,6 +54,8 @@ class LungsPlayerFragment : Fragment() {
         val rawFilePath = arguments?.getString("rawFilePath") ?: ""
         val patientId = arguments?.getLong("patientId") ?: -1L
         val patientSeqNum = arguments?.getInt("patientSeqNum") ?: 1
+        val sessionId = arguments?.getLong("sessionId") ?: -1L
+        val sessionNumber = arguments?.getInt("sessionNumber") ?: 1
         val pointCode = arguments?.getString("pointCode") ?: ""
         val isReviewMode = arguments?.getBoolean("isReviewMode") ?: false
 
@@ -86,7 +88,7 @@ class LungsPlayerFragment : Fragment() {
         }
 
         binding.saveButton.setOnClickListener {
-            saveRecording(filePath, rawFilePath, patientId, patientSeqNum, pointCode, pointLabel)
+            saveRecording(filePath, rawFilePath, patientId, patientSeqNum, sessionId, sessionNumber, pointCode, pointLabel)
         }
 
         binding.discardButton.setOnClickListener {
@@ -239,56 +241,52 @@ class LungsPlayerFragment : Fragment() {
     }
 
     /**
-     * Auto-saves the recording with the naming convention: {seqNum:02d}_{pointCode}.wav
-     * Stores it in filesDir/lungs/{seqNum:02d}/
-     * Inserts a LungRecordingEntity into Room.
-     * Pops the back stack back to PlacementFragment — Room's Flow will automatically
-     * update the placement overlay to mark this point as done.
+     * Saves the recording using versioned naming: {seqStr}.{sessionNumber}_{pointCode}.wav
+     * Stored at filesDir/lungs/{seqStr}/{sessionNumber}/
+     * e.g. Patient 01, Session 2 → lungs/01/2/01.2_aar.wav
      */
     private fun saveRecording(
         filePath: String,
         rawFilePath: String,
         patientId: Long,
         patientSeqNum: Int,
+        sessionId: Long,
+        sessionNumber: Int,
         pointCode: String,
         @Suppress("UNUSED_PARAMETER") pointLabel: String
     ) {
         binding.saveButton.isEnabled = false
         binding.saveButton.text = getString(R.string.saving_recording)
 
-        // Capture context before switching to IO — requireContext() is unsafe on background threads
         val ctx = requireContext()
 
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
             try {
                 val seqStr = "%02d".format(patientSeqNum)
-                val destDir = File(ctx.filesDir, "lungs/$seqStr")
+                val destDir = File(ctx.filesDir, "lungs/$seqStr/$sessionNumber")
                 destDir.mkdirs()
 
-                val destFile = File(destDir, "${seqStr}_${pointCode}.wav")
+                val destFile = File(destDir, "${seqStr}.${sessionNumber}_${pointCode}.wav")
                 val renamed = File(filePath).renameTo(destFile)
                 if (!renamed) {
-                    // Fallback: copy then delete
                     File(filePath).copyTo(destFile, overwrite = true)
                     File(filePath).delete()
                 }
 
-                // Delete raw temp file — not needed for lungs workflow
                 if (rawFilePath.isNotEmpty()) {
                     try { File(rawFilePath).delete() } catch (_: Exception) {}
                 }
 
-                // Compute duration from WAV byte count
                 val durationSeconds = try {
                     val size = destFile.length() - 44L
                     (size / 2L / 44100L).toInt()
                 } catch (_: Exception) { 0 }
 
-                // Insert into Room
                 val db = LungsDatabase.getInstance(ctx)
                 db.lungRecordingDao().insert(
                     LungRecordingEntity(
                         patientId = patientId,
+                        sessionId = sessionId,
                         pointCode = pointCode,
                         filePath = destFile.absolutePath,
                         durationSeconds = durationSeconds
@@ -297,8 +295,6 @@ class LungsPlayerFragment : Fragment() {
 
                 withContext(Dispatchers.Main) {
                     if (!isAdded || _binding == null) return@withContext
-                    // Pop back to PlacementFragment — its ViewModel observes Room reactively
-                    // and will auto-mark this point as done + advance region if needed.
                     findNavController().popBackStack(R.id.placementFragment, false)
                 }
 

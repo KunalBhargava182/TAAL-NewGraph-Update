@@ -36,31 +36,25 @@
         android:id="@+id/placementFragment"
         android:name="com.musediagnostics.taal.lungs.ui.placement.PlacementFragment"
         android:label="Placement">
-        <argument
-            android:name="patientId"
-            app:argType="long" />
-        <argument
-            android:name="patientSeqNum"
-            app:argType="integer" />
+        <argument android:name="patientId" app:argType="long" />
+        <argument android:name="patientSeqNum" app:argType="integer" />
+        <argument android:name="sessionId" app:argType="long" />
+        <argument android:name="sessionNumber" app:argType="integer" />
         <action
             android:id="@+id/action_placement_to_recording"
             app:destination="@id/lungsRecordingFragment" />
     </fragment>
 
-    <!-- Recording screen (adapted from taal-ui-kit, always LUNGS filter) -->
+    <!-- Recording screen (always LUNGS filter) -->
     <fragment
         android:id="@+id/lungsRecordingFragment"
         android:name="com.musediagnostics.taal.lungs.ui.recording.LungsRecordingFragment"
         android:label="Recording">
-        <argument
-            android:name="patientId"
-            app:argType="long" />
-        <argument
-            android:name="patientSeqNum"
-            app:argType="integer" />
-        <argument
-            android:name="pointCode"
-            app:argType="string" />
+        <argument android:name="patientId" app:argType="long" />
+        <argument android:name="patientSeqNum" app:argType="integer" />
+        <argument android:name="sessionId" app:argType="long" />
+        <argument android:name="sessionNumber" app:argType="integer" />
+        <argument android:name="pointCode" app:argType="string" />
         <action
             android:id="@+id/action_lungs_recording_to_player"
             app:destination="@id/lungsPlayerFragment" />
@@ -71,28 +65,14 @@
         android:id="@+id/lungsPlayerFragment"
         android:name="com.musediagnostics.taal.lungs.ui.player.LungsPlayerFragment"
         android:label="Review">
-        <argument
-            android:name="filePath"
-            app:argType="string"
-            android:defaultValue="" />
-        <argument
-            android:name="rawFilePath"
-            app:argType="string"
-            android:defaultValue="" />
-        <argument
-            android:name="patientId"
-            app:argType="long" />
-        <argument
-            android:name="patientSeqNum"
-            app:argType="integer" />
-        <argument
-            android:name="pointCode"
-            app:argType="string"
-            android:defaultValue="" />
-        <argument
-            android:name="isReviewMode"
-            app:argType="boolean"
-            android:defaultValue="false" />
+        <argument android:name="filePath" app:argType="string" android:defaultValue="" />
+        <argument android:name="rawFilePath" app:argType="string" android:defaultValue="" />
+        <argument android:name="patientId" app:argType="long" />
+        <argument android:name="patientSeqNum" app:argType="integer" />
+        <argument android:name="sessionId" app:argType="long" />
+        <argument android:name="sessionNumber" app:argType="integer" />
+        <argument android:name="pointCode" app:argType="string" android:defaultValue="" />
+        <argument android:name="isReviewMode" app:argType="boolean" android:defaultValue="false" />
     </fragment>
 
     <!-- Saved patients list -->
@@ -101,21 +81,37 @@
         android:name="com.musediagnostics.taal.lungs.ui.home.SavedPatientsFragment"
         android:label="Saved Recordings">
         <action
-            android:id="@+id/action_saved_to_session"
-            app:destination="@id/patientSessionFragment" />
+            android:id="@+id/action_saved_to_sessions_list"
+            app:destination="@id/patientSessionsListFragment" />
     </fragment>
 
-    <!-- Patient session / review screen -->
+    <!-- Sessions list for a patient (patient profile + all sessions + Record Again) -->
+    <fragment
+        android:id="@+id/patientSessionsListFragment"
+        android:name="com.musediagnostics.taal.lungs.ui.session.PatientSessionsListFragment"
+        android:label="Patient Sessions">
+        <argument android:name="patientId" app:argType="long" />
+        <argument android:name="patientSeqNum" app:argType="integer" />
+        <action
+            android:id="@+id/action_sessions_list_to_session"
+            app:destination="@id/patientSessionFragment" />
+        <action
+            android:id="@+id/action_sessions_list_to_placement"
+            app:destination="@id/placementFragment" />
+        <action
+            android:id="@+id/action_sessions_list_to_edit_patient"
+            app:destination="@id/patientFormFragment" />
+    </fragment>
+
+    <!-- Single session review screen -->
     <fragment
         android:id="@+id/patientSessionFragment"
         android:name="com.musediagnostics.taal.lungs.ui.session.PatientSessionFragment"
         android:label="Session Report">
-        <argument
-            android:name="patientId"
-            app:argType="long" />
-        <argument
-            android:name="patientSeqNum"
-            app:argType="integer" />
+        <argument android:name="patientId" app:argType="long" />
+        <argument android:name="patientSeqNum" app:argType="integer" />
+        <argument android:name="sessionId" app:argType="long" />
+        <argument android:name="sessionNumber" app:argType="integer" />
         <action
             android:id="@+id/action_session_to_placement"
             app:destination="@id/placementFragment" />
@@ -125,6 +121,21 @@
         <action
             android:id="@+id/action_session_to_edit_patient"
             app:destination="@id/patientFormFragment" />
+        <action
+            android:id="@+id/action_session_to_denoiser"
+            app:destination="@id/denoiserFragment" />
+    </fragment>
+
+    <!-- Denoiser screen -->
+    <fragment
+        android:id="@+id/denoiserFragment"
+        android:name="com.musediagnostics.taal.lungs.ui.denoiser.DenoiserFragment"
+        android:label="Denoised Recordings">
+        <argument android:name="patientId" app:argType="long" />
+        <argument android:name="patientSeqNum" app:argType="integer" />
+        <action
+            android:id="@+id/action_denoiser_to_player"
+            app:destination="@id/lungsPlayerFragment" />
     </fragment>
 
 </navigation>

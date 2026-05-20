@@ -14,6 +14,7 @@ import com.musediagnostics.taal.lungs.data.db.LungsDatabase
 import com.musediagnostics.taal.lungs.data.db.entity.LungPatientEntity
 import com.musediagnostics.taal.lungs.data.repository.LungPatientRepository
 import com.musediagnostics.taal.lungs.data.repository.LungRecordingRepository
+import com.musediagnostics.taal.lungs.data.repository.LungSessionRepository
 import com.musediagnostics.taal.lungs.databinding.FragmentSavedPatientsBinding
 import com.musediagnostics.taal.lungs.databinding.ItemPatientBinding
 import kotlinx.coroutines.CoroutineScope
@@ -42,10 +43,11 @@ class SavedPatientsFragment : Fragment() {
         val db = LungsDatabase.getInstance(requireContext())
         val patientRepo = LungPatientRepository(db.lungPatientDao())
         val recordingRepo = LungRecordingRepository(db.lungRecordingDao())
+        val sessionRepo = LungSessionRepository(db.lungSessionDao())
 
-        val adapter = PatientAdapter(recordingRepo) { patient ->
+        val adapter = PatientAdapter(recordingRepo, sessionRepo) { patient ->
             findNavController().navigate(
-                R.id.action_saved_to_session,
+                R.id.action_saved_to_sessions_list,
                 Bundle().apply {
                     putLong("patientId", patient.id)
                     putInt("patientSeqNum", patient.sequenceNumber)
@@ -73,6 +75,7 @@ class SavedPatientsFragment : Fragment() {
 
 private class PatientAdapter(
     private val recordingRepo: LungRecordingRepository,
+    private val sessionRepo: LungSessionRepository,
     private val onClick: (LungPatientEntity) -> Unit
 ) : RecyclerView.Adapter<PatientAdapter.VH>() {
 
@@ -107,7 +110,8 @@ private class PatientAdapter(
 
             scope.launch {
                 val count = recordingRepo.getRecordingCountForPatient(patient.id)
-                b.tvRecordingsCount.text = "$count / 16 recorded"
+                val sessionCount = sessionRepo.getSessionCountForPatient(patient.id).coerceAtLeast(1)
+                b.tvRecordingsCount.text = "$count / ${sessionCount * 16} recorded"
             }
         }
     }

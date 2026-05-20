@@ -24,6 +24,10 @@
         "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/drawable/placeholder_posterior_right.png"
     },
     {
+        "merged": "com.musediagnostics.taal.lungs.lungs-app-debug-53:/layout_item_denoiser_row.xml.flat",
+        "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/item_denoiser_row.xml"
+    },
+    {
         "merged": "com.musediagnostics.taal.lungs.lungs-app-debug-53:/drawable_ic_arrow_back.xml.flat",
         "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/drawable/ic_arrow_back.xml"
     },
@@ -144,6 +148,10 @@
         "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/navigation/lungs_nav_graph.xml"
     },
     {
+        "merged": "com.musediagnostics.taal.lungs.lungs-app-debug-53:/layout_item_session.xml.flat",
+        "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/item_session.xml"
+    },
+    {
         "merged": "com.musediagnostics.taal.lungs.lungs-app-debug-53:/drawable_point_psll.png.flat",
         "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/drawable/point_psll.png"
     },
@@ -156,8 +164,20 @@
         "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/item_session_header.xml"
     },
     {
+        "merged": "com.musediagnostics.taal.lungs.lungs-app-debug-53:/layout_fragment_denoiser.xml.flat",
+        "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/fragment_denoiser.xml"
+    },
+    {
+        "merged": "com.musediagnostics.taal.lungs.lungs-app-debug-53:/drawable_ic_denoiser.xml.flat",
+        "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/drawable/ic_denoiser.xml"
+    },
+    {
         "merged": "com.musediagnostics.taal.lungs.lungs-app-debug-53:/drawable_bg_record_button.xml.flat",
         "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/drawable/bg_record_button.xml"
+    },
+    {
+        "merged": "com.musediagnostics.taal.lungs.lungs-app-debug-53:/layout_fragment_patient_sessions_list.xml.flat",
+        "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/fragment_patient_sessions_list.xml"
     },
     {
         "merged": "com.musediagnostics.taal.lungs.lungs-app-debug-53:/drawable_point_aal.png.flat",

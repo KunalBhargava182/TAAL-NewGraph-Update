@@ -2,26 +2,37 @@
 
 > **Purpose of this file:** Complete technical reference for the `:lungs-app` Android module.
 > Share this file with any AI assistant to give it full context before making changes.
-> Last updated: 2026-05-08 (ZIP export, ic_zip icon, placement dot fix, crash hardening, edit patient)
+> Last updated: 2026-05-20
 
 ---
 
 ## Changelog
 
+### 2026-05-20
+- **Placement dots first-load fix** (`PlacementFragment`): Added `binding.anatomyImage.doOnLayout { }` inside the overlay runnable. Previously `anatomyContainer.post { }` could fire before the first layout pass completed, giving `anatomyImage.width = 0` and putting all dots at (0, 0). `doOnLayout` fires immediately if the view is already laid out, or waits for the first layout pass otherwise. Fix: `import androidx.core.view.doOnLayout` added; button-building code moved inside `anatomyImage.doOnLayout { }` within the existing runnable (double `removeViews` guard included inside the `doOnLayout` lambda).
+- **Duplicate patient on back-press fix** (`PatientFormFragment`): After `validateAndProceed()` inserts a new patient and navigates to `PlacementFragment`, the form stayed on the back stack. Pressing Back → patient form → pressing Next again → second patient created. Fixed by passing `NavOptions.Builder().setPopUpTo(R.id.homeFragment, false).build()` to `findNavController().navigate(...)` so the form is popped immediately on navigate. Edit mode (`saveEdit`) is unaffected.
+- **Auto-backup disabled** (`AndroidManifest.xml`): Changed `android:allowBackup="true"` → `android:allowBackup="false"` to prevent Android Auto Backup restoring the Room DB from Google Drive on reinstall — which caused phantom patients to reappear after uninstalling and reinstalling the app.
+- **Recording count denominator fix** (`SavedPatientsFragment`): Was hardcoded to `/ 16` regardless of session count. Now queries `sessionRepo.getSessionCountForPatient(patientId)` and shows `"$count / ${sessionCount * 16} recorded"` with `.coerceAtLeast(1)` guard.
+
+### 2026-05-19
+- **Multi-session support** — Full sessions feature added. Same patient can be recorded across multiple visits. See Section 8 for DB schema, Section 10 for new screens, Section 12 for updated file naming.
+  - New Room entity: `LungSessionEntity` (table `lung_sessions`)
+  - DB version bumped 1 → 2 with full migration (table recreation required for SQLite FK constraints)
+  - New screen: `PatientSessionsListFragment` — sits between `SavedPatientsFragment` and `PatientSessionFragment`
+  - "Record Again" button creates a new `LungSessionEntity` (sessionNumber = count + 1) and navigates to `PlacementFragment`
+  - `PlacementViewModel.init()` is now session-scoped (`init(sessionId, repo)` — not patientId)
+  - `sessionId` + `sessionNumber` threaded through full nav chain: PatientForm → Placement → Recording → Player
+  - Versioned file naming: `lungs/{seqStr}/{sessionNumber}/{seqStr}.{sessionNumber}_{pointCode}.wav`
+  - ZIP export named `Patient_01.2.zip` (includes sessionNumber); session title shown as `Patient 01 — Session 2`
+  - Finish button in `PlacementFragment` pops to `patientSessionsListFragment` if in back stack, else `homeFragment`
+
 ### 2026-05-08
-- **Export ZIP** (`PatientSessionFragment`): Added `btnExportZip` ImageButton (`ic_zip`) in the top bar. Always visible. Tapping it zips all 16 saved WAV files using `java.util.zip.ZipOutputStream` (no new dependency) and shares via `Intent.ACTION_SEND` type `application/zip` through the existing `FileProvider`. ZIP named `Patient_01.zip`. If < 16 recordings, shows a Toast with the count instead of exporting.
-- **Top bar layout fix** (`fragment_patient_session.xml`): `screenTitle` changed from `wrap_content` to `0dp` constrained between `backButton` and `btnExportZip` to prevent title/icon overlap on all screen widths. Top bar icon order (right→left): Share Report | Edit | Export ZIP | Upload Drive (hidden).
-- **Placement dot screen-size fix** (`PlacementFragment`): Added `getImageDisplayRect()` helper that computes the actual displayed image bounds accounting for `fitCenter` letterboxing. Dots are now positioned relative to the real image content area — not the full FrameLayout — so they land on the same anatomical point on every phone. Drag-calibration Toast fractions are also image-rect-relative so copied values stay accurate across screen sizes.
-- **Patient edit mode** (`PatientFormFragment`): Added full edit-mode support. Accepts `patientId` nav arg (`-1L` = new patient, any other = edit). In edit mode: form pre-filled, button shows "Save Changes", calls `repo.update()`. Nav action `action_session_to_edit_patient` added in `lungs_nav_graph.xml`. `btnEditPatient` (pencil icon) added to session top bar.
-- **Drag-to-calibrate toggle**: `ACTION_MOVE` block in `PlacementFragment.addPointButton()` is currently commented out (dots are fixed). Tap-to-record is active. Re-enable by uncommenting `ACTION_MOVE` block.
-- **Crash hardening** (2026-05-08):
-  - `LungsPlayerFragment.saveRecording()`: `requireContext()` was called on IO thread — captured as `val ctx` before the coroutine.
-  - `PatientSessionFragment.exportZip()`: Same `requireContext()` on IO thread fix.
-  - `PatientSessionFragment.confirmDelete()`: Same fix — `val ctx = requireContext()` captured in the dialog button lambda before `launch(Dispatchers.IO)`.
-  - `PatientSessionFragment.openPlayer()`: Added `if (!isAdded || _binding == null) return` guard — prevents crash on rapid double-tap of a play button.
-  - `PatientFormFragment.validateAndProceed()`: Added `if (!isAdded || _binding == null) return@launch` guards after each `withContext(Dispatchers.IO)` call before navigation.
-  - `PatientFormFragment.saveEdit()`: Same guards added after IO and before `navigateUp()`.
-  - `PlacementFragment.addPointButton()` tap: Added `&& isAdded && _binding != null` to the tap-to-record condition.
+- **Export ZIP** (`PatientSessionFragment`): Added `btnExportZip` ImageButton (`ic_zip`) in the top bar. Zips all 16 saved WAV files via `java.util.zip.ZipOutputStream` and shares via `Intent.ACTION_SEND`. If < 16 recordings exist, shows a Toast with count instead of exporting.
+- **Top bar layout fix** (`fragment_patient_session.xml`): `screenTitle` changed to `0dp` constrained between `backButton` and `btnExportZip` to prevent overlap.
+- **Placement dot screen-size fix** (`PlacementFragment`): `getImageDisplayRect()` computes actual displayed image bounds accounting for `fitCenter` letterboxing. Dots positioned relative to real image area, not full FrameLayout.
+- **Patient edit mode** (`PatientFormFragment`): Full edit-mode support. `patientId = -1L` = new patient; any other = edit. Pre-fills all fields, "Save Changes" button, calls `repo.update()`.
+- **Drag-to-calibrate toggle**: `ACTION_MOVE` block in `PlacementFragment.addPointButton()` is currently commented out. Tap-to-record is active.
+- **Crash hardening**: `requireContext()` captured before IO coroutines in `LungsPlayerFragment`, `PatientSessionFragment`. `isAdded && _binding != null` guards added to all fragment navigation calls.
 
 ---
 
@@ -72,7 +83,8 @@ E:\AndroidProjects\TaalDemoApp\
 | App icon | `@drawable/ic_lungs` (set in AndroidManifest for both icon + roundIcon) |
 | Entry Activity | `MainActivity` (single activity, NavHostFragment) |
 | DB name | `lungs_database` |
-| DB version | 1 |
+| DB version | **2** (bumped from 1 — sessions feature added 2026-05-19) |
+| allowBackup | `false` (prevents DB restore on reinstall) |
 
 ---
 
@@ -89,16 +101,24 @@ lungs-app/
 │       ├── LungsApplication.kt
 │       ├── data/
 │       │   ├── db/
-│       │   │   ├── LungsDatabase.kt
+│       │   │   ├── LungsDatabase.kt            ← DB v2; has MIGRATION_1_2
 │       │   │   ├── entity/
 │       │   │   │   ├── LungPatientEntity.kt
-│       │   │   │   └── LungRecordingEntity.kt
+│       │   │   │   ├── LungRecordingEntity.kt  ← now has sessionId FK
+│       │   │   │   └── LungSessionEntity.kt    ← NEW (2026-05-19)
 │       │   │   └── dao/
 │       │   │       ├── LungPatientDao.kt
-│       │   │       └── LungRecordingDao.kt
+│       │   │       ├── LungRecordingDao.kt     ← new session-scoped queries
+│       │   │       └── LungSessionDao.kt       ← NEW (2026-05-19)
 │       │   └── repository/
 │       │       ├── LungPatientRepository.kt
-│       │       └── LungRecordingRepository.kt
+│       │       ├── LungRecordingRepository.kt  ← new session-scoped methods
+│       │       └── LungSessionRepository.kt    ← NEW (2026-05-19)
+│       ├── denoiser/
+│       │   ├── CrnDenoiser.kt
+│       │   ├── LungsDenoiser.kt
+│       │   ├── StftEngine.kt
+│       │   └── WienerDenoiser.kt
 │       ├── domain/
 │       │   └── LungPoint.kt           (LungRegion enum + LungPoint data class + LungPoints object)
 │       ├── drive/
@@ -107,55 +127,63 @@ lungs-app/
 │           ├── MainActivity.kt
 │           ├── home/
 │           │   ├── HomeFragment.kt
-│           │   └── SavedPatientsFragment.kt
+│           │   └── SavedPatientsFragment.kt    ← shows sessionCount * 16 denominator
 │           ├── patient/
-│           │   ├── PatientFormFragment.kt
+│           │   ├── PatientFormFragment.kt      ← pops itself on navigate (no back-press dupe)
 │           │   └── PatientFormViewModel.kt
 │           ├── placement/
-│           │   ├── PlacementFragment.kt
-│           │   └── PlacementViewModel.kt
+│           │   ├── PlacementFragment.kt        ← doOnLayout fix; session-scoped
+│           │   └── PlacementViewModel.kt       ← init(sessionId, repo)
 │           ├── recording/
 │           │   ├── LungsRecordingFragment.kt
 │           │   └── LungsRecordingViewModel.kt
 │           ├── player/
-│           │   └── LungsPlayerFragment.kt
+│           │   └── LungsPlayerFragment.kt      ← versioned file path incl. sessionNumber
+│           ├── denoiser/
+│           │   └── DenoiserFragment.kt         ← per-patient denoiser (patient-scoped, not session-scoped)
 │           └── session/
-│               └── PatientSessionFragment.kt   (+ SessionAdapter + SessionListItem sealed class)
+│               ├── PatientSessionFragment.kt   ← session-scoped; title "Patient 01.2"
+│               └── PatientSessionsListFragment.kt ← NEW (2026-05-19): sessions list per patient
 └── src/main/res/
     ├── navigation/lungs_nav_graph.xml
     ├── xml/
-    │   └── file_provider_paths.xml             (FileProvider paths for WAV sharing)
+    │   └── file_provider_paths.xml
     ├── layout/
     │   ├── activity_main.xml
     │   ├── fragment_home.xml
     │   ├── fragment_patient_form.xml
-    │   ├── fragment_placement.xml              (now includes TabLayout for region navigation)
+    │   ├── fragment_placement.xml
     │   ├── fragment_lungs_recording.xml
-    │   ├── fragment_lungs_player.xml           (ids: playerRoot, screenTitle, saveDiscardBar)
+    │   ├── fragment_lungs_player.xml
     │   ├── fragment_saved_patients.xml
-    │   ├── fragment_patient_session.xml        (session review screen)
+    │   ├── fragment_patient_sessions_list.xml  ← NEW (2026-05-19)
+    │   ├── fragment_patient_session.xml
+    │   ├── fragment_denoiser.xml
     │   ├── item_patient.xml
-    │   ├── item_session_header.xml             (region header row in session RecyclerView)
-    │   └── item_recording.xml                 (recording row with play/share/delete buttons)
+    │   ├── item_session.xml                    ← NEW (2026-05-19): session card row
+    │   ├── item_session_header.xml
+    │   ├── item_recording.xml
+    │   └── item_denoiser_row.xml
     ├── drawable/
-    │   ├── ic_lungs.png/xml                   ← App icon + home screen logo
-    │   ├── ic_share.xml                       ← Share icon
-    │   ├── ic_delete.xml                      ← Delete/trash icon
-    │   ├── ic_cloud_upload.xml                ← Drive upload icon
+    │   ├── ic_lungs.png/xml
+    │   ├── ic_share.xml
+    │   ├── ic_delete.xml
+    │   ├── ic_cloud_upload.xml
     │   ├── ic_arrow_back.xml
-    │   ├── bg_status_dot.xml                  ← Oval dot for recording status
+    │   ├── ic_zip.xml
+    │   ├── bg_status_dot.xml
     │   ├── bg_button_teal.xml
     │   ├── bg_point_button_done.xml
     │   ├── bg_point_button_pending.xml
-    │   ├── placeholder_anterior_right.png     ← Region overview anatomy images (4 total)
+    │   ├── placeholder_anterior_right.png
     │   ├── placeholder_anterior_left.png
     │   ├── placeholder_posterior_right.png
     │   ├── placeholder_posterior_left.png
-    │   ├── point_aal.png                      ← Per-point stethoscope placement guides
-    │   ├── point_asll.png                     ← (anterior left — 4 images present)
+    │   ├── point_aal.png                      ← Per-point placement guides (Ant. Left done)
+    │   ├── point_asll.png
     │   ├── point_amll.png
     │   └── point_aill.png
-    ├── mipmap-*/                              (default launcher icons — overridden by ic_lungs in manifest)
+    ├── mipmap-*/
     └── values/
         ├── strings.xml
         ├── colors.xml
@@ -233,30 +261,47 @@ HomeFragment
   ├── [Add New Patient] → PatientFormFragment
   └── [View Saved]      → SavedPatientsFragment
 
-PatientFormFragment
-  └── [Next] (validates + inserts patient into Room) → PlacementFragment(patientId, patientSeqNum)
+PatientFormFragment (new patient mode)
+  └── [Next] validates → inserts LungPatientEntity + LungSessionEntity(sessionNumber=1)
+           → PlacementFragment(patientId, patientSeqNum, sessionId, sessionNumber=1)
+           NOTE: form is POPPED from back stack on navigate; Back from Placement → Home
 
 PlacementFragment
-  └── [tap any pending point] → LungsRecordingFragment(patientId, patientSeqNum, pointCode)
+  └── [tap pending point] → LungsRecordingFragment(patientId, patientSeqNum, sessionId, sessionNumber, pointCode)
+      [Finish / all done] → patientSessionsListFragment if in back stack, else homeFragment
       NOTE: drag-to-calibrate is disabled; tap-to-record is active
 
 LungsRecordingFragment
-  └── [Stop Recording] → LungsPlayerFragment(filePath, rawFilePath, patientId, patientSeqNum, pointCode)
+  └── [Stop Recording] → LungsPlayerFragment(filePath, rawFilePath, patientId, patientSeqNum,
+                                             sessionId, sessionNumber, pointCode)
 
 LungsPlayerFragment (new recording)
-  ├── [Save]    → auto-saves WAV → inserts Room record → popBackStack to placementFragment
+  ├── [Save]    → saves WAV to versioned path → inserts Room record → popBackStack to placementFragment
   └── [Discard] → deletes both temp files → navigateUp()
 
 SavedPatientsFragment
-  └── [tap patient card] → PatientSessionFragment(patientId, patientSeqNum)
+  └── [tap patient card] → PatientSessionsListFragment(patientId, patientSeqNum)
 
-PatientSessionFragment
-  ├── [tap point row — recorded]    → LungsPlayerFragment(isReviewMode=true) — review only, no Save/Discard bar
-  ├── [share icon on row]           → system share sheet for individual .wav file
-  ├── [delete icon on row]          → MaterialAlertDialog confirm → delete Room record + file
-  ├── [Share Report button]         → share plain-text patient summary via Intent.ACTION_SEND
-  ├── [Upload to Drive button]      → HIDDEN (visibility=gone) — Drive upload stubbed, fails with storageQuotaExceeded
-  └── [Continue Recording button]  → PlacementFragment — only shown when < 16 recordings done
+PatientSessionsListFragment                          ← NEW (2026-05-19)
+  ├── [tap session card] → PatientSessionFragment(patientId, patientSeqNum, sessionId, sessionNumber)
+  ├── [Record Again]     → creates new LungSessionEntity → PlacementFragment(new sessionId, new sessionNumber)
+  └── [Edit Patient]     → PatientFormFragment(patientId) in edit mode
+
+PatientSessionFragment (single session review)
+  ├── [tap recorded row]      → LungsPlayerFragment(isReviewMode=true)
+  ├── [share icon on row]     → system share sheet for individual .wav
+  ├── [delete icon on row]    → confirm dialog → deleteById + File.delete()
+  ├── [Share Report]          → plain-text summary via Intent.ACTION_SEND
+  ├── [Export ZIP]            → zips all WAVs for this session → Intent.ACTION_SEND
+  ├── [Denoiser]              → DenoiserFragment(patientId, patientSeqNum)
+  ├── [Edit Patient]          → PatientFormFragment in edit mode
+  ├── [Continue Recording]    → PlacementFragment (only shown when < 16 done)
+  └── [Upload to Drive]       → HIDDEN (visibility=gone — Drive upload stubbed)
+
+DenoiserFragment
+  ├── [Denoise] → runs LungsDenoiser.denoiseWav() on IO thread → saves denoised WAV
+  └── [Play]    → LungsPlayerFragment(isReviewMode=true) for denoised file
+  NOTE: patient-scoped (queries all recordings for patient, not per-session)
 ```
 
 ---
@@ -272,20 +317,30 @@ PatientSessionFragment
 | `action_patient_form_to_placement` | patientFormFragment → placementFragment |
 | `action_placement_to_recording` | placementFragment → lungsRecordingFragment |
 | `action_lungs_recording_to_player` | lungsRecordingFragment → lungsPlayerFragment |
-| `action_saved_to_session` | savedPatientsFragment → patientSessionFragment |
+| `action_saved_to_sessions_list` | savedPatientsFragment → patientSessionsListFragment |
+| `action_sessions_list_to_session` | patientSessionsListFragment → patientSessionFragment |
+| `action_sessions_list_to_placement` | patientSessionsListFragment → placementFragment |
+| `action_sessions_list_to_edit_patient` | patientSessionsListFragment → patientFormFragment |
 | `action_session_to_placement` | patientSessionFragment → placementFragment |
 | `action_session_to_player` | patientSessionFragment → lungsPlayerFragment |
 | `action_session_to_edit_patient` | patientSessionFragment → patientFormFragment (edit mode) |
+| `action_session_to_denoiser` | patientSessionFragment → denoiserFragment |
+| `action_denoiser_to_player` | denoiserFragment → lungsPlayerFragment |
 
 ### Nav Args
 
 | Fragment | Args |
 |---|---|
-| placementFragment | `patientId: long`, `patientSeqNum: int` |
-| lungsRecordingFragment | `patientId: long`, `patientSeqNum: int`, `pointCode: string` |
-| lungsPlayerFragment | `filePath: string`, `rawFilePath: string`, `patientId: long`, `patientSeqNum: int`, `pointCode: string`, `isReviewMode: boolean (default=false)` |
-| patientSessionFragment | `patientId: long`, `patientSeqNum: int` |
-| patientFormFragment (edit) | `patientId: long` (non `-1L` triggers edit mode) |
+| `patientFormFragment` | `patientId: long (default=-1L)` — `-1L` = new, any other = edit mode |
+| `placementFragment` | `patientId: long`, `patientSeqNum: int`, `sessionId: long`, `sessionNumber: int` |
+| `lungsRecordingFragment` | `patientId: long`, `patientSeqNum: int`, `sessionId: long`, `sessionNumber: int`, `pointCode: string` |
+| `lungsPlayerFragment` | `filePath: string`, `rawFilePath: string`, `patientId: long`, `patientSeqNum: int`, `sessionId: long`, `sessionNumber: int`, `pointCode: string`, `isReviewMode: boolean (default=false)` |
+| `savedPatientsFragment` | _(none)_ |
+| `patientSessionsListFragment` | `patientId: long`, `patientSeqNum: int` |
+| `patientSessionFragment` | `patientId: long`, `patientSeqNum: int`, `sessionId: long`, `sessionNumber: int` |
+| `denoiserFragment` | `patientId: long`, `patientSeqNum: int` |
+
+> **Critical nav arg rule**: `long` type default values MUST use the `L` suffix in XML (`android:defaultValue="-1L"`), otherwise Navigation throws `XmlPullParserException: Type is long but found integer` at startup.
 
 ---
 
@@ -307,10 +362,10 @@ data class LungPatientEntity(
 )
 ```
 
-### LungRecordingEntity
+### LungSessionEntity _(added DB v2)_
 ```kotlin
 @Entity(
-    tableName = "lung_recordings",
+    tableName = "lung_sessions",
     foreignKeys = [ForeignKey(
         entity = LungPatientEntity::class,
         parentColumns = ["id"], childColumns = ["patientId"],
@@ -318,9 +373,32 @@ data class LungPatientEntity(
     )],
     indices = [Index("patientId")]
 )
+data class LungSessionEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val patientId: Long,
+    val sessionNumber: Int,           // 1, 2, 3...
+    val createdAt: Long = System.currentTimeMillis()
+)
+```
+
+### LungRecordingEntity _(updated DB v2: added sessionId)_
+```kotlin
+@Entity(
+    tableName = "lung_recordings",
+    foreignKeys = [
+        ForeignKey(entity = LungPatientEntity::class,
+            parentColumns = ["id"], childColumns = ["patientId"],
+            onDelete = ForeignKey.CASCADE),
+        ForeignKey(entity = LungSessionEntity::class,
+            parentColumns = ["id"], childColumns = ["sessionId"],
+            onDelete = ForeignKey.CASCADE)
+    ],
+    indices = [Index("patientId"), Index("sessionId")]
+)
 data class LungRecordingEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val patientId: Long,
+    val sessionId: Long,              // FK → lung_sessions
     val pointCode: String,            // e.g. "aar", "pslr"
     val filePath: String,             // absolute path to saved WAV
     val durationSeconds: Int,
@@ -330,12 +408,21 @@ data class LungRecordingEntity(
 
 ### DAOs
 
-**LungPatientDao**: `insert`, `getAllPatients(): Flow`, `getById(id)`, `getCount(): Int`, `update(patient)`, `deleteById(id)`
+**LungPatientDao**: `insert`, `getAllPatients(): Flow`, `getById(id)`, `getCount(): Int`, `update(patient)`, `deleteById(id)`, `getNextSequenceNumber()` (= `getCount() + 1`)
 
-**LungRecordingDao**: `insert`, `getRecordingsForPatient(patientId): Flow`, `getRecordingCountForPatient(patientId): Int`, `getRecordingForPoint(patientId, pointCode)`, `deleteById(id)`
+**LungSessionDao** _(new)_: `insert(session): Long`, `getSessionsForPatient(patientId): Flow<List>`, `getById(id): LungSessionEntity?`, `getSessionCountForPatient(patientId): Int`
 
-### LungsDatabase
-Room singleton via `getInstance(context)` (double-checked locking). DB file: `lungs_database`, version 1, exportSchema=false.
+**LungRecordingDao**: `insert`, `getRecordingsForPatient(patientId): Flow`, `getRecordingsForSession(sessionId): Flow`, `getRecordingCountForPatient(patientId): Int`, `getRecordingCountForSession(sessionId): Int`, `getRecordingForPointInSession(sessionId, pointCode): LungRecordingEntity?`, `deleteById(id)`
+
+### LungsDatabase — Migration 1 → 2
+
+Full table recreation (SQLite `ALTER TABLE ADD COLUMN` cannot add FK constraints):
+
+1. Create `lung_sessions` table with FK CASCADE to `lung_patients`
+2. Insert `session 1` for every existing patient: `INSERT INTO lung_sessions SELECT id, 1, createdAt FROM lung_patients`
+3. Create `lung_recordings_new` with both FKs (`patientId` + `sessionId`)
+4. Copy existing recordings with JOIN to resolve `sessionId` from the just-inserted session 1
+5. Drop old `lung_recordings`, rename `lung_recordings_new`, recreate indices
 
 ---
 
@@ -352,7 +439,7 @@ enum class LungRegion(val label: String, val drawableResName: String) {
 }
 ```
 
-### All 16 LungPoints (current coordinates — updated by calibration)
+### All 16 LungPoints (current coordinates)
 
 | Code | Label | Region | xFrac | yFrac |
 |---|---|---|---|---|
@@ -375,7 +462,7 @@ enum class LungRegion(val label: String, val drawableResName: String) {
 
 ### Point image naming convention
 Per-point stethoscope placement guide images: `point_{pointCode}.png`  
-e.g. `point_aal.png`, `point_pslr.png` — placed in `lungs-app/src/main/res/drawable/`  
+e.g. `point_aal.png` — placed in `lungs-app/src/main/res/drawable/`  
 Anterior Left images are present. All others still needed.
 
 ---
@@ -390,115 +477,111 @@ Anterior Left images are present. All others still needed.
 - Fields: sex (ChipGroup: Male/Female/Other), age, chest circumference (cm), height (cm), weight (kg)
 - **BMI**: Auto-computed via `MediatorLiveData` watching height + weight — live display, `--` until both valid
 - **Inch→cm converter**: toggle row with `btnInchConverter`; auto-fills chest field
-- **Patient ID**: read-only, pre-populated via `repo.getNextSequenceNumber()` (`getCount() + 1`)
-- **New patient mode** (`patientId = -1L`): validates → inserts `LungPatientEntity` → navigate to placementFragment
-- **Edit mode** (`patientId ≠ -1L`): pre-fills all fields from DB, button shows "Save Changes" → calls `repo.update()` → `navigateUp()`
+- **Patient ID**: read-only, pre-populated via `repo.getNextSequenceNumber()`
+- **New patient mode** (`patientId = -1L`):
+  - Validates → inserts `LungPatientEntity`
+  - Immediately inserts `LungSessionEntity(patientId = newId, sessionNumber = 1)`
+  - Navigates to `PlacementFragment` with `sessionId + sessionNumber = 1`
+  - Uses `NavOptions.setPopUpTo(R.id.homeFragment, false)` → form is removed from back stack instantly; pressing Back from Placement goes to Home, not the form
+- **Edit mode** (`patientId ≠ -1L`): pre-fills all fields, "Save Changes" button, calls `repo.update()` → `navigateUp()`
 - Both flows guarded with `if (!isAdded || _binding == null) return@launch` after every IO suspend
+
+### PatientSessionsListFragment _(new 2026-05-19)_
+- Entry: from `SavedPatientsFragment` when tapping a patient card
+- **Patient info card**: shows `Patient 01` title, sex / age / BMI
+- **Sessions RecyclerView** (`item_session.xml`): badge (`S1`, `S2`), title, date, recording count (`X / 16`)
+- **Record Again button**: queries session count → creates `LungSessionEntity(sessionNumber = count + 1)` on IO → navigates to `PlacementFragment` with new `sessionId`/`sessionNumber`
+- **Edit Patient button**: navigates to `PatientFormFragment` in edit mode
 
 ### PlacementFragment + PlacementViewModel
 
 #### Region navigation tabs (TabLayout)
 - 4 fixed-width tabs: **Ant. R | Ant. L | Post. R | Post. L**
-- Tapping any tab jumps directly to that region via `viewModel.setRegion(index)`
-- `isSyncingTab` flag prevents observer → tab → observer loop
-- Tab sits between the top bar and the region title text
+- Tapping any tab calls `viewModel.setRegion(index)`
+- `isSyncingTab` flag prevents observer → tab → observer feedback loop
 
-#### Anatomy overlay
-- Region image: loaded via `Resources.getIdentifier(region.drawableResName, "drawable", packageName)`
-- Buttons added programmatically in `anatomyContainer` (FrameLayout) inside a `post { }` callback
-- **Double-render fix**: `pendingOverlayRunnable` is stored; `removeCallbacks()` cancels any queued post before scheduling a new one. `removeViews` is also called inside the post lambda itself.
-- Button text: `point.label.take(4)` when pending; `"✓"` when done
-- Done buttons: alpha 0.8, not interactive
+#### Anatomy overlay (dot positioning)
+- Buttons built inside `anatomyContainer.post { anatomyImage.doOnLayout { ... } }`
+- `doOnLayout` guarantees image has non-zero dimensions before positioning; fires immediately on revisit
+- `pendingOverlayRunnable` + `removeCallbacks()` cancels stale posts before scheduling a new one
+- `getImageDisplayRect()` computes actual displayed image area (fitCenter letterboxing) → dots stay on anatomy regardless of screen size
+- Done buttons: `"✓"` text, alpha 0.8, not interactive
 
 #### Drag calibration (CURRENTLY DISABLED)
-- `ACTION_MOVE` block is commented out (dots are fixed in place)
-- `hasDragged` toast in `ACTION_UP` is still present but `hasDragged` will never be true while drag is off
+- `ACTION_MOVE` block is commented out — dots are fixed
 - To re-enable: uncomment `ACTION_MOVE` block in `addPointButton()` (clearly marked)
-- **Tap to record: ACTIVE** — `ACTION_UP` with `!hasDragged && !isDone && isAdded && _binding != null` navigates to recording screen
+- **Tap to record: ACTIVE** — `ACTION_UP` with `!hasDragged && !isDone && isAdded && _binding != null`
 
-#### Placement dot positioning (screen-size safe — 2026-05-08)
-- `getImageDisplayRect()` computes the actual displayed image rect within the `anatomyImage` (accounts for `fitCenter` letterboxing)
-- Dots positioned as: `imgRect.left + imgRect.width() * xFraction` — not raw `containerW * xFraction`
-- Falls back to full container rect if drawable has no intrinsic size (no crash)
+#### Finish button behaviour
+- Calls `findNavController().popBackStack(R.id.patientSessionsListFragment, false)`
+- If sessions list not in back stack (e.g. first recording flow), falls through to `popBackStack(R.id.homeFragment, false)`
 
 #### PlacementViewModel
-- `init(patientId, repo)` — idempotent, guards with `if (this.patientId == patientId) return`
-- `_recordings: Map<String, Boolean>` (pointCode → isDone) — updated by Room Flow
-- `autoAdvanceRegionIfNeeded()` — auto-advances to next incomplete region when current region is all done
-- `setRegion(index)` — called by tab listener and "Next Region" button
+- `init(sessionId, repo)` — idempotent, guards with `if (this.sessionId == sessionId) return`
+- Queries `repo.getRecordingsForSession(sessionId)` → each session starts with all 16 pending, independent of other sessions
+- `_recordings: Map<String, Boolean>` (pointCode → isDone)
+- `autoAdvanceRegionIfNeeded()` — auto-advances to next incomplete region when current is all done
 
 ### LungsRecordingFragment + LungsRecordingViewModel
-- Receives: `patientId`, `patientSeqNum`, `pointCode`
-- **Placement guide image**: loads `point_{pointCode}` drawable; visible if exists, GONE if not
+- Receives: `patientId`, `patientSeqNum`, `sessionId`, `sessionNumber`, `pointCode`
 - **Filter**: always `PreFilter.LUNGS` — hardcoded, no filter chips
 - **Pre-amp**: 0–30 dB slider, reset to 5 dB on `onResume()`
 - **Two temp files**: `recording_{ts}_raw.wav` + `recording_{ts}_filtered.wav` in `filesDir`
-- **AudioTrack race condition fix**: `@Volatile private var audioTrack` + `try-catch(IllegalStateException)` around `track.write()` in `onProgressUpdate`
-- On stop → navigate to `lungsPlayerFragment` with all 5 args
-
-#### AudioTrack (monitor playback during recording)
-```kotlin
-audioTrack = AudioTrack.Builder()
-    .setAudioAttributes(AudioAttributes.Builder()
-        .setUsage(USAGE_MEDIA).setContentType(CONTENT_TYPE_MUSIC).build())
-    .setAudioFormat(AudioFormat.Builder()
-        .setSampleRate(44100).setEncoding(ENCODING_PCM_16BIT)
-        .setChannelMask(CHANNEL_OUT_MONO).build())
-    .setBufferSizeInBytes(minBuf * 2)
-    .setTransferMode(AudioTrack.MODE_STREAM)
-    .build().apply { play() }
-```
+- On stop → navigates to `lungsPlayerFragment` with all args including `sessionId`/`sessionNumber`
 
 ### LungsPlayerFragment
-- Receives: `filePath`, `rawFilePath`, `patientId`, `patientSeqNum`, `pointCode`, `isReviewMode`
-- **Dynamic title**:
-  - `isReviewMode=true` + valid pointCode → `"Review: {label}"` e.g. `"Review: Apex Right"`
-  - `isReviewMode=false` + valid pointCode → `"{label}"` e.g. `"Apex Right"`
-  - No pointCode → `getString(R.string.player_title)` = `"Review Recording"` fallback
-- **Review mode** (`isReviewMode=true`): Save/Discard bar hidden; play button re-anchored to screen bottom via `ConstraintSet`
-- **Double-filter protection**: if filename contains `_filtered`, `setPreFilter` is skipped
-- **Save flow**: renames filtered WAV to `lungs/{seqStr}/{seqStr}_{pointCode}.wav`, deletes raw, inserts Room record, `popBackStack(R.id.placementFragment, false)`
-- **Discard**: deletes both temp files, `navigateUp()`
-
-### PatientSessionFragment (+ SessionAdapter)
-- Loaded from `SavedPatientsFragment` when a patient card is tapped
-- **Patient info card**: Sex / Age / BMI / Chest / Height / Weight + date
-- **RecyclerView**: 20 items = 4 region `Header` rows + 16 `PointRow` rows
-  - `SessionListItem.Header(region, doneCount)` → `item_session_header.xml`
-  - `SessionListItem.PointRow(point, recording?)` → `item_recording.xml`
-- **Recorded row**: green status dot + filename + duration + Play / Share / Delete buttons
-- **Unrecorded row**: grey dot + "Not recorded" label, no action buttons
-- **Play** → `action_session_to_player` with `isReviewMode=true` (guarded: `isAdded && _binding != null`)
-- **Share** → `FileProvider.getUriForFile()` + `Intent.ACTION_SEND` type `audio/wav`
-- **Delete** → `MaterialAlertDialogBuilder` → `deleteById(id)` + `File.delete()` on IO thread (ctx captured before launch)
-- **Share Report** → builds plain-text report with patient info + all 16 statuses → `Intent.ACTION_SEND` type `text/plain`
-- **Export ZIP** (`btnExportZip`, `ic_zip` icon in top bar) → zips all 16 WAVs → `Intent.ACTION_SEND` type `application/zip`; shows Toast with count if < 16 done; ZIP named `Patient_01.zip` in `filesDir`
-- **Edit Patient** (`btnEditPatient`, pencil icon in top bar) → `action_session_to_edit_patient` → `PatientFormFragment` in edit mode
-- **Upload to Drive** → button is `visibility=gone` (see Drive section below)
-- **Continue Recording** → visible only when < 16 recordings; navigates to `placementFragment`
-- **Recording count**: `tvRecordingCount` shows "X / 16 points recorded" or "All 16 points recorded"
-- **Top bar icon order** (right→left): Share Report | Edit | Export ZIP | Upload Drive (hidden)
+- Receives: `filePath`, `rawFilePath`, `patientId`, `patientSeqNum`, `sessionId`, `sessionNumber`, `pointCode`, `isReviewMode`
+- **Review mode** (`isReviewMode=true`): Save/Discard bar hidden; no DB insert
+- **Double-filter protection**: if filename contains `_filtered`, `setPreFilter` is skipped on `TaalPlayer`
+- **Save flow**:
+  - Versioned path: `lungs/{seqStr}/{sessionNumber}/{seqStr}.{sessionNumber}_{pointCode}.wav`
+  - e.g. Patient 01, Session 2, point aar → `lungs/01/2/01.2_aar.wav`
+  - Renames filtered temp WAV to versioned path, deletes raw temp
+  - Inserts `LungRecordingEntity` with `sessionId`
+  - `popBackStack(R.id.placementFragment, false)`
+- **Discard**: deletes both temp files → `navigateUp()`
 
 ### SavedPatientsFragment
 - Lists all patients from Room as `item_patient.xml` cards
-- Tap → `action_saved_to_session` → `PatientSessionFragment`
+- Recording count shown as: `"$count / ${sessionCount * 16} recorded"` (denominator = sessions × 16, guarded with `.coerceAtLeast(1)`)
+- Tap → `action_saved_to_sessions_list` → `PatientSessionsListFragment`
+
+### PatientSessionFragment
+- Session-scoped (takes `sessionId` + `sessionNumber`)
+- **Title**: `"Patient %02d.%d".format(sequenceNumber, sessionNumber)` e.g. `Patient 01.2`
+- Queries `getRecordingsForSession(sessionId)` — shows only recordings for this session
+- RecyclerView: 4 `Header` rows + 16 `PointRow` rows (region + point breakdown)
+- **Export ZIP** (`btnExportZip`): ZIP named `Patient_01.2.zip`, shares via FileProvider
+- **Continue Recording**: navigates to `PlacementFragment` passing `sessionId`/`sessionNumber`
+- **Edit Patient** (`btnEditPatient`): → `PatientFormFragment` in edit mode
+- **Denoiser** (`btnDenoiser`): → `DenoiserFragment` passing `patientId`/`patientSeqNum`
+- **Upload to Drive**: button `visibility=gone` (stubbed — see Section 11)
+
+### DenoiserFragment
+- Entry: from `PatientSessionFragment` via `action_session_to_denoiser`
+- Args: `patientId`, `patientSeqNum`
+- **Note**: currently **patient-scoped**, not session-scoped — queries `getRecordingsForPatient(patientId)` across all sessions
+- **Denoised file path**: `lungs/{seqStr}/denoised/{seqStr}_{pointCode}.wav` (uses old non-versioned naming — known limitation)
+- Each row shows: point label, region, status dot (green = denoised, grey = pending/no recording)
+- Row states: `Denoise` button (active if original exists), `Processing...` (disabled during denoising), `▶ Play` button (if denoised file exists), disabled (no original recording)
+- `setProcessing(pointCode, true/false)` updates UI via `notifyItemChanged` while coroutine runs
+- `LungsDenoiser.denoiseWav(inputPath, outputPath)` — runs on `Dispatchers.IO`; on success rebuilds the list to refresh done states
 
 ---
 
 ## 11. Google Drive Upload (STUBBED — Not Active)
 
-`DriveUploadHelper.kt` in `drive/` package — fully implemented but **button is hidden** (`android:visibility="gone"` on `btnUploadDrive` in `fragment_patient_session.xml`).
+`DriveUploadHelper.kt` in `drive/` package — fully implemented but **button is hidden** (`android:visibility="gone"` on `btnUploadDrive`).
 
-**Why hidden**: Service accounts don't have Google Drive storage quota. Uploading files as a service account hits `storageQuotaExceeded` (403). The correct fix is to switch to OAuth / Google Sign-In so files are owned by a real Google account.
+**Why hidden**: Service accounts have no Drive storage quota → `storageQuotaExceeded` (403).
 
-**When to fix**: Switch `DriveUploadHelper` to use `GoogleSignIn` + OAuth instead of `ServiceAccountCredentials`. One-time sign-in with the target Gmail, then all uploads are silent. Set button visibility back to `visible` once implemented.
+**When to fix**: Switch to `GoogleSignIn` + OAuth so files are owned by a real Google account (`cloudbotz2024@gmail.com`). Set button visibility back to `visible` once implemented.
 
 **Current DriveUploadHelper behaviour** (if re-enabled):
 - Reads `assets/service_account.json`
 - Creates `TaalLungs Auscultation/Patient_01_YYYY-MM-DD/` folder in service account Drive
-- Uploads `report.txt` + all recorded WAVs using `ByteArrayContent` (multipart, not resumable)
+- Uploads `report.txt` + all recorded WAVs
 - `SHARE_WITH_EMAIL = "cloudbotz2024@gmail.com"` — auto-shares root folder on first creation
-- Returns webViewLink of session folder on success
 
 ---
 
@@ -506,18 +589,23 @@ audioTrack = AudioTrack.Builder()
 
 ```
 {context.filesDir}/
-├── recording_{timestamp}_raw.wav         ← TEMP: raw capture
-├── recording_{timestamp}_filtered.wav    ← TEMP: filtered capture
+├── recording_{timestamp}_raw.wav         ← TEMP: raw capture (deleted on save or discard)
+├── recording_{timestamp}_filtered.wav    ← TEMP: filtered capture (renamed on save, deleted on discard)
 └── lungs/
     └── 01/                               ← patient sequenceNumber as %02d
-        ├── 01_aar.wav                    ← {seqStr}_{pointCode}.wav
-        ├── 01_aslr.wav
-        ├── ...
-        └── 01_pill.wav
+        ├── 1/                            ← sessionNumber (1, 2, 3...)
+        │   ├── 01.1_aar.wav             ← {seqStr}.{sessionNumber}_{pointCode}.wav
+        │   ├── 01.1_aslr.wav
+        │   └── ...
+        ├── 2/
+        │   ├── 01.2_aar.wav
+        │   └── ...
+        └── denoised/
+            ├── 01_aar.wav               ← denoised: {seqStr}_{pointCode}.wav (patient-scoped, no session)
+            └── ...
 ```
 
-- Temp files in `filesDir` root with timestamp
-- On Save: filtered temp renamed to `lungs/{seqStr}/{seqStr}_{pointCode}.wav`
+- On Save: filtered temp renamed to `lungs/{seqStr}/{sessionNumber}/{seqStr}.{sessionNumber}_{pointCode}.wav`
 - On Save: raw temp deleted
 - On Discard: both temp files deleted
 
@@ -545,7 +633,7 @@ audioTrack = AudioTrack.Builder()
 </paths>
 ```
 
-Used in `PatientSessionFragment.shareRecording()` to produce a URI for `Intent.ACTION_SEND`.
+Used in `PatientSessionFragment.shareRecording()` and ZIP export.
 
 ---
 
@@ -558,24 +646,24 @@ Used in `PatientSessionFragment.shareRecording()` to produce a URI for `Intent.A
 <uses-feature android:name="android.hardware.usb.host" android:required="false" />
 ```
 
-- `RECORD_AUDIO`: Requested at runtime in `LungsRecordingFragment`
-- `INTERNET`: Added for Drive upload (kept even while Drive is stubbed)
-- USB host: Required for TAAL stethoscope
+`android:allowBackup="false"` — prevents Android Auto Backup from restoring the Room DB from Google Drive on reinstall (fixes phantom patients reappearing).
 
 ---
 
 ## 15. Key Patterns and Conventions
 
 1. **ViewBinding**: `_binding`/`binding` pair; `_binding = null` in `onDestroyView()`
-2. **Fragment lifecycle safety**: `isAdded && _binding != null` before UI updates from callbacks
-3. **UI thread dispatch**: Recorder/player callbacks are on background threads → `activity?.runOnUiThread { }`
-4. **Room on IO thread**: All DB operations in `Dispatchers.IO` coroutines
+2. **Fragment lifecycle safety**: `isAdded && _binding != null` before any UI update from async callbacks
+3. **UI thread dispatch**: Recorder/player callbacks on background threads → `activity?.runOnUiThread { }`
+4. **Room on IO thread**: All DB operations in `Dispatchers.IO` coroutines; `ctx` captured before `launch`
 5. **Pre-amp reset**: Always reset to 5 dB in `onResume()`
 6. **TaalRecorder error handling**: `start()` throws `TaalDisconnectedException` if no USB device
-7. **PlacementViewModel idempotent init**: `if (this.patientId == patientId) return`
+7. **PlacementViewModel idempotent init**: `if (this.sessionId == sessionId) return` (session-scoped since v2)
 8. **AudioTrack cleanup**: `stop()` + `release()` in `stopAudioMonitor()`, set to null
 9. **Player cleanup**: null callbacks → `stop()` → `release()` in `onDestroyView()`
-10. **Overlay rebuild**: `pendingOverlayRunnable` + `removeCallbacks()` prevents double-render when both LiveData observers fire in sequence; `removeViews` also inside the post lambda
+10. **Overlay rebuild deduplication**: `pendingOverlayRunnable` + `removeCallbacks()` before each `post { }`; `doOnLayout` inside the runnable ensures image is laid out before computing dot positions
+11. **Form → Placement nav**: Uses `NavOptions.setPopUpTo(homeFragment, false)` so the patient form is removed from the back stack immediately on navigate — prevents duplicate patient creation if user presses Back and re-submits
+12. **Long nav arg defaults**: Must use `"-1L"` syntax in XML (not `"-1"`) for `app:argType="long"` defaults
 
 ---
 
@@ -586,9 +674,9 @@ teal_primary:    #2ABFBF
 teal_dark:       #1A9999
 teal_device:     #008DB9   (USB icon when connected)
 recording_red:   #E85555
-success_green:   #4CAF50   (done point buttons, recorded status dot)
+success_green:   #4CAF50   (done point buttons, recorded status dot, denoiser done dot)
 waveform_blue:   #2D7DD2
-divider:         (light grey — used for unrecorded status dot)
+divider:         (light grey — used for unrecorded/pending status dots)
 
 Theme: Theme.LungsApp → MaterialComponents.Light.NoActionBar
 ```
@@ -615,10 +703,10 @@ lungs-app/build/outputs/apk/debug/lungs-app-debug.apk
 
 ## 18. Pending / In-Progress Work
 
-### Button position calibration (in progress)
-- Dots are now screen-size-independent (image-rect-relative positioning, 2026-05-08)
-- Drag-to-calibrate is **currently disabled** — `ACTION_MOVE` block commented out in `PlacementFragment.addPointButton()`
-- Tap-to-record is **active**
+### Button position calibration
+- Dots are screen-size-independent (image-rect-relative, `doOnLayout` for first-load safety)
+- Drag-to-calibrate **currently disabled** — `ACTION_MOVE` block commented out in `PlacementFragment.addPointButton()`
+- Tap-to-record **active**
 - To re-enable drag: uncomment `ACTION_MOVE` block (clearly marked in code)
 - Once positions are finalised, update `xFraction`/`yFraction` values in `LungPoints.kt`
 
@@ -628,26 +716,26 @@ lungs-app/build/outputs/apk/debug/lungs-app-debug.apk
 - Posterior Right: **missing** (`point_par`, `point_pslr`, `point_pmlr`, `point_pilr`)
 - Posterior Left: **missing** (`point_pal`, `point_psll`, `point_pmll`, `point_pill`)
 
-### Region overview images needed
-- `placeholder_anterior_right.png`, `placeholder_anterior_left.png`
-- `placeholder_posterior_right.png`, `placeholder_posterior_left.png`
-- Place in `lungs-app/src/main/res/drawable/`
-
 ### Google Drive upload (needs OAuth fix)
 - Current impl uses service account → fails with `storageQuotaExceeded`
 - Fix: switch to Google Sign-In OAuth so files are owned by `cloudbotz2024@gmail.com`
 - Button is `visibility=gone` until fixed
-- `DriveUploadHelper.SHARE_WITH_EMAIL = "cloudbotz2024@gmail.com"` already set
+
+### Denoiser — session-scope gap
+- `DenoiserFragment` currently queries by patient (`getRecordingsForPatient`) — shows recordings across all sessions
+- Denoised file path is non-versioned (`lungs/{seqStr}/denoised/{seqStr}_{pointCode}.wav`) — no sessionNumber in path
+- Future fix: make it session-scoped (pass `sessionId`; query `getRecordingsForSession`; update denoised path to include sessionNumber)
 
 ### Future features
-- [ ] Re-record a point (overwrite existing recording)
+- [ ] Re-record a point (overwrite existing recording for a session point)
 - [ ] Session completion summary screen after all 16 points recorded
-- [ ] ZIP export of all 16 WAVs + patient metadata
+- [ ] Drive upload via OAuth (replace service account)
 
 ---
 
 ## 19. Known Limitations
 
-- `SavedPatientsFragment` adapter uses a `CoroutineScope` per ViewHolder for async count loading — not cancelled on recycle (acceptable for read-only use)
+- `SavedPatientsFragment` and `PatientSessionsListFragment` adapters use a `CoroutineScope` per ViewHolder for async count loading — not cancelled on recycle (acceptable for read-only, small datasets)
 - Drive upload stubbed — button hidden, requires OAuth rewrite
-- Waveform rendering in `LungsPlayerFragment` reads full WAV into memory on IO thread — fine for recordings up to a few minutes
+- Waveform rendering in `LungsPlayerFragment` reads full WAV into memory — fine for recordings up to a few minutes
+- Denoiser is patient-scoped, not session-scoped (denoises across all sessions for a patient)

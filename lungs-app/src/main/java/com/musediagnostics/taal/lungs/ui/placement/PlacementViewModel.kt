@@ -4,32 +4,28 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.musediagnostics.taal.lungs.data.db.entity.LungRecordingEntity
 import com.musediagnostics.taal.lungs.data.repository.LungRecordingRepository
-import com.musediagnostics.taal.lungs.domain.LungRegion
 import com.musediagnostics.taal.lungs.domain.LungPoints
+import com.musediagnostics.taal.lungs.domain.LungRegion
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 class PlacementViewModel : ViewModel() {
 
     private val _recordings = MutableLiveData<Map<String, Boolean>>(emptyMap())
-    /** Maps pointCode → isDone for the current patient. */
     val recordings: LiveData<Map<String, Boolean>> = _recordings
 
     private val _currentRegionIndex = MutableLiveData(0)
     val currentRegionIndex: LiveData<Int> = _currentRegionIndex
 
-    private var repository: LungRecordingRepository? = null
-    private var patientId: Long = -1L
+    private var sessionId: Long = -1L
 
-    fun init(patientId: Long, repo: LungRecordingRepository) {
-        if (this.patientId == patientId) return   // already initialised
-        this.patientId = patientId
-        this.repository = repo
+    fun init(sessionId: Long, repo: LungRecordingRepository) {
+        if (this.sessionId == sessionId) return
+        this.sessionId = sessionId
 
         viewModelScope.launch {
-            repo.getRecordingsForPatient(patientId).collectLatest { recordings ->
+            repo.getRecordingsForSession(sessionId).collectLatest { recordings ->
                 val map = recordings.associate { it.pointCode to true }
                 _recordings.value = map
                 autoAdvanceRegionIfNeeded(map)
@@ -44,11 +40,10 @@ class PlacementViewModel : ViewModel() {
         val allDone = pointsInRegion.all { map[it.code] == true }
 
         if (allDone && currentIdx < LungRegion.entries.size - 1) {
-            // Silently advance to next region that still has un-recorded points
             val nextIdx = (currentIdx + 1 until LungRegion.entries.size).firstOrNull { idx ->
                 val region = LungRegion.entries[idx]
                 LungPoints.byRegion(region).any { map[it.code] != true }
-            } ?: (currentIdx + 1)   // fall back to sequential
+            } ?: (currentIdx + 1)
             if (nextIdx != currentIdx) _currentRegionIndex.value = nextIdx
         }
     }
@@ -62,6 +57,5 @@ class PlacementViewModel : ViewModel() {
         return LungPoints.byRegion(region).all { map[it.code] == true }
     }
 
-    fun allRegionsComplete(): Boolean =
-        LungRegion.entries.all { isRegionComplete(it) }
+    fun allRegionsComplete(): Boolean = LungRegion.entries.all { isRegionComplete(it) }
 }

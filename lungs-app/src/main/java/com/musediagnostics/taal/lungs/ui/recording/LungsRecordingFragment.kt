@@ -51,6 +51,8 @@ class LungsRecordingFragment : Fragment() {
     // Nav args
     private var patientId: Long = -1L
     private var patientSeqNum: Int = 1
+    private var sessionId: Long = -1L
+    private var sessionNumber: Int = 1
     private var pointCode: String = ""
 
     companion object {
@@ -82,6 +84,8 @@ class LungsRecordingFragment : Fragment() {
 
         patientId = arguments?.getLong("patientId") ?: -1L
         patientSeqNum = arguments?.getInt("patientSeqNum") ?: 1
+        sessionId = arguments?.getLong("sessionId") ?: -1L
+        sessionNumber = arguments?.getInt("sessionNumber") ?: 1
         pointCode = arguments?.getString("pointCode") ?: ""
 
         // Show point label
@@ -322,6 +326,8 @@ class LungsRecordingFragment : Fragment() {
                     putString("rawFilePath", rawPath)
                     putLong("patientId", patientId)
                     putInt("patientSeqNum", patientSeqNum)
+                    putLong("sessionId", sessionId)
+                    putInt("sessionNumber", sessionNumber)
                     putString("pointCode", pointCode)
                 }
             )

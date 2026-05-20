@@ -134,7 +134,9 @@
       "Bash(/c/Users/kunal/AppData/Local/Android/Sdk/platform-tools/adb.exe devices:*)",
       "Bash(\"/c/Users/kunal/AppData/Local/Android/Sdk/platform-tools/adb.exe\" -s \"adb-d5f21fe2-NNYSiG._adb-tls-connect._tcp\" logcat -d)",
       "Bash(Get-ChildItem -Path \"E:\\\\AndroidProjects\\\\TaalDemoApp\\\\lungs-app\" -Recurse -Filter \"*.kt\" -File)",
-      "Bash(Select-Object -ExpandProperty FullName)"
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Get-ChildItem -Force)",
+      "Bash(Select-Object -Property Name, FullName)"
     ]
   }
 }

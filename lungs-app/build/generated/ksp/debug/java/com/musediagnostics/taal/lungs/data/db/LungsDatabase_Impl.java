@@ -15,6 +15,8 @@ import com.musediagnostics.taal.lungs.data.db.dao.LungPatientDao;
 import com.musediagnostics.taal.lungs.data.db.dao.LungPatientDao_Impl;
 import com.musediagnostics.taal.lungs.data.db.dao.LungRecordingDao;
 import com.musediagnostics.taal.lungs.data.db.dao.LungRecordingDao_Impl;
+import com.musediagnostics.taal.lungs.data.db.dao.LungSessionDao;
+import com.musediagnostics.taal.lungs.data.db.dao.LungSessionDao_Impl;
 import java.lang.Class;
 import java.lang.Override;
 import java.lang.String;
@@ -33,24 +35,30 @@ import javax.annotation.processing.Generated;
 public final class LungsDatabase_Impl extends LungsDatabase {
   private volatile LungPatientDao _lungPatientDao;
 
+  private volatile LungSessionDao _lungSessionDao;
+
   private volatile LungRecordingDao _lungRecordingDao;
 
   @Override
   @NonNull
   protected SupportSQLiteOpenHelper createOpenHelper(@NonNull final DatabaseConfiguration config) {
-    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(1) {
+    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(2) {
       @Override
       public void createAllTables(@NonNull final SupportSQLiteDatabase db) {
         db.execSQL("CREATE TABLE IF NOT EXISTS `lung_patients` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `sequenceNumber` INTEGER NOT NULL, `sex` TEXT NOT NULL, `age` INTEGER NOT NULL, `chestCircumferenceCm` REAL NOT NULL, `heightCm` REAL NOT NULL, `weightKg` REAL NOT NULL, `bmi` REAL NOT NULL, `createdAt` INTEGER NOT NULL)");
-        db.execSQL("CREATE TABLE IF NOT EXISTS `lung_recordings` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `patientId` INTEGER NOT NULL, `pointCode` TEXT NOT NULL, `filePath` TEXT NOT NULL, `durationSeconds` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, FOREIGN KEY(`patientId`) REFERENCES `lung_patients`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `lung_sessions` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `patientId` INTEGER NOT NULL, `sessionNumber` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, FOREIGN KEY(`patientId`) REFERENCES `lung_patients`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )");
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_lung_sessions_patientId` ON `lung_sessions` (`patientId`)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `lung_recordings` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `patientId` INTEGER NOT NULL, `sessionId` INTEGER NOT NULL, `pointCode` TEXT NOT NULL, `filePath` TEXT NOT NULL, `durationSeconds` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, FOREIGN KEY(`patientId`) REFERENCES `lung_patients`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`sessionId`) REFERENCES `lung_sessions`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )");
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_lung_recordings_patientId` ON `lung_recordings` (`patientId`)");
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_lung_recordings_sessionId` ON `lung_recordings` (`sessionId`)");
         db.execSQL("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)");
-        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '6726495ae8db7f1fd4aeee7c40b33f2d')");
+        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '52071480606f7cc0815660da353d3a55')");
       }
 
       @Override
       public void dropAllTables(@NonNull final SupportSQLiteDatabase db) {
         db.execSQL("DROP TABLE IF EXISTS `lung_patients`");
+        db.execSQL("DROP TABLE IF EXISTS `lung_sessions`");
         db.execSQL("DROP TABLE IF EXISTS `lung_recordings`");
         final List<? extends RoomDatabase.Callback> _callbacks = mCallbacks;
         if (_callbacks != null) {
@@ -115,17 +123,36 @@ public final class LungsDatabase_Impl extends LungsDatabase {
                   + " Expected:\n" + _infoLungPatients + "\n"
                   + " Found:\n" + _existingLungPatients);
         }
-        final HashMap<String, TableInfo.Column> _columnsLungRecordings = new HashMap<String, TableInfo.Column>(6);
+        final HashMap<String, TableInfo.Column> _columnsLungSessions = new HashMap<String, TableInfo.Column>(4);
+        _columnsLungSessions.put("id", new TableInfo.Column("id", "INTEGER", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsLungSessions.put("patientId", new TableInfo.Column("patientId", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsLungSessions.put("sessionNumber", new TableInfo.Column("sessionNumber", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsLungSessions.put("createdAt", new TableInfo.Column("createdAt", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        final HashSet<TableInfo.ForeignKey> _foreignKeysLungSessions = new HashSet<TableInfo.ForeignKey>(1);
+        _foreignKeysLungSessions.add(new TableInfo.ForeignKey("lung_patients", "CASCADE", "NO ACTION", Arrays.asList("patientId"), Arrays.asList("id")));
+        final HashSet<TableInfo.Index> _indicesLungSessions = new HashSet<TableInfo.Index>(1);
+        _indicesLungSessions.add(new TableInfo.Index("index_lung_sessions_patientId", false, Arrays.asList("patientId"), Arrays.asList("ASC")));
+        final TableInfo _infoLungSessions = new TableInfo("lung_sessions", _columnsLungSessions, _foreignKeysLungSessions, _indicesLungSessions);
+        final TableInfo _existingLungSessions = TableInfo.read(db, "lung_sessions");
+        if (!_infoLungSessions.equals(_existingLungSessions)) {
+          return new RoomOpenHelper.ValidationResult(false, "lung_sessions(com.musediagnostics.taal.lungs.data.db.entity.LungSessionEntity).\n"
+                  + " Expected:\n" + _infoLungSessions + "\n"
+                  + " Found:\n" + _existingLungSessions);
+        }
+        final HashMap<String, TableInfo.Column> _columnsLungRecordings = new HashMap<String, TableInfo.Column>(7);
         _columnsLungRecordings.put("id", new TableInfo.Column("id", "INTEGER", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsLungRecordings.put("patientId", new TableInfo.Column("patientId", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsLungRecordings.put("sessionId", new TableInfo.Column("sessionId", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsLungRecordings.put("pointCode", new TableInfo.Column("pointCode", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsLungRecordings.put("filePath", new TableInfo.Column("filePath", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsLungRecordings.put("durationSeconds", new TableInfo.Column("durationSeconds", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsLungRecordings.put("createdAt", new TableInfo.Column("createdAt", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
-        final HashSet<TableInfo.ForeignKey> _foreignKeysLungRecordings = new HashSet<TableInfo.ForeignKey>(1);
+        final HashSet<TableInfo.ForeignKey> _foreignKeysLungRecordings = new HashSet<TableInfo.ForeignKey>(2);
         _foreignKeysLungRecordings.add(new TableInfo.ForeignKey("lung_patients", "CASCADE", "NO ACTION", Arrays.asList("patientId"), Arrays.asList("id")));
-        final HashSet<TableInfo.Index> _indicesLungRecordings = new HashSet<TableInfo.Index>(1);
+        _foreignKeysLungRecordings.add(new TableInfo.ForeignKey("lung_sessions", "CASCADE", "NO ACTION", Arrays.asList("sessionId"), Arrays.asList("id")));
+        final HashSet<TableInfo.Index> _indicesLungRecordings = new HashSet<TableInfo.Index>(2);
         _indicesLungRecordings.add(new TableInfo.Index("index_lung_recordings_patientId", false, Arrays.asList("patientId"), Arrays.asList("ASC")));
+        _indicesLungRecordings.add(new TableInfo.Index("index_lung_recordings_sessionId", false, Arrays.asList("sessionId"), Arrays.asList("ASC")));
         final TableInfo _infoLungRecordings = new TableInfo("lung_recordings", _columnsLungRecordings, _foreignKeysLungRecordings, _indicesLungRecordings);
         final TableInfo _existingLungRecordings = TableInfo.read(db, "lung_recordings");
         if (!_infoLungRecordings.equals(_existingLungRecordings)) {
@@ -135,7 +162,7 @@ public final class LungsDatabase_Impl extends LungsDatabase {
         }
         return new RoomOpenHelper.ValidationResult(true, null);
       }
-    }, "6726495ae8db7f1fd4aeee7c40b33f2d", "b79388bbe1a7edc9e31080a39d940329");
+    }, "52071480606f7cc0815660da353d3a55", "d1cd3324ddbaaf5006edf59a3099ddc5");
     final SupportSQLiteOpenHelper.Configuration _sqliteConfig = SupportSQLiteOpenHelper.Configuration.builder(config.context).name(config.name).callback(_openCallback).build();
     final SupportSQLiteOpenHelper _helper = config.sqliteOpenHelperFactory.create(_sqliteConfig);
     return _helper;
@@ -146,7 +173,7 @@ public final class LungsDatabase_Impl extends LungsDatabase {
   protected InvalidationTracker createInvalidationTracker() {
     final HashMap<String, String> _shadowTablesMap = new HashMap<String, String>(0);
     final HashMap<String, Set<String>> _viewTables = new HashMap<String, Set<String>>(0);
-    return new InvalidationTracker(this, _shadowTablesMap, _viewTables, "lung_patients","lung_recordings");
+    return new InvalidationTracker(this, _shadowTablesMap, _viewTables, "lung_patients","lung_sessions","lung_recordings");
   }
 
   @Override
@@ -163,6 +190,7 @@ public final class LungsDatabase_Impl extends LungsDatabase {
         _db.execSQL("PRAGMA defer_foreign_keys = TRUE");
       }
       _db.execSQL("DELETE FROM `lung_patients`");
+      _db.execSQL("DELETE FROM `lung_sessions`");
       _db.execSQL("DELETE FROM `lung_recordings`");
       super.setTransactionSuccessful();
     } finally {
@@ -182,6 +210,7 @@ public final class LungsDatabase_Impl extends LungsDatabase {
   protected Map<Class<?>, List<Class<?>>> getRequiredTypeConverters() {
     final HashMap<Class<?>, List<Class<?>>> _typeConvertersMap = new HashMap<Class<?>, List<Class<?>>>();
     _typeConvertersMap.put(LungPatientDao.class, LungPatientDao_Impl.getRequiredConverters());
+    _typeConvertersMap.put(LungSessionDao.class, LungSessionDao_Impl.getRequiredConverters());
     _typeConvertersMap.put(LungRecordingDao.class, LungRecordingDao_Impl.getRequiredConverters());
     return _typeConvertersMap;
   }
@@ -211,6 +240,20 @@ public final class LungsDatabase_Impl extends LungsDatabase {
           _lungPatientDao = new LungPatientDao_Impl(this);
         }
         return _lungPatientDao;
+      }
+    }
+  }
+
+  @Override
+  public LungSessionDao lungSessionDao() {
+    if (_lungSessionDao != null) {
+      return _lungSessionDao;
+    } else {
+      synchronized(this) {
+        if(_lungSessionDao == null) {
+          _lungSessionDao = new LungSessionDao_Impl(this);
+        }
+        return _lungSessionDao;
       }
     }
   }

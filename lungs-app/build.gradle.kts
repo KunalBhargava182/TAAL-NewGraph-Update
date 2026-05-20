@@ -41,6 +41,10 @@ android {
         viewBinding = true
     }
 
+    aaptOptions {
+        noCompress += "tflite"
+    }
+
     packaging {
         resources {
             excludes += setOf(
@@ -101,6 +105,10 @@ dependencies {
         exclude(group = "org.apache.httpcomponents")
     }
     implementation("com.google.auth:google-auth-library-oauth2-http:1.23.0")
+
+    // TensorFlow Lite + Math
+    implementation("org.tensorflow:tensorflow-lite:2.14.0")
+    implementation("org.apache.commons:commons-math3:3.6.1")
 
     // Testing
     testImplementation("junit:junit:4.13.2")

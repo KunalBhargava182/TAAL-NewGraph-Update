@@ -1,11 +1,47 @@
 [
     {
+        "merged": "com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:/layout/fragment_home.xml",
+        "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/fragment_home.xml"
+    },
+    {
+        "merged": "com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:/layout/item_denoiser_row.xml",
+        "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/item_denoiser_row.xml"
+    },
+    {
+        "merged": "com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:/layout/fragment_denoiser.xml",
+        "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/fragment_denoiser.xml"
+    },
+    {
+        "merged": "com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:/layout/activity_main.xml",
+        "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/activity_main.xml"
+    },
+    {
+        "merged": "com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:/layout/fragment_patient_session.xml",
+        "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/fragment_patient_session.xml"
+    },
+    {
+        "merged": "com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:/layout/item_patient.xml",
+        "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/item_patient.xml"
+    },
+    {
+        "merged": "com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:/layout/fragment_lungs_player.xml",
+        "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/fragment_lungs_player.xml"
+    },
+    {
+        "merged": "com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:/layout/fragment_placement.xml",
+        "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/fragment_placement.xml"
+    },
+    {
         "merged": "com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:/layout/fragment_lungs_recording.xml",
         "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/fragment_lungs_recording.xml"
     },
     {
-        "merged": "com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:/layout/fragment_home.xml",
-        "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/fragment_home.xml"
+        "merged": "com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:/layout/fragment_patient_sessions_list.xml",
+        "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/fragment_patient_sessions_list.xml"
+    },
+    {
+        "merged": "com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:/layout/item_session.xml",
+        "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/item_session.xml"
     },
     {
         "merged": "com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:/layout/item_recording.xml",
@@ -20,27 +56,7 @@
         "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/fragment_saved_patients.xml"
     },
     {
-        "merged": "com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:/layout/activity_main.xml",
-        "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/activity_main.xml"
-    },
-    {
-        "merged": "com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:/layout/fragment_patient_session.xml",
-        "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/fragment_patient_session.xml"
-    },
-    {
-        "merged": "com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:/layout/fragment_lungs_player.xml",
-        "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/fragment_lungs_player.xml"
-    },
-    {
-        "merged": "com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:/layout/item_patient.xml",
-        "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/item_patient.xml"
-    },
-    {
         "merged": "com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:/layout/item_session_header.xml",
         "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/item_session_header.xml"
-    },
-    {
-        "merged": "com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:/layout/fragment_placement.xml",
-        "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/fragment_placement.xml"
     }
 ]

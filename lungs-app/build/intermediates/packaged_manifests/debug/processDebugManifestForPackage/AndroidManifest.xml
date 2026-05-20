@@ -28,7 +28,7 @@
 
     <application
         android:name="com.musediagnostics.taal.lungs.LungsApplication"
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:appComponentFactory="androidx.core.app.CoreComponentFactory"
         android:debuggable="true"
         android:extractNativeLibs="false"

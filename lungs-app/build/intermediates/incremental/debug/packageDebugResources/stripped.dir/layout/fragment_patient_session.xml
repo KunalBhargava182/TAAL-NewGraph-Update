@@ -61,6 +61,19 @@
             android:src="@drawable/ic_zip"
             android:contentDescription="Export ZIP"
             app:tint="@color/text_primary"
+            app:layout_constraintEnd_toStartOf="@id/btnDenoiser"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent" />
+
+        <ImageButton
+            android:id="@+id/btnDenoiser"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_denoiser"
+            android:contentDescription="Denoised Recordings"
+            app:tint="@color/text_primary"
+            android:visibility="gone"
             app:layout_constraintEnd_toStartOf="@id/btnEditPatient"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent" />
@@ -83,6 +96,7 @@
             android:layout_height="40dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@drawable/ic_share"
+            android:visibility="gone"
             android:contentDescription="Share report"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent"
