@@ -2,11 +2,14 @@
 
 > **Purpose of this file:** Complete technical reference for the `:lungs-app` Android module.
 > Share this file with any AI assistant to give it full context before making changes.
-> Last updated: 2026-05-20
+> Last updated: 2026-05-28
 
 ---
 
 ## Changelog
+
+### 2026-05-28
+- **Doc update**: Added Section 11 (Denoiser Architecture) with full pipeline, STFT params, and WienerDenoiser constants. Corrected denoised file path format throughout (was `{seqStr}_{pointCode}.wav`, actual code produces `{seqStr}.{sessionNumber}_{pointCode}_denoised.wav`). Added TFLite + commons-math3 to dependencies section. Added `aaptOptions` block. Added TFLite assets to file layout. Added Share + Download buttons to DenoiserFragment row states. Noted CRN model exists but is not called from the active denoising pipeline.
 
 ### 2026-05-20
 - **Placement dots first-load fix** (`PlacementFragment`): Added `binding.anatomyImage.doOnLayout { }` inside the overlay runnable. Previously `anatomyContainer.post { }` could fire before the first layout pass completed, giving `anatomyImage.width = 0` and putting all dots at (0, 0). `doOnLayout` fires immediately if the view is already laid out, or waits for the first layout pass otherwise. Fix: `import androidx.core.view.doOnLayout` added; button-building code moved inside `anatomyImage.doOnLayout { }` within the existing runnable (double `removeViews` guard included inside the `doOnLayout` lambda).
@@ -15,7 +18,7 @@
 - **Recording count denominator fix** (`SavedPatientsFragment`): Was hardcoded to `/ 16` regardless of session count. Now queries `sessionRepo.getSessionCountForPatient(patientId)` and shows `"$count / ${sessionCount * 16} recorded"` with `.coerceAtLeast(1)` guard.
 
 ### 2026-05-19
-- **Multi-session support** — Full sessions feature added. Same patient can be recorded across multiple visits. See Section 8 for DB schema, Section 10 for new screens, Section 12 for updated file naming.
+- **Multi-session support** — Full sessions feature added. Same patient can be recorded across multiple visits. See Section 8 for DB schema, Section 10 for new screens, Section 13 for updated file naming.
   - New Room entity: `LungSessionEntity` (table `lung_sessions`)
   - DB version bumped 1 → 2 with full migration (table recreation required for SQLite FK constraints)
   - New screen: `PatientSessionsListFragment` — sits between `SavedPatientsFragment` and `PatientSessionFragment`
@@ -25,6 +28,7 @@
   - Versioned file naming: `lungs/{seqStr}/{sessionNumber}/{seqStr}.{sessionNumber}_{pointCode}.wav`
   - ZIP export named `Patient_01.2.zip` (includes sessionNumber); session title shown as `Patient 01 — Session 2`
   - Finish button in `PlacementFragment` pops to `patientSessionsListFragment` if in back stack, else `homeFragment`
+- **Denoiser feature** — Added full noise-suppression pipeline. New `denoiser/` package with `LungsDenoiser`, `WienerDenoiser`, `StftEngine`, `CrnDenoiser`. New `DenoiserFragment` for per-patient point-by-point denoising with Share + Download support. TFLite assets (`crn_float16.tflite`, `crn_float32.tflite`) added. See Section 11 for architecture details.
 
 ### 2026-05-08
 - **Export ZIP** (`PatientSessionFragment`): Added `btnExportZip` ImageButton (`ic_zip`) in the top bar. Zips all 16 saved WAV files via `java.util.zip.ZipOutputStream` and shares via `Intent.ACTION_SEND`. If < 16 recordings exist, shows a Toast with count instead of exporting.
@@ -96,7 +100,9 @@ lungs-app/
 ├── src/main/
 │   ├── AndroidManifest.xml
 │   ├── assets/
-│   │   └── service_account.json       ← Google service account key (Drive upload stub — not active)
+│   │   ├── service_account.json       ← Google service account key (Drive upload stub — not active)
+│   │   ├── crn_float16.tflite         ← CRN model float16 (~418KB) — present but not loaded by active pipeline
+│   │   └── crn_float32.tflite         ← CRN model float32 (~455KB) — loaded by CrnDenoiser (not called from LungsDenoiser)
 │   └── java/com/musediagnostics/taal/lungs/
 │       ├── LungsApplication.kt
 │       ├── data/
@@ -115,10 +121,10 @@ lungs-app/
 │       │       ├── LungRecordingRepository.kt  ← new session-scoped methods
 │       │       └── LungSessionRepository.kt    ← NEW (2026-05-19)
 │       ├── denoiser/
-│       │   ├── CrnDenoiser.kt
-│       │   ├── LungsDenoiser.kt
-│       │   ├── StftEngine.kt
-│       │   └── WienerDenoiser.kt
+│       │   ├── CrnDenoiser.kt      ← TFLite CRN inference (loads crn_float32.tflite); not called from LungsDenoiser
+│       │   ├── LungsDenoiser.kt    ← Entry point: WAV→resample→STFT→Wiener→ISTFT→WAV
+│       │   ├── StftEngine.kt       ← STFT/ISTFT using Apache Commons Math FFT
+│       │   └── WienerDenoiser.kt   ← IMCRA noise estimation + per-band Wiener filter
 │       ├── domain/
 │       │   └── LungPoint.kt           (LungRegion enum + LungPoint data class + LungPoints object)
 │       ├── drive/
@@ -140,7 +146,7 @@ lungs-app/
 │           ├── player/
 │           │   └── LungsPlayerFragment.kt      ← versioned file path incl. sessionNumber
 │           ├── denoiser/
-│           │   └── DenoiserFragment.kt         ← per-patient denoiser (patient-scoped, not session-scoped)
+│           │   └── DenoiserFragment.kt         ← per-patient denoiser; Share + Download on denoised files
 │           └── session/
 │               ├── PatientSessionFragment.kt   ← session-scoped; title "Patient 01.2"
 │               └── PatientSessionsListFragment.kt ← NEW (2026-05-19): sessions list per patient
@@ -158,14 +164,15 @@ lungs-app/
     │   ├── fragment_saved_patients.xml
     │   ├── fragment_patient_sessions_list.xml  ← NEW (2026-05-19)
     │   ├── fragment_patient_session.xml
-    │   ├── fragment_denoiser.xml
+    │   ├── fragment_denoiser.xml               ← NEW (2026-05-19)
     │   ├── item_patient.xml
     │   ├── item_session.xml                    ← NEW (2026-05-19): session card row
     │   ├── item_session_header.xml
     │   ├── item_recording.xml
-    │   └── item_denoiser_row.xml
+    │   └── item_denoiser_row.xml               ← NEW (2026-05-19)
     ├── drawable/
     │   ├── ic_lungs.png/xml
+    │   ├── ic_denoiser.xml                     ← NEW (2026-05-19)
     │   ├── ic_share.xml
     │   ├── ic_delete.xml
     │   ├── ic_cloud_upload.xml
@@ -237,6 +244,12 @@ implementation("com.google.http-client:google-http-client-gson:1.43.3") {
     exclude(group = "org.apache.httpcomponents")
 }
 implementation("com.google.auth:google-auth-library-oauth2-http:1.23.0")
+
+// TensorFlow Lite (denoiser — CRN model inference)
+implementation("org.tensorflow:tensorflow-lite:2.14.0")
+
+// Apache Commons Math (FFT used by StftEngine)
+implementation("org.apache.commons:commons-math3:3.6.1")
 ```
 
 ### Packaging options (required for Google libs)
@@ -249,6 +262,13 @@ packaging {
             "META-INF/INDEX.LIST", "META-INF/AL2.0", "META-INF/LGPL2.1"
         )
     }
+}
+```
+
+### aaptOptions (required for TFLite assets)
+```kotlin
+aaptOptions {
+    noCompress += "tflite"   // prevents aapt from compressing .tflite files — TFLite requires uncompressed mmap
 }
 ```
 
@@ -300,7 +320,9 @@ PatientSessionFragment (single session review)
 
 DenoiserFragment
   ├── [Denoise] → runs LungsDenoiser.denoiseWav() on IO thread → saves denoised WAV
-  └── [Play]    → LungsPlayerFragment(isReviewMode=true) for denoised file
+  ├── [▶ Play]  → LungsPlayerFragment(isReviewMode=true) for denoised file
+  ├── [Share]   → system share sheet for denoised .wav (FileProvider)
+  └── [Download]→ saves to device Downloads folder (MediaStore API 29+, legacy path below)
   NOTE: patient-scoped (queries all recordings for patient, not per-session)
 ```
 
@@ -490,6 +512,7 @@ Anterior Left images are present. All others still needed.
 - Entry: from `SavedPatientsFragment` when tapping a patient card
 - **Patient info card**: shows `Patient 01` title, sex / age / BMI
 - **Sessions RecyclerView** (`item_session.xml`): badge (`S1`, `S2`), title, date, recording count (`X / 16`)
+- Session count loaded async via `CoroutineScope(Dispatchers.Main + SupervisorJob())` per ViewHolder (not cancelled on recycle — acceptable for read-only small datasets)
 - **Record Again button**: queries session count → creates `LungSessionEntity(sessionNumber = count + 1)` on IO → navigates to `PlacementFragment` with new `sessionId`/`sessionNumber`
 - **Edit Patient button**: navigates to `PatientFormFragment` in edit mode
 
@@ -555,21 +578,107 @@ Anterior Left images are present. All others still needed.
 - **Continue Recording**: navigates to `PlacementFragment` passing `sessionId`/`sessionNumber`
 - **Edit Patient** (`btnEditPatient`): → `PatientFormFragment` in edit mode
 - **Denoiser** (`btnDenoiser`): → `DenoiserFragment` passing `patientId`/`patientSeqNum`
-- **Upload to Drive**: button `visibility=gone` (stubbed — see Section 11)
+- **Upload to Drive**: button `visibility=gone` (stubbed — see Section 12)
 
 ### DenoiserFragment
 - Entry: from `PatientSessionFragment` via `action_session_to_denoiser`
 - Args: `patientId`, `patientSeqNum`
-- **Note**: currently **patient-scoped**, not session-scoped — queries `getRecordingsForPatient(patientId)` across all sessions
-- **Denoised file path**: `lungs/{seqStr}/denoised/{seqStr}_{pointCode}.wav` (uses old non-versioned naming — known limitation)
-- Each row shows: point label, region, status dot (green = denoised, grey = pending/no recording)
-- Row states: `Denoise` button (active if original exists), `Processing...` (disabled during denoising), `▶ Play` button (if denoised file exists), disabled (no original recording)
-- `setProcessing(pointCode, true/false)` updates UI via `notifyItemChanged` while coroutine runs
-- `LungsDenoiser.denoiseWav(inputPath, outputPath)` — runs on `Dispatchers.IO`; on success rebuilds the list to refresh done states
+- **Scope**: currently **patient-scoped** — queries `getRecordingsForPatient(patientId)` across all sessions; picks last recording for each point code (via `associateBy { it.pointCode }` — if a patient has the same point in multiple sessions, the last one wins)
+- **Denoised file path**: `lungs/{seqStr}/denoised/{seqStr}.{sessionNumber}_{pointCode}_denoised.wav`
+  - `sessionNumber` is extracted from the original recording file's parent directory name
+  - e.g. if original is `lungs/01/2/01.2_aar.wav` → denoised is `lungs/01/denoised/01.2_aar_denoised.wav`
+- Each row (`item_denoiser_row.xml`) shows: point label, region label, status dot, action button
+- **Row states**:
+  - `isDone = true` (denoised file exists): green status dot, `"▶ Play"` button + Share button + Download button visible
+  - `isProcessing = true`: grey dot, `"Processing..."` button disabled, Share/Download hidden
+  - `recordingFilePath != null` (original exists, not yet denoised): grey dot, `"Denoise"` button enabled, Share/Download hidden
+  - `recordingFilePath == null` (no original): grey dot, `"Denoise"` button disabled, Share/Download hidden
+- **Denoise action**: calls `LungsDenoiser().denoiseWav(originalPath, denoisedPath)` on `Dispatchers.IO`; on success rebuilds list to refresh all states
+- **Play action**: navigates to `LungsPlayerFragment` with `isReviewMode=true`, `sessionId`/`sessionNumber` NOT passed (denoiser is patient-scoped)
+- **Share action**: `FileProvider` URI → `Intent.ACTION_SEND` with `audio/wav`
+- **Download action**: saves denoised WAV to device Downloads folder
+  - API 29+: `MediaStore.Downloads` via `ContentResolver` (no permission needed)
+  - API < 29: `Environment.DIRECTORY_DOWNLOADS` with `WRITE_EXTERNAL_STORAGE` permission (requested via `ActivityResultContracts.RequestPermission()`)
 
 ---
 
-## 11. Google Drive Upload (STUBBED — Not Active)
+## 11. Denoiser Architecture
+
+The denoiser pipeline is: **WAV in → resample to 8 kHz → STFT → Wiener filter → ISTFT → WAV out (8 kHz)**
+
+### Pipeline (`LungsDenoiser.denoiseWav`)
+
+```
+readWav(inputPath)              → FloatArray (−1..1), sourceSampleRate
+    ↓
+resample to 8000 Hz             → integer-ratio: decimate(factor)
+                                   non-integer:   resampleLinear()
+    ↓
+StftEngine.computeStft()        → real[129][nFrames], imag[129][nFrames]
+    ↓
+WienerDenoiser.denoise()        → enhanced real[129][nFrames], imag[129][nFrames]
+    ↓
+StftEngine.computeIstft()       → FloatArray (time-domain, original length)
+    ↓
+writeWav(outputPath, 8000 Hz)   → 16-bit PCM mono WAV
+```
+
+### StftEngine constants
+
+| Constant | Value | Meaning |
+|---|---|---|
+| `N_FFT` | 256 | FFT size |
+| `WIN_SIZE` | 200 | Analysis window (25 ms at 8 kHz) |
+| `HOP` | 80 | Hop size (10 ms at 8 kHz) |
+| `N_BINS` | 129 | Frequency bins (N_FFT/2 + 1) |
+
+- Window function: Hann window
+- FFT backend: `org.apache.commons.math3.transform.FastFourierTransformer` (DftNormalization.STANDARD)
+- ISTFT: overlap-add with sum-of-squared-windows normalisation
+
+### WienerDenoiser constants
+
+| Constant | Value | Meaning |
+|---|---|---|
+| `ALPHA_S` | 0.9 | Power smoothing factor (IIR) |
+| `ALPHA_D` | 0.85 | Noise update rate when signal absent |
+| `L` | 125 | Sliding-min window (frames, ≈ 1.25 s) |
+| `DELTA` | 5.0 | Signal-presence threshold (SNR ratio) |
+| `BREATH_CORRECTION` | 0.20 | Scales noise estimate down (prevents over-suppression of breath sounds) |
+| `BETA` | 0.08 | Global spectral floor (prevents musical noise) |
+| `WARMUP` | 20 | First 20 frames pass through unfiltered (noise estimator warm-up) |
+| `RELEASE` | 0.2 | Fast-release smoothing factor |
+
+**Per-band parameters** (frequency → over-estimation factor, spectral floor):
+
+| Upper freq (Hz) | Over-estimation | Floor |
+|---|---|---|
+| 300 | 1.00× | 0.20 |
+| 600 | 1.50× | 0.12 |
+| 1200 | 2.00× | 0.06 |
+| 2000 | 2.50× | 0.00 |
+| < 100 or > 2000 | pass-through | — |
+
+**Noise estimator**: IMCRA (Improved Minima Controlled Recursive Averaging) with monotonic deque for O(1) sliding minimum per frequency bin.
+
+**Gain computation per bin per frame**:
+```
+SNR_est  = max(noisyPow − effNoise, 0) / (effNoise + ε)
+gain     = SNR_est / (SNR_est + 1)          ← Wiener gain
+gain     = max(gain, BETA, bandFloor)        ← spectral floor
+gain     = asymmetric smooth(prev, gain)     ← slow attack / fast release
+output   = gain × magnitude × e^{jφ}        ← apply to complex STFT
+```
+
+### CrnDenoiser (present, not active in pipeline)
+
+`CrnDenoiser` loads `crn_float32.tflite` via TFLite `Interpreter` and is designed to enhance STFT magnitude frames. On init it probes valid chunk sizes from `{33, 64, 100, 128, 160, 200, 256, 312, 313, 320, 400, 512}` by attempting `resizeInput → allocateTensors → dummy run`.
+
+**Current status**: `CrnDenoiser` is instantiated nowhere in the active codebase. `LungsDenoiser.denoiseWav()` uses only `WienerDenoiser`. The CRN model assets are bundled but the CRN path is not wired up. To activate: replace `WienerDenoiser().denoise(real, imag)` with `CrnDenoiser(context).enhance(magnitude)` (requires passing `Context` down to `LungsDenoiser`).
+
+---
+
+## 12. Google Drive Upload (STUBBED — Not Active)
 
 `DriveUploadHelper.kt` in `drive/` package — fully implemented but **button is hidden** (`android:visibility="gone"` on `btnUploadDrive`).
 
@@ -585,7 +694,7 @@ Anterior Left images are present. All others still needed.
 
 ---
 
-## 12. File Naming and Storage Convention
+## 13. File Naming and Storage Convention
 
 ```
 {context.filesDir}/
@@ -601,17 +710,18 @@ Anterior Left images are present. All others still needed.
         │   ├── 01.2_aar.wav
         │   └── ...
         └── denoised/
-            ├── 01_aar.wav               ← denoised: {seqStr}_{pointCode}.wav (patient-scoped, no session)
-            └── ...
+            ├── 01.1_aar_denoised.wav    ← {seqStr}.{sessionNumber}_{pointCode}_denoised.wav
+            └── ...                          sessionNumber extracted from original file's parent dir
 ```
 
-- On Save: filtered temp renamed to `lungs/{seqStr}/{sessionNumber}/{seqStr}.{sessionNumber}_{pointCode}.wav`
-- On Save: raw temp deleted
-- On Discard: both temp files deleted
+- **On Save**: filtered temp renamed to `lungs/{seqStr}/{sessionNumber}/{seqStr}.{sessionNumber}_{pointCode}.wav`
+- **On Save**: raw temp deleted
+- **On Discard**: both temp files deleted
+- **Denoised**: written to `lungs/{seqStr}/denoised/{seqStr}.{sessionNumber}_{pointCode}_denoised.wav`; sessionNumber is inferred from `File(originalPath).parentFile?.name?.toIntOrNull() ?: 1`
 
 ---
 
-## 13. FileProvider (WAV Sharing)
+## 14. FileProvider (WAV Sharing)
 
 ```xml
 <!-- AndroidManifest.xml -->
@@ -633,11 +743,11 @@ Anterior Left images are present. All others still needed.
 </paths>
 ```
 
-Used in `PatientSessionFragment.shareRecording()` and ZIP export.
+Used in `PatientSessionFragment.shareRecording()`, ZIP export, and `DenoiserFragment.shareDenoised()`.
 
 ---
 
-## 14. Permissions (AndroidManifest.xml)
+## 15. Permissions (AndroidManifest.xml)
 
 ```xml
 <uses-permission android:name="android.permission.RECORD_AUDIO" />
@@ -647,23 +757,6 @@ Used in `PatientSessionFragment.shareRecording()` and ZIP export.
 ```
 
 `android:allowBackup="false"` — prevents Android Auto Backup from restoring the Room DB from Google Drive on reinstall (fixes phantom patients reappearing).
-
----
-
-## 15. Key Patterns and Conventions
-
-1. **ViewBinding**: `_binding`/`binding` pair; `_binding = null` in `onDestroyView()`
-2. **Fragment lifecycle safety**: `isAdded && _binding != null` before any UI update from async callbacks
-3. **UI thread dispatch**: Recorder/player callbacks on background threads → `activity?.runOnUiThread { }`
-4. **Room on IO thread**: All DB operations in `Dispatchers.IO` coroutines; `ctx` captured before `launch`
-5. **Pre-amp reset**: Always reset to 5 dB in `onResume()`
-6. **TaalRecorder error handling**: `start()` throws `TaalDisconnectedException` if no USB device
-7. **PlacementViewModel idempotent init**: `if (this.sessionId == sessionId) return` (session-scoped since v2)
-8. **AudioTrack cleanup**: `stop()` + `release()` in `stopAudioMonitor()`, set to null
-9. **Player cleanup**: null callbacks → `stop()` → `release()` in `onDestroyView()`
-10. **Overlay rebuild deduplication**: `pendingOverlayRunnable` + `removeCallbacks()` before each `post { }`; `doOnLayout` inside the runnable ensures image is laid out before computing dot positions
-11. **Form → Placement nav**: Uses `NavOptions.setPopUpTo(homeFragment, false)` so the patient form is removed from the back stack immediately on navigate — prevents duplicate patient creation if user presses Back and re-submits
-12. **Long nav arg defaults**: Must use `"-1L"` syntax in XML (not `"-1"`) for `app:argType="long"` defaults
 
 ---
 
@@ -701,7 +794,25 @@ lungs-app/build/outputs/apk/debug/lungs-app-debug.apk
 
 ---
 
-## 18. Pending / In-Progress Work
+## 18. Key Patterns and Conventions
+
+1. **ViewBinding**: `_binding`/`binding` pair; `_binding = null` in `onDestroyView()`
+2. **Fragment lifecycle safety**: `isAdded && _binding != null` before any UI update from async callbacks
+3. **UI thread dispatch**: Recorder/player callbacks on background threads → `activity?.runOnUiThread { }`
+4. **Room on IO thread**: All DB operations in `Dispatchers.IO` coroutines; `ctx` captured before `launch`
+5. **Pre-amp reset**: Always reset to 5 dB in `onResume()`
+6. **TaalRecorder error handling**: `start()` throws `TaalDisconnectedException` if no USB device
+7. **PlacementViewModel idempotent init**: `if (this.sessionId == sessionId) return` (session-scoped since v2)
+8. **AudioTrack cleanup**: `stop()` + `release()` in `stopAudioMonitor()`, set to null
+9. **Player cleanup**: null callbacks → `stop()` → `release()` in `onDestroyView()`
+10. **Overlay rebuild deduplication**: `pendingOverlayRunnable` + `removeCallbacks()` before each `post { }`; `doOnLayout` inside the runnable ensures image is laid out before computing dot positions
+11. **Form → Placement nav**: Uses `NavOptions.setPopUpTo(homeFragment, false)` so the patient form is removed from the back stack immediately on navigate — prevents duplicate patient creation if user presses Back and re-submits
+12. **Long nav arg defaults**: Must use `"-1L"` syntax in XML (not `"-1"`) for `app:argType="long"` defaults
+13. **TFLite assets**: `aaptOptions { noCompress += "tflite" }` must be set in `build.gradle.kts`; without it aapt compresses the model file and TFLite cannot mmap it at runtime
+
+---
+
+## 19. Pending / In-Progress Work
 
 ### Button position calibration
 - Dots are screen-size-independent (image-rect-relative, `doOnLayout` for first-load safety)
@@ -722,20 +833,29 @@ lungs-app/build/outputs/apk/debug/lungs-app-debug.apk
 - Button is `visibility=gone` until fixed
 
 ### Denoiser — session-scope gap
-- `DenoiserFragment` currently queries by patient (`getRecordingsForPatient`) — shows recordings across all sessions
-- Denoised file path is non-versioned (`lungs/{seqStr}/denoised/{seqStr}_{pointCode}.wav`) — no sessionNumber in path
-- Future fix: make it session-scoped (pass `sessionId`; query `getRecordingsForSession`; update denoised path to include sessionNumber)
+- `DenoiserFragment` queries `getRecordingsForPatient(patientId)` → shows recordings across all sessions
+- When the same point code exists in multiple sessions, `associateBy { it.pointCode }` keeps the last one (insertion order from Room)
+- The denoised file path now encodes the source recording's sessionNumber (extracted from its directory), but the UI itself is still patient-level (not tied to a specific session)
+- Future fix: make it session-scoped (pass `sessionId`; query `getRecordingsForSession`; update denoised path convention accordingly)
+
+### Activate CRN denoiser (optional)
+- `CrnDenoiser.kt` is fully implemented and loads `crn_float32.tflite`
+- Not wired into `LungsDenoiser.denoiseWav()` — current pipeline uses `WienerDenoiser` only
+- To activate: add a `Context` param to `LungsDenoiser`, call `CrnDenoiser(context).enhance(magnitude)` instead of (or after) `WienerDenoiser().denoise()`
 
 ### Future features
 - [ ] Re-record a point (overwrite existing recording for a session point)
 - [ ] Session completion summary screen after all 16 points recorded
 - [ ] Drive upload via OAuth (replace service account)
+- [ ] Make DenoiserFragment session-scoped
 
 ---
 
-## 19. Known Limitations
+## 20. Known Limitations
 
 - `SavedPatientsFragment` and `PatientSessionsListFragment` adapters use a `CoroutineScope` per ViewHolder for async count loading — not cancelled on recycle (acceptable for read-only, small datasets)
 - Drive upload stubbed — button hidden, requires OAuth rewrite
 - Waveform rendering in `LungsPlayerFragment` reads full WAV into memory — fine for recordings up to a few minutes
-- Denoiser is patient-scoped, not session-scoped (denoises across all sessions for a patient)
+- Denoiser is patient-scoped, not session-scoped (queries all recordings for a patient across all sessions)
+- Denoiser output WAV is written at 8 kHz (resampled from 44.1 kHz) — lower fidelity, but appropriate for lung sounds which are < 2 kHz
+- `CrnDenoiser` TFLite model is bundled but not called from active pipeline
