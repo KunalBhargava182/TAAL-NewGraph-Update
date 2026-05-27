@@ -136,7 +136,11 @@
       "Bash(Get-ChildItem -Path \"E:\\\\AndroidProjects\\\\TaalDemoApp\\\\lungs-app\" -Recurse -Filter \"*.kt\" -File)",
       "Bash(Select-Object -ExpandProperty FullName)",
       "Bash(Get-ChildItem -Force)",
-      "Bash(Select-Object -Property Name, FullName)"
+      "Bash(Select-Object -Property Name, FullName)",
+      "Bash(git restore *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)"
     ]
   }
 }

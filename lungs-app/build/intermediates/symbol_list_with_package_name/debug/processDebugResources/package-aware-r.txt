@@ -3077,6 +3077,7 @@ drawable ic_clock_black_24dp
 drawable ic_cloud_upload
 drawable ic_delete
 drawable ic_denoiser
+drawable ic_download
 drawable ic_edit
 drawable ic_keyboard_black_24dp
 drawable ic_launcher_foreground
@@ -3321,6 +3322,7 @@ id btnAddPatient
 id btnContinueRecording
 id btnDelete
 id btnDenoiser
+id btnDownload
 id btnEditPatient
 id btnExportZip
 id btnInchConverter

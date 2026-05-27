@@ -1,62 +1,66 @@
 [
     {
-        "merged": "com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:/layout/fragment_home.xml",
-        "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/fragment_home.xml"
+        "merged": "C:\\Users\\kunal\\.gradle\\daemon\\8.10.2\\com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:\\layout\\fragment_patient_sessions_list.xml",
+        "source": "C:\\Users\\kunal\\.gradle\\daemon\\8.10.2\\com.musediagnostics.taal.lungs.lungs-app-main-55:\\layout\\fragment_patient_sessions_list.xml"
+    },
+    {
+        "merged": "C:\\Users\\kunal\\.gradle\\daemon\\8.10.2\\com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:\\layout\\fragment_patient_session.xml",
+        "source": "C:\\Users\\kunal\\.gradle\\daemon\\8.10.2\\com.musediagnostics.taal.lungs.lungs-app-main-55:\\layout\\fragment_patient_session.xml"
+    },
+    {
+        "merged": "C:\\Users\\kunal\\.gradle\\daemon\\8.10.2\\com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:\\layout\\item_denoiser_row.xml",
+        "source": "C:\\Users\\kunal\\.gradle\\daemon\\8.10.2\\com.musediagnostics.taal.lungs.lungs-app-main-55:\\layout\\item_denoiser_row.xml"
+    },
+    {
+        "merged": "C:\\Users\\kunal\\.gradle\\daemon\\8.10.2\\com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:\\layout\\fragment_home.xml",
+        "source": "C:\\Users\\kunal\\.gradle\\daemon\\8.10.2\\com.musediagnostics.taal.lungs.lungs-app-main-55:\\layout\\fragment_home.xml"
+    },
+    {
+        "merged": "C:\\Users\\kunal\\.gradle\\daemon\\8.10.2\\com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:\\layout\\item_session_header.xml",
+        "source": "C:\\Users\\kunal\\.gradle\\daemon\\8.10.2\\com.musediagnostics.taal.lungs.lungs-app-main-55:\\layout\\item_session_header.xml"
     },
     {
         "merged": "com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:/layout/item_denoiser_row.xml",
         "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/item_denoiser_row.xml"
     },
     {
-        "merged": "com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:/layout/fragment_denoiser.xml",
-        "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/fragment_denoiser.xml"
+        "merged": "C:\\Users\\kunal\\.gradle\\daemon\\8.10.2\\com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:\\layout\\fragment_denoiser.xml",
+        "source": "C:\\Users\\kunal\\.gradle\\daemon\\8.10.2\\com.musediagnostics.taal.lungs.lungs-app-main-55:\\layout\\fragment_denoiser.xml"
     },
     {
-        "merged": "com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:/layout/activity_main.xml",
-        "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/activity_main.xml"
+        "merged": "C:\\Users\\kunal\\.gradle\\daemon\\8.10.2\\com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:\\layout\\activity_main.xml",
+        "source": "C:\\Users\\kunal\\.gradle\\daemon\\8.10.2\\com.musediagnostics.taal.lungs.lungs-app-main-55:\\layout\\activity_main.xml"
     },
     {
-        "merged": "com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:/layout/fragment_patient_session.xml",
-        "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/fragment_patient_session.xml"
+        "merged": "C:\\Users\\kunal\\.gradle\\daemon\\8.10.2\\com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:\\layout\\item_patient.xml",
+        "source": "C:\\Users\\kunal\\.gradle\\daemon\\8.10.2\\com.musediagnostics.taal.lungs.lungs-app-main-55:\\layout\\item_patient.xml"
     },
     {
-        "merged": "com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:/layout/item_patient.xml",
-        "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/item_patient.xml"
+        "merged": "C:\\Users\\kunal\\.gradle\\daemon\\8.10.2\\com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:\\layout\\item_recording.xml",
+        "source": "C:\\Users\\kunal\\.gradle\\daemon\\8.10.2\\com.musediagnostics.taal.lungs.lungs-app-main-55:\\layout\\item_recording.xml"
     },
     {
-        "merged": "com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:/layout/fragment_lungs_player.xml",
-        "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/fragment_lungs_player.xml"
+        "merged": "C:\\Users\\kunal\\.gradle\\daemon\\8.10.2\\com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:\\layout\\fragment_saved_patients.xml",
+        "source": "C:\\Users\\kunal\\.gradle\\daemon\\8.10.2\\com.musediagnostics.taal.lungs.lungs-app-main-55:\\layout\\fragment_saved_patients.xml"
     },
     {
-        "merged": "com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:/layout/fragment_placement.xml",
-        "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/fragment_placement.xml"
+        "merged": "C:\\Users\\kunal\\.gradle\\daemon\\8.10.2\\com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:\\layout\\fragment_lungs_recording.xml",
+        "source": "C:\\Users\\kunal\\.gradle\\daemon\\8.10.2\\com.musediagnostics.taal.lungs.lungs-app-main-55:\\layout\\fragment_lungs_recording.xml"
     },
     {
-        "merged": "com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:/layout/fragment_lungs_recording.xml",
-        "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/fragment_lungs_recording.xml"
+        "merged": "C:\\Users\\kunal\\.gradle\\daemon\\8.10.2\\com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:\\layout\\fragment_patient_form.xml",
+        "source": "C:\\Users\\kunal\\.gradle\\daemon\\8.10.2\\com.musediagnostics.taal.lungs.lungs-app-main-55:\\layout\\fragment_patient_form.xml"
     },
     {
-        "merged": "com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:/layout/fragment_patient_sessions_list.xml",
-        "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/fragment_patient_sessions_list.xml"
+        "merged": "C:\\Users\\kunal\\.gradle\\daemon\\8.10.2\\com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:\\layout\\item_session.xml",
+        "source": "C:\\Users\\kunal\\.gradle\\daemon\\8.10.2\\com.musediagnostics.taal.lungs.lungs-app-main-55:\\layout\\item_session.xml"
     },
     {
-        "merged": "com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:/layout/item_session.xml",
-        "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/item_session.xml"
+        "merged": "C:\\Users\\kunal\\.gradle\\daemon\\8.10.2\\com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:\\layout\\fragment_placement.xml",
+        "source": "C:\\Users\\kunal\\.gradle\\daemon\\8.10.2\\com.musediagnostics.taal.lungs.lungs-app-main-55:\\layout\\fragment_placement.xml"
     },
     {
-        "merged": "com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:/layout/item_recording.xml",
-        "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/item_recording.xml"
-    },
-    {
-        "merged": "com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:/layout/fragment_patient_form.xml",
-        "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/fragment_patient_form.xml"
-    },
-    {
-        "merged": "com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:/layout/fragment_saved_patients.xml",
-        "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/fragment_saved_patients.xml"
-    },
-    {
-        "merged": "com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:/layout/item_session_header.xml",
-        "source": "com.musediagnostics.taal.lungs.lungs-app-main-55:/layout/item_session_header.xml"
+        "merged": "C:\\Users\\kunal\\.gradle\\daemon\\8.10.2\\com.musediagnostics.taal.lungs.lungs-app-mergeDebugResources-52:\\layout\\fragment_lungs_player.xml",
+        "source": "C:\\Users\\kunal\\.gradle\\daemon\\8.10.2\\com.musediagnostics.taal.lungs.lungs-app-main-55:\\layout\\fragment_lungs_player.xml"
     }
 ]

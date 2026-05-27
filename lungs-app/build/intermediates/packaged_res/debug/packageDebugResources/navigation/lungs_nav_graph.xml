@@ -69,8 +69,8 @@
         <argument android:name="rawFilePath" app:argType="string" android:defaultValue="" />
         <argument android:name="patientId" app:argType="long" />
         <argument android:name="patientSeqNum" app:argType="integer" />
-        <argument android:name="sessionId" app:argType="long" />
-        <argument android:name="sessionNumber" app:argType="integer" />
+        <argument android:name="sessionId" app:argType="long" android:defaultValue="-1L" />
+        <argument android:name="sessionNumber" app:argType="integer" android:defaultValue="0" />
         <argument android:name="pointCode" app:argType="string" android:defaultValue="" />
         <argument android:name="isReviewMode" app:argType="boolean" android:defaultValue="false" />
     </fragment>

@@ -5,6 +5,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
@@ -24,6 +25,12 @@ public final class ItemDenoiserRowBinding implements ViewBinding {
   public final Button btnAction;
 
   @NonNull
+  public final ImageButton btnDownload;
+
+  @NonNull
+  public final ImageButton btnShare;
+
+  @NonNull
   public final View statusDot;
 
   @NonNull
@@ -33,9 +40,12 @@ public final class ItemDenoiserRowBinding implements ViewBinding {
   public final TextView tvRegionLabel;
 
   private ItemDenoiserRowBinding(@NonNull LinearLayout rootView, @NonNull Button btnAction,
-      @NonNull View statusDot, @NonNull TextView tvPointLabel, @NonNull TextView tvRegionLabel) {
+      @NonNull ImageButton btnDownload, @NonNull ImageButton btnShare, @NonNull View statusDot,
+      @NonNull TextView tvPointLabel, @NonNull TextView tvRegionLabel) {
     this.rootView = rootView;
     this.btnAction = btnAction;
+    this.btnDownload = btnDownload;
+    this.btnShare = btnShare;
     this.statusDot = statusDot;
     this.tvPointLabel = tvPointLabel;
     this.tvRegionLabel = tvRegionLabel;
@@ -74,6 +84,18 @@ public final class ItemDenoiserRowBinding implements ViewBinding {
         break missingId;
       }
 
+      id = R.id.btnDownload;
+      ImageButton btnDownload = ViewBindings.findChildViewById(rootView, id);
+      if (btnDownload == null) {
+        break missingId;
+      }
+
+      id = R.id.btnShare;
+      ImageButton btnShare = ViewBindings.findChildViewById(rootView, id);
+      if (btnShare == null) {
+        break missingId;
+      }
+
       id = R.id.statusDot;
       View statusDot = ViewBindings.findChildViewById(rootView, id);
       if (statusDot == null) {
@@ -92,8 +114,8 @@ public final class ItemDenoiserRowBinding implements ViewBinding {
         break missingId;
       }
 
-      return new ItemDenoiserRowBinding((LinearLayout) rootView, btnAction, statusDot, tvPointLabel,
-          tvRegionLabel);
+      return new ItemDenoiserRowBinding((LinearLayout) rootView, btnAction, btnDownload, btnShare,
+          statusDot, tvPointLabel, tvRegionLabel);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));

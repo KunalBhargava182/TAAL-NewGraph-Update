@@ -63,133 +63,134 @@
 38-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:21:9-45
 39        android:supportsRtl="true"
 39-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:19:9-35
-40        android:theme="@style/Theme.LungsApp" >
-40-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:20:9-46
-41        <activity
-41-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:23:9-32:20
-42            android:name="com.musediagnostics.taal.lungs.ui.MainActivity"
-42-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:24:13-44
-43            android:exported="true"
-43-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:25:13-36
-44            android:screenOrientation="portrait"
-44-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:26:13-49
-45            android:windowSoftInputMode="adjustResize" >
-45-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:27:13-55
-46            <intent-filter>
-46-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:28:13-31:29
-47                <action android:name="android.intent.action.MAIN" />
-47-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:29:17-69
-47-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:29:25-66
-48
-49                <category android:name="android.intent.category.LAUNCHER" />
-49-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:30:17-77
-49-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:30:27-74
-50            </intent-filter>
-51        </activity>
-52
-53        <provider
-54            android:name="androidx.core.content.FileProvider"
-54-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:35:13-62
-55            android:authorities="com.musediagnostics.taal.lungs.fileprovider"
-55-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:36:13-64
-56            android:exported="false"
-56-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:37:13-37
-57            android:grantUriPermissions="true" >
-57-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:38:13-47
-58            <meta-data
-58-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:39:13-41:63
-59                android:name="android.support.FILE_PROVIDER_PATHS"
-59-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:40:17-67
-60                android:resource="@xml/file_provider_paths" />
-60-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:41:17-60
-61        </provider>
-62        <provider
-62-->[androidx.emoji2:emoji2:1.2.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\5a8f659edf0dc87a35e4621e9e72fd2d\transformed\emoji2-1.2.0\AndroidManifest.xml:24:9-32:20
-63            android:name="androidx.startup.InitializationProvider"
-63-->[androidx.emoji2:emoji2:1.2.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\5a8f659edf0dc87a35e4621e9e72fd2d\transformed\emoji2-1.2.0\AndroidManifest.xml:25:13-67
-64            android:authorities="com.musediagnostics.taal.lungs.androidx-startup"
-64-->[androidx.emoji2:emoji2:1.2.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\5a8f659edf0dc87a35e4621e9e72fd2d\transformed\emoji2-1.2.0\AndroidManifest.xml:26:13-68
-65            android:exported="false" >
-65-->[androidx.emoji2:emoji2:1.2.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\5a8f659edf0dc87a35e4621e9e72fd2d\transformed\emoji2-1.2.0\AndroidManifest.xml:27:13-37
-66            <meta-data
-66-->[androidx.emoji2:emoji2:1.2.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\5a8f659edf0dc87a35e4621e9e72fd2d\transformed\emoji2-1.2.0\AndroidManifest.xml:29:13-31:52
-67                android:name="androidx.emoji2.text.EmojiCompatInitializer"
-67-->[androidx.emoji2:emoji2:1.2.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\5a8f659edf0dc87a35e4621e9e72fd2d\transformed\emoji2-1.2.0\AndroidManifest.xml:30:17-75
-68                android:value="androidx.startup" />
-68-->[androidx.emoji2:emoji2:1.2.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\5a8f659edf0dc87a35e4621e9e72fd2d\transformed\emoji2-1.2.0\AndroidManifest.xml:31:17-49
-69            <meta-data
-69-->[androidx.lifecycle:lifecycle-process:2.7.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\64acd1d53ec89d901b5c4883d9ef09df\transformed\lifecycle-process-2.7.0\AndroidManifest.xml:29:13-31:52
-70                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
-70-->[androidx.lifecycle:lifecycle-process:2.7.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\64acd1d53ec89d901b5c4883d9ef09df\transformed\lifecycle-process-2.7.0\AndroidManifest.xml:30:17-78
-71                android:value="androidx.startup" />
-71-->[androidx.lifecycle:lifecycle-process:2.7.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\64acd1d53ec89d901b5c4883d9ef09df\transformed\lifecycle-process-2.7.0\AndroidManifest.xml:31:17-49
-72            <meta-data
-72-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:29:13-31:52
-73                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
-73-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:30:17-85
-74                android:value="androidx.startup" />
-74-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:31:17-49
-75        </provider>
-76
-77        <uses-library
-77-->[androidx.window:window:1.0.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\6c1e4828e57387401c9b83056fd7043b\transformed\window-1.0.0\AndroidManifest.xml:25:9-27:40
-78            android:name="androidx.window.extensions"
-78-->[androidx.window:window:1.0.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\6c1e4828e57387401c9b83056fd7043b\transformed\window-1.0.0\AndroidManifest.xml:26:13-54
-79            android:required="false" />
-79-->[androidx.window:window:1.0.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\6c1e4828e57387401c9b83056fd7043b\transformed\window-1.0.0\AndroidManifest.xml:27:13-37
-80        <uses-library
-80-->[androidx.window:window:1.0.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\6c1e4828e57387401c9b83056fd7043b\transformed\window-1.0.0\AndroidManifest.xml:28:9-30:40
-81            android:name="androidx.window.sidecar"
-81-->[androidx.window:window:1.0.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\6c1e4828e57387401c9b83056fd7043b\transformed\window-1.0.0\AndroidManifest.xml:29:13-51
-82            android:required="false" />
-82-->[androidx.window:window:1.0.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\6c1e4828e57387401c9b83056fd7043b\transformed\window-1.0.0\AndroidManifest.xml:30:13-37
-83
-84        <service
-84-->[androidx.room:room-runtime:2.6.1] C:\Users\kunal\.gradle\caches\8.10.2\transforms\b6225e719284e6586b7e06efe830e639\transformed\room-runtime-2.6.1\AndroidManifest.xml:24:9-28:63
-85            android:name="androidx.room.MultiInstanceInvalidationService"
-85-->[androidx.room:room-runtime:2.6.1] C:\Users\kunal\.gradle\caches\8.10.2\transforms\b6225e719284e6586b7e06efe830e639\transformed\room-runtime-2.6.1\AndroidManifest.xml:25:13-74
-86            android:directBootAware="true"
-86-->[androidx.room:room-runtime:2.6.1] C:\Users\kunal\.gradle\caches\8.10.2\transforms\b6225e719284e6586b7e06efe830e639\transformed\room-runtime-2.6.1\AndroidManifest.xml:26:13-43
-87            android:exported="false" />
-87-->[androidx.room:room-runtime:2.6.1] C:\Users\kunal\.gradle\caches\8.10.2\transforms\b6225e719284e6586b7e06efe830e639\transformed\room-runtime-2.6.1\AndroidManifest.xml:27:13-37
-88
-89        <receiver
-89-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:34:9-52:20
-90            android:name="androidx.profileinstaller.ProfileInstallReceiver"
-90-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:35:13-76
-91            android:directBootAware="false"
-91-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:36:13-44
-92            android:enabled="true"
-92-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:37:13-35
-93            android:exported="true"
-93-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:38:13-36
-94            android:permission="android.permission.DUMP" >
-94-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:39:13-57
-95            <intent-filter>
-95-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:40:13-42:29
-96                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
-96-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:41:17-91
-96-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:41:25-88
-97            </intent-filter>
-98            <intent-filter>
-98-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:43:13-45:29
-99                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
-99-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:44:17-85
-99-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:44:25-82
-100            </intent-filter>
-101            <intent-filter>
-101-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:46:13-48:29
-102                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
-102-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:47:17-88
-102-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:47:25-85
-103            </intent-filter>
-104            <intent-filter>
-104-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:49:13-51:29
-105                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
-105-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:50:17-95
-105-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:50:25-92
-106            </intent-filter>
-107        </receiver>
-108    </application>
-109
-110</manifest>
+40        android:testOnly="true"
+41        android:theme="@style/Theme.LungsApp" >
+41-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:20:9-46
+42        <activity
+42-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:23:9-32:20
+43            android:name="com.musediagnostics.taal.lungs.ui.MainActivity"
+43-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:24:13-44
+44            android:exported="true"
+44-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:25:13-36
+45            android:screenOrientation="portrait"
+45-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:26:13-49
+46            android:windowSoftInputMode="adjustResize" >
+46-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:27:13-55
+47            <intent-filter>
+47-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:28:13-31:29
+48                <action android:name="android.intent.action.MAIN" />
+48-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:29:17-69
+48-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:29:25-66
+49
+50                <category android:name="android.intent.category.LAUNCHER" />
+50-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:30:17-77
+50-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:30:27-74
+51            </intent-filter>
+52        </activity>
+53
+54        <provider
+55            android:name="androidx.core.content.FileProvider"
+55-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:35:13-62
+56            android:authorities="com.musediagnostics.taal.lungs.fileprovider"
+56-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:36:13-64
+57            android:exported="false"
+57-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:37:13-37
+58            android:grantUriPermissions="true" >
+58-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:38:13-47
+59            <meta-data
+59-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:39:13-41:63
+60                android:name="android.support.FILE_PROVIDER_PATHS"
+60-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:40:17-67
+61                android:resource="@xml/file_provider_paths" />
+61-->E:\AndroidProjects\TaalDemoApp\lungs-app\src\main\AndroidManifest.xml:41:17-60
+62        </provider>
+63        <provider
+63-->[androidx.emoji2:emoji2:1.2.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\5a8f659edf0dc87a35e4621e9e72fd2d\transformed\emoji2-1.2.0\AndroidManifest.xml:24:9-32:20
+64            android:name="androidx.startup.InitializationProvider"
+64-->[androidx.emoji2:emoji2:1.2.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\5a8f659edf0dc87a35e4621e9e72fd2d\transformed\emoji2-1.2.0\AndroidManifest.xml:25:13-67
+65            android:authorities="com.musediagnostics.taal.lungs.androidx-startup"
+65-->[androidx.emoji2:emoji2:1.2.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\5a8f659edf0dc87a35e4621e9e72fd2d\transformed\emoji2-1.2.0\AndroidManifest.xml:26:13-68
+66            android:exported="false" >
+66-->[androidx.emoji2:emoji2:1.2.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\5a8f659edf0dc87a35e4621e9e72fd2d\transformed\emoji2-1.2.0\AndroidManifest.xml:27:13-37
+67            <meta-data
+67-->[androidx.emoji2:emoji2:1.2.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\5a8f659edf0dc87a35e4621e9e72fd2d\transformed\emoji2-1.2.0\AndroidManifest.xml:29:13-31:52
+68                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+68-->[androidx.emoji2:emoji2:1.2.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\5a8f659edf0dc87a35e4621e9e72fd2d\transformed\emoji2-1.2.0\AndroidManifest.xml:30:17-75
+69                android:value="androidx.startup" />
+69-->[androidx.emoji2:emoji2:1.2.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\5a8f659edf0dc87a35e4621e9e72fd2d\transformed\emoji2-1.2.0\AndroidManifest.xml:31:17-49
+70            <meta-data
+70-->[androidx.lifecycle:lifecycle-process:2.7.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\64acd1d53ec89d901b5c4883d9ef09df\transformed\lifecycle-process-2.7.0\AndroidManifest.xml:29:13-31:52
+71                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+71-->[androidx.lifecycle:lifecycle-process:2.7.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\64acd1d53ec89d901b5c4883d9ef09df\transformed\lifecycle-process-2.7.0\AndroidManifest.xml:30:17-78
+72                android:value="androidx.startup" />
+72-->[androidx.lifecycle:lifecycle-process:2.7.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\64acd1d53ec89d901b5c4883d9ef09df\transformed\lifecycle-process-2.7.0\AndroidManifest.xml:31:17-49
+73            <meta-data
+73-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:29:13-31:52
+74                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+74-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:30:17-85
+75                android:value="androidx.startup" />
+75-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:31:17-49
+76        </provider>
+77
+78        <uses-library
+78-->[androidx.window:window:1.0.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\6c1e4828e57387401c9b83056fd7043b\transformed\window-1.0.0\AndroidManifest.xml:25:9-27:40
+79            android:name="androidx.window.extensions"
+79-->[androidx.window:window:1.0.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\6c1e4828e57387401c9b83056fd7043b\transformed\window-1.0.0\AndroidManifest.xml:26:13-54
+80            android:required="false" />
+80-->[androidx.window:window:1.0.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\6c1e4828e57387401c9b83056fd7043b\transformed\window-1.0.0\AndroidManifest.xml:27:13-37
+81        <uses-library
+81-->[androidx.window:window:1.0.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\6c1e4828e57387401c9b83056fd7043b\transformed\window-1.0.0\AndroidManifest.xml:28:9-30:40
+82            android:name="androidx.window.sidecar"
+82-->[androidx.window:window:1.0.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\6c1e4828e57387401c9b83056fd7043b\transformed\window-1.0.0\AndroidManifest.xml:29:13-51
+83            android:required="false" />
+83-->[androidx.window:window:1.0.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\6c1e4828e57387401c9b83056fd7043b\transformed\window-1.0.0\AndroidManifest.xml:30:13-37
+84
+85        <service
+85-->[androidx.room:room-runtime:2.6.1] C:\Users\kunal\.gradle\caches\8.10.2\transforms\b6225e719284e6586b7e06efe830e639\transformed\room-runtime-2.6.1\AndroidManifest.xml:24:9-28:63
+86            android:name="androidx.room.MultiInstanceInvalidationService"
+86-->[androidx.room:room-runtime:2.6.1] C:\Users\kunal\.gradle\caches\8.10.2\transforms\b6225e719284e6586b7e06efe830e639\transformed\room-runtime-2.6.1\AndroidManifest.xml:25:13-74
+87            android:directBootAware="true"
+87-->[androidx.room:room-runtime:2.6.1] C:\Users\kunal\.gradle\caches\8.10.2\transforms\b6225e719284e6586b7e06efe830e639\transformed\room-runtime-2.6.1\AndroidManifest.xml:26:13-43
+88            android:exported="false" />
+88-->[androidx.room:room-runtime:2.6.1] C:\Users\kunal\.gradle\caches\8.10.2\transforms\b6225e719284e6586b7e06efe830e639\transformed\room-runtime-2.6.1\AndroidManifest.xml:27:13-37
+89
+90        <receiver
+90-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:34:9-52:20
+91            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+91-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:35:13-76
+92            android:directBootAware="false"
+92-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:36:13-44
+93            android:enabled="true"
+93-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:37:13-35
+94            android:exported="true"
+94-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:38:13-36
+95            android:permission="android.permission.DUMP" >
+95-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:39:13-57
+96            <intent-filter>
+96-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:40:13-42:29
+97                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+97-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:41:17-91
+97-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:41:25-88
+98            </intent-filter>
+99            <intent-filter>
+99-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:43:13-45:29
+100                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+100-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:44:17-85
+100-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:44:25-82
+101            </intent-filter>
+102            <intent-filter>
+102-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:46:13-48:29
+103                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+103-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:47:17-88
+103-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:47:25-85
+104            </intent-filter>
+105            <intent-filter>
+105-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:49:13-51:29
+106                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+106-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:50:17-95
+106-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\kunal\.gradle\caches\8.10.2\transforms\03772b72153dbe436428c35572b8903f\transformed\profileinstaller-1.3.0\AndroidManifest.xml:50:25-92
+107            </intent-filter>
+108        </receiver>
+109    </application>
+110
+111</manifest>

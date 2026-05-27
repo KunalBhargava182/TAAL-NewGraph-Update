@@ -3076,6 +3076,7 @@ int drawable ic_clock_black_24dp 0x7f070096
 int drawable ic_cloud_upload 0x7f070097
 int drawable ic_delete 0x7f070098
 int drawable ic_denoiser 0x7f070099
+int drawable ic_download 0x7f07010d
 int drawable ic_edit 0x7f07009a
 int drawable ic_keyboard_black_24dp 0x7f07009b
 int drawable ic_launcher_foreground 0x7f07009c
@@ -3320,6 +3321,7 @@ int id btnAddPatient 0x7f08007d
 int id btnContinueRecording 0x7f08007e
 int id btnDelete 0x7f08007f
 int id btnDenoiser 0x7f080080
+int id btnDownload 0x7f080273
 int id btnEditPatient 0x7f080081
 int id btnExportZip 0x7f080082
 int id btnInchConverter 0x7f080083

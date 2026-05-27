@@ -41,6 +41,7 @@ drawable ic_check
 drawable ic_cloud_upload
 drawable ic_delete
 drawable ic_denoiser
+drawable ic_download
 drawable ic_edit
 drawable ic_launcher_foreground
 drawable ic_lungs
@@ -102,6 +103,7 @@ id btnAddPatient
 id btnContinueRecording
 id btnDelete
 id btnDenoiser
+id btnDownload
 id btnEditPatient
 id btnExportZip
 id btnInchConverter
