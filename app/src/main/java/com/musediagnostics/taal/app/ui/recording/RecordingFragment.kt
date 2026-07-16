@@ -24,12 +24,15 @@ import com.github.mikephil.charting.data.LineDataSet
 import com.musediagnostics.taal.PreFilter
 import com.musediagnostics.taal.TaalRecorder
 import com.musediagnostics.taal.core.RecorderState
-import com.musediagnostics.taal.dsp.AudioDownsampler
-import com.musediagnostics.taal.dsp.AudioFilterEngine
+// import com.musediagnostics.taal.dsp.AudioDownsampler  // AI downsampling disabled
+// import com.musediagnostics.taal.dsp.AudioFilterEngine  // AI downsampling disabled
+import android.text.Editable
+import android.text.TextWatcher
+import android.view.inputmethod.InputMethodManager
 import com.musediagnostics.taal.app.R
 import java.io.File
-import java.io.FileOutputStream
-import java.io.RandomAccessFile
+// import java.io.FileOutputStream  // AI downsampling disabled
+// import java.io.RandomAccessFile  // AI downsampling disabled
 import com.musediagnostics.taal.app.databinding.FragmentRecordingBinding
 import com.musediagnostics.taal.app.dsp.HeartBpmCalculator
 import com.musediagnostics.taal.app.ui.MainActivity
@@ -66,24 +69,11 @@ class RecordingFragment : Fragment() {
     private val bpmCalculator = HeartBpmCalculator()
     private val bpmScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
-    // ── AI testing pipeline ───────────────────────────────────────────────────
-    // Strictly isolated from the main 44.1kHz recording pipeline.
-    // All streams are fed from onRawProgressUpdate() — pre-filter, pre-amp raw signal.
-    // @Volatile ensures write visibility across the audio IO thread and main thread.
-    //
-    // heartResampler8k + aiTestingFos: the original 8kHz HEART stream.  Kept as a
-    // separate unit so its path flows through PlayerFragment's save/discard flow
-    // via viewModel.currentAiTestingPath — changing that flow is out of scope here.
-    //
-    // activeDownsamplingStreams: filter-conditional additional streams opened on
-    // startRecording() and closed on stopRecording().  These are AI training files
-    // only — they are NOT part of the save/discard flow.
-    //   HEART filter → HEART 500 Hz, 1 kHz, 4 kHz
-    //   LUNGS filter → LUNGS 2 kHz, 3 kHz, 4 kHz, 8 kHz
-    private val heartResampler8k = AudioDownsampler(8000, AudioFilterEngine.PresetFilter.HEART)
-    @Volatile private var aiTestingFos: FileOutputStream? = null
-    @Volatile private var aiTestingBytesWritten = 0
-    private var activeDownsamplingStreams: List<DownsamplingStream> = emptyList()
+    // ── AI testing pipeline (DISABLED) ───────────────────────────────────────
+    // private val heartResampler8k = AudioDownsampler(8000, AudioFilterEngine.PresetFilter.HEART)
+    // @Volatile private var aiTestingFos: FileOutputStream? = null
+    // @Volatile private var aiTestingBytesWritten = 0
+    // private var activeDownsamplingStreams: List<DownsamplingStream> = emptyList()
 
     companion object {
         private const val WINDOW_SECONDS = 10f
@@ -214,27 +204,113 @@ class RecordingFragment : Fragment() {
     }
 
     private fun setupFilterButtons() {
-        val filters = mapOf(
+        val presetFilters = mapOf(
             binding.filterHeart to "HEART",
             binding.filterLungs to "LUNGS",
             binding.filterBowel to "BOWEL",
             binding.filterPregnancy to "PREGNANCY",
             binding.filterInfo to "FULL_BODY"
         )
+        val allButtons = presetFilters.keys + binding.filterCustom
 
-        // Set HEART as the default selected filter
+        // Default: HEART selected, custom panel hidden
         binding.filterHeart.isSelected = true
         viewModel.setFilter("HEART")
+        binding.customRangePanel.visibility = View.GONE
 
-        filters.forEach { (button, filterName) ->
+        presetFilters.forEach { (button, name) ->
             button.setOnClickListener {
-                // Deselect all
-                filters.keys.forEach { it.isSelected = false }
-                // Select this one
+                allButtons.forEach { it.isSelected = false }
                 button.isSelected = true
-                viewModel.setFilter(filterName)
+                viewModel.setFilter(name)
+                binding.customRangePanel.visibility = View.GONE
+                dismissKeyboard()
             }
         }
+
+        binding.filterCustom.setOnClickListener {
+            allButtons.forEach { it.isSelected = false }
+            binding.filterCustom.isSelected = true
+            viewModel.setFilter("CUSTOM")
+            binding.customRangePanel.visibility = View.VISIBLE
+        }
+
+        setupCustomRangePanel()
+    }
+
+    private fun dismissKeyboard() {
+        val imm = requireContext().getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        imm.hideSoftInputFromWindow(requireView().windowToken, 0)
+        requireView().clearFocus()
+    }
+
+    private fun setupCustomRangePanel() {
+        // Restore from ViewModel if available, otherwise use sensible defaults
+        val initLow  = viewModel.customLowCut  ?: 20f
+        val initHigh = viewModel.customHighCut ?: 10000f
+
+        // Seed ViewModel immediately so values are valid even before the user touches anything.
+        // (setText below fires BEFORE the TextWatcher is attached, so the watcher never sees
+        // these initial values — we must write them to the ViewModel explicitly here.)
+        viewModel.customLowCut  = initLow
+        viewModel.customHighCut = initHigh
+
+        binding.customRangeSlider.values = listOf(
+            initLow.coerceIn(0f, 24000f),
+            initHigh.coerceIn(0f, 24000f)
+        )
+        binding.customLowCutInput.setText(initLow.toInt().toString())
+        binding.customHighCutInput.setText(initHigh.toInt().toString())
+
+        var isUpdating = false
+
+        // Slider → text fields
+        binding.customRangeSlider.addOnChangeListener { _, _, _ ->
+            if (isUpdating) return@addOnChangeListener
+            isUpdating = true
+            val vals = binding.customRangeSlider.values
+            val low  = vals[0].toInt()
+            val high = vals[1].toInt()
+            binding.customLowCutInput.setText(low.toString())
+            binding.customHighCutInput.setText(high.toString())
+            viewModel.customLowCut  = vals[0]
+            viewModel.customHighCut = vals[1]
+            isUpdating = false
+        }
+
+        // Low cut text → slider + ViewModel
+        binding.customLowCutInput.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                if (isUpdating) return
+                val v = s?.toString()?.toFloatOrNull() ?: return
+                viewModel.customLowCut = v.coerceIn(1f, 24000f)
+                val currentHigh = binding.customRangeSlider.values[1]
+                if (v in 1f..24000f && v < currentHigh) {
+                    isUpdating = true
+                    binding.customRangeSlider.values = listOf(v, currentHigh)
+                    isUpdating = false
+                }
+            }
+        })
+
+        // High cut text → slider + ViewModel
+        binding.customHighCutInput.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                if (isUpdating) return
+                val v = s?.toString()?.toFloatOrNull() ?: return
+                viewModel.customHighCut = v.coerceIn(1f, 24000f)
+                val currentLow = binding.customRangeSlider.values[0]
+                if (v in 1f..24000f && v > currentLow) {
+                    isUpdating = true
+                    binding.customRangeSlider.values = listOf(currentLow, v)
+                    isUpdating = false
+                }
+            }
+        })
     }
 
     private fun setupConnectionReceiver() {
@@ -309,13 +385,11 @@ class RecordingFragment : Fragment() {
         binding.playPauseButton.setOnClickListener {
             val filteredPath = viewModel.currentFilteredPath
             val rawPath = viewModel.currentRecordingPath
-            val aiTestingPath = viewModel.currentAiTestingPath
             val filterName = viewModel.currentFilter.value ?: "HEART"
             if (filteredPath.isNotEmpty()) {
                 val bundle = Bundle().apply {
                     putString("filePath", filteredPath)
                     putString("rawFilePath", rawPath)
-                    putString("aiTestingFilePath", aiTestingPath)
                     putString("filterName", filterName)
                 }
                 findNavController().navigate(R.id.action_recording_to_player, bundle)
@@ -336,15 +410,14 @@ class RecordingFragment : Fragment() {
         viewModel.setUiState(RecordingUiState.IDLE)
         viewModel.currentRecordingPath = ""
         viewModel.currentFilteredPath = ""
-        // Clean up AI testing state so stale data never leaks into the next session
-        try { aiTestingFos?.close() } catch (_: Exception) {}
-        aiTestingFos = null
-        aiTestingBytesWritten = 0
-        heartResampler8k.reset()
-        viewModel.currentAiTestingPath = ""
-        activeDownsamplingStreams.forEach { it.safeClose() }
-        activeDownsamplingStreams = emptyList()
-        viewModel.extraAiFilePaths = emptyList()
+        // try { aiTestingFos?.close() } catch (_: Exception) {}  // AI downsampling disabled
+        // aiTestingFos = null
+        // aiTestingBytesWritten = 0
+        // heartResampler8k.reset()
+        // viewModel.currentAiTestingPath = ""
+        // activeDownsamplingStreams.forEach { it.safeClose() }
+        // activeDownsamplingStreams = emptyList()
+        // viewModel.extraAiFilePaths = emptyList()
         waveformEntries.clear()
         waveformDataSet = null
         chartInitialized = false
@@ -379,10 +452,17 @@ class RecordingFragment : Fragment() {
             binding.filterLungs,
             binding.filterBowel,
             binding.filterPregnancy,
-            binding.filterInfo
+            binding.filterInfo,
+            binding.filterCustom
         ).forEach {
             it.isEnabled = enabled
             it.alpha = alpha
+        }
+        // Hide the custom range panel while recording; restore on idle if custom is still selected
+        if (!enabled) {
+            binding.customRangePanel.visibility = View.GONE
+        } else if (viewModel.currentFilter.value == "CUSTOM") {
+            binding.customRangePanel.visibility = View.VISIBLE
         }
     }
 
@@ -458,16 +538,49 @@ class RecordingFragment : Fragment() {
     }
 
     private fun startRecording() {
+        dismissKeyboard()
+
+        val filterName = viewModel.currentFilter.value ?: "HEART"
+
+        // Validate custom filter before touching the recorder
+        if (filterName == "CUSTOM") {
+            val low  = viewModel.customLowCut
+            val high = viewModel.customHighCut
+            val lowText  = binding.customLowCutInput.text?.toString()?.trim()
+            val highText = binding.customHighCutInput.text?.toString()?.trim()
+
+            val message = when {
+                lowText.isNullOrEmpty() && highText.isNullOrEmpty() ->
+                    "Low Cut and High Cut cannot be blank.\nPlease enter valid frequency values (e.g. Low Cut: 20 Hz, High Cut: 1000 Hz)."
+                lowText.isNullOrEmpty() ->
+                    "Low Cut cannot be blank.\nPlease enter a frequency greater than 0 Hz."
+                highText.isNullOrEmpty() ->
+                    "High Cut cannot be blank.\nPlease enter a frequency greater than 0 Hz."
+                low == null || low <= 0f ->
+                    "Low Cut cannot be 0 Hz.\nA value of 0 Hz disables the filter entirely. Please enter a frequency greater than 0 Hz (e.g. 20 Hz)."
+                high == null || high <= 0f ->
+                    "High Cut cannot be 0 Hz.\nA value of 0 Hz disables the filter entirely. Please enter a frequency greater than 0 Hz (e.g. 1000 Hz)."
+                low >= high ->
+                    "Low Cut (${low.toInt()} Hz) must be less than High Cut (${high.toInt()} Hz).\nPlease adjust the values so the passband is valid."
+                else -> null
+            }
+
+            if (message != null) {
+                com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
+                    .setTitle("Custom Filter")
+                    .setMessage(message)
+                    .setPositiveButton("OK") { d, _ -> d.dismiss() }
+                    .show()
+                return
+            }
+        }
+
         try {
             val ts = System.currentTimeMillis()
             val rawFilePath = "${requireContext().filesDir}/recording_${ts}_raw.wav"
             val filteredFilePath = "${requireContext().filesDir}/recording_${ts}_filtered.wav"
             viewModel.currentRecordingPath = rawFilePath
             viewModel.currentFilteredPath = filteredFilePath
-            // AI testing paths are set conditionally below based on the selected filter.
-
-            val filterName = viewModel.currentFilter.value ?: "HEART"
-            val preFilter = PreFilter.valueOf(filterName)
 
             taalRecorder = TaalRecorder(requireContext()).apply {
                 setRawAudioFilePath(rawFilePath)
@@ -475,7 +588,14 @@ class RecordingFragment : Fragment() {
                 setRecordingTime(300) // 5 minutes max
                 setPlayback(false)
                 setPreAmplification(viewModel.preAmpDb.value ?: 5)
-                setPreFilter(preFilter)
+                if (filterName == "CUSTOM") {
+                    setCustomBandpass(
+                        viewModel.customLowCut!!.toDouble(),
+                        viewModel.customHighCut!!.toDouble()
+                    )
+                } else {
+                    setPreFilter(PreFilter.valueOf(filterName))
+                }
 
                 onInfoListener = object : TaalRecorder.OnInfoListener {
                     override fun onStateChange(state: RecorderState) {
@@ -495,30 +615,7 @@ class RecordingFragment : Fragment() {
                     }
 
                     override fun onRawProgressUpdate(data: FloatArray) {
-                        // ── AI testing tap (raw audio) ───────────────────────────────────────
-                        // Runs on the audio IO thread. Receives the signal BEFORE TaalRecorder
-                        // applies any preset filter or pre-amp — true acoustic input.
-                        // All streams here are self-contained; exceptions are swallowed so a
-                        // failure in any AI stream can never interrupt the clinical recording.
-
-                        // Existing 8kHz HEART stream — only open when HEART filter is selected.
-                        // Path is stored in viewModel.currentAiTestingPath for save/discard.
-                        //   raw 44.1kHz → HEART bandpass (anti-alias) → downsample ×1/5.5125 → 8kHz
-                        aiTestingFos?.let { fos ->
-                            try {
-                                val downsampled = heartResampler8k.process(data)
-                                if (downsampled.isNotEmpty()) {
-                                    val pcmBytes = floatsTo16BitPcmBytes(downsampled)
-                                    fos.write(pcmBytes)
-                                    aiTestingBytesWritten += pcmBytes.size
-                                }
-                            } catch (_: Exception) {}
-                        }
-
-                        // Additional filter-conditional streams (opened in startRecording):
-                        //   HEART filter → 500 Hz, 1 kHz, 4 kHz HEART-band files
-                        //   LUNGS filter → 2 kHz, 3 kHz, 4 kHz, 8 kHz LUNGS-band files
-                        activeDownsamplingStreams.forEach { it.process(data) }
+                        // AI downsampling streams disabled — no extra files written
                     }
 
                     override fun onProgressUpdate(
@@ -579,98 +676,15 @@ class RecordingFragment : Fragment() {
             totalSamplesProcessed = 0L
             bpmCalculator.reset()
 
-            // ── Open AI testing WAV files (filter-conditional) ───────────────
-            // Reset stale state from any previous session first.
-            activeDownsamplingStreams.forEach { it.safeClose() }
-            activeDownsamplingStreams = emptyList()
-            try { aiTestingFos?.close() } catch (_: Exception) {}
-            aiTestingFos = null
-            aiTestingBytesWritten = 0
-            heartResampler8k.reset()
-            viewModel.currentAiTestingPath = ""
-
-            val base = "${requireContext().filesDir}/recording_${ts}"
-
-            when (filterName) {
-                "HEART" -> {
-                    // HEART filter: produce 4 HEART-band downsampled files.
-                    // Anti-alias filter for all: HEART bandpass (20–250 Hz).
-                    // Downsampled from raw 44.1kHz — no pre-amp, no preset filter applied.
-                    //
-                    //   8000 Hz — ratio  5.5125 — Nyquist 4000 Hz  ✓ (existing stream)
-                    //   4000 Hz — ratio 11.025  — Nyquist 2000 Hz  ✓
-                    //   1000 Hz — ratio 44.1    — Nyquist  500 Hz  ✓
-                    //    500 Hz — ratio 88.2    — Nyquist  250 Hz  ≈ filter cutoff (borderline safe;
-                    //              S1/S2 energy peaks at 20–150 Hz, well below the boundary)
-
-                    // 8kHz: path stored in ViewModel so PlayerFragment can save/discard it
-                    val path8k = "${base}_8k_downsampling.wav"
-                    viewModel.currentAiTestingPath = path8k
-                    try {
-                        val fos = FileOutputStream(File(path8k))
-                        writeAiWavHeader(fos, 8000)
-                        aiTestingFos = fos
-                    } catch (_: Exception) {}
-
-                    // 4kHz, 1kHz, 500Hz via DownsamplingStream (AI training files only)
-                    activeDownsamplingStreams = listOf(
-                        DownsamplingStream(
-                            AudioDownsampler(4000, AudioFilterEngine.PresetFilter.HEART),
-                            "${base}_4k_heart_downsampling.wav"
-                        ),
-                        DownsamplingStream(
-                            AudioDownsampler(1000, AudioFilterEngine.PresetFilter.HEART),
-                            "${base}_1k_heart_downsampling.wav"
-                        ),
-                        DownsamplingStream(
-                            AudioDownsampler(500, AudioFilterEngine.PresetFilter.HEART),
-                            "${base}_500hz_heart_downsampling.wav"
-                        )
-                    )
-                    activeDownsamplingStreams.forEach { it.open() }
-                    viewModel.extraAiFilePaths = activeDownsamplingStreams.map { it.filePath }
-                }
-
-                "LUNGS" -> {
-                    // LUNGS filter: produce 4 LUNGS-band downsampled files.
-                    // Anti-alias filter for all: LUNGS bandpass (100–600 Hz).
-                    // Downsampled from raw 44.1kHz — no pre-amp, no preset filter applied.
-                    //
-                    //   8000 Hz — ratio  5.5125 — Nyquist 4000 Hz  ✓
-                    //   4000 Hz — ratio 11.025  — Nyquist 2000 Hz  ✓
-                    //   3000 Hz — ratio 14.7    — Nyquist 1500 Hz  ✓
-                    //   2000 Hz — ratio 22.05   — Nyquist 1000 Hz  ✓
-                    //
-                    // No 8kHz HEART file is created — LUNGS recordings are for the
-                    // LUNGS AI model only.  viewModel.currentAiTestingPath stays empty
-                    // so PlayerFragment's save/discard flow skips the AI file entirely.
-                    activeDownsamplingStreams = listOf(
-                        DownsamplingStream(
-                            AudioDownsampler(8000, AudioFilterEngine.PresetFilter.LUNGS),
-                            "${base}_8k_lungs_downsampling.wav"
-                        ),
-                        DownsamplingStream(
-                            AudioDownsampler(4000, AudioFilterEngine.PresetFilter.LUNGS),
-                            "${base}_4k_lungs_downsampling.wav"
-                        ),
-                        DownsamplingStream(
-                            AudioDownsampler(3000, AudioFilterEngine.PresetFilter.LUNGS),
-                            "${base}_3k_lungs_downsampling.wav"
-                        ),
-                        DownsamplingStream(
-                            AudioDownsampler(2000, AudioFilterEngine.PresetFilter.LUNGS),
-                            "${base}_2k_lungs_downsampling.wav"
-                        )
-                    )
-                    activeDownsamplingStreams.forEach { it.open() }
-                    viewModel.extraAiFilePaths = activeDownsamplingStreams.map { it.filePath }
-                }
-
-                else -> {
-                    // BOWEL, PREGNANCY, FULL_BODY: no AI downsampling files created.
-                    // These filter types are not part of the AI training dataset at this time.
-                }
-            }
+            // ── AI downsampling streams (DISABLED) ──────────────────────────────
+            // activeDownsamplingStreams.forEach { it.safeClose() }
+            // activeDownsamplingStreams = emptyList()
+            // try { aiTestingFos?.close() } catch (_: Exception) {}
+            // aiTestingFos = null
+            // aiTestingBytesWritten = 0
+            // heartResampler8k.reset()
+            // viewModel.currentAiTestingPath = ""
+            // (filter-conditional HEART/LUNGS downsampling streams omitted)
 
             binding.waveformChart.data = LineData()
             binding.waveformChart.moveViewToX(0f)
@@ -722,26 +736,20 @@ class RecordingFragment : Fragment() {
         }
         taalRecorder = null
 
-        // Finalize all AI testing WAV files: flush, close, patch WAV headers.
-        finalizeAiWav()                                      // existing 8kHz HEART stream
-        activeDownsamplingStreams.forEach { it.finalize() }  // filter-conditional streams
-        activeDownsamplingStreams = emptyList()
+        // finalizeAiWav()                                      // AI downsampling disabled
+        // activeDownsamplingStreams.forEach { it.finalize() }  // AI downsampling disabled
+        // activeDownsamplingStreams = emptyList()
 
         val filteredPath = viewModel.currentFilteredPath
         val rawPath = viewModel.currentRecordingPath
-        val aiTestingPath = viewModel.currentAiTestingPath
         val filterName = viewModel.currentFilter.value ?: "HEART"
 
         if (filteredPath.isNotEmpty()) {
             val bundle = Bundle().apply {
                 putString("filePath", filteredPath)
                 putString("rawFilePath", rawPath)
-                putString("aiTestingFilePath", aiTestingPath)
                 putBoolean("isNewRecording", true)
                 putString("filterName", filterName)
-                // All additional AI downsampling files — PlayerFragment forwards these
-                // to SaveRecordingFragment (save) or deletes them (discard).
-                putStringArrayList("extraAiFilePaths", ArrayList(viewModel.extraAiFilePaths))
             }
             findNavController().navigate(R.id.action_recording_to_player, bundle)
         }
@@ -877,247 +885,25 @@ class RecordingFragment : Fragment() {
     //     findNavController().navigate(R.id.action_recording_to_addPatient, bundle)
     // }
 
-    // ── DownsamplingStream inner class ───────────────────────────────────────
+    // ── DownsamplingStream inner class (DISABLED — AI downsampling disabled) ──
     //
-    // Encapsulates one AI downsampling output stream: an AudioDownsampler paired
-    // with its FileOutputStream and byte counter.  RecordingFragment holds a list
-    // of these (activeDownsamplingStreams) that is rebuilt on every startRecording()
-    // based on the selected filter.
+    // private inner class DownsamplingStream(
+    //     private val resampler: AudioDownsampler,
+    //     val filePath: String
+    // ) {
+    //     @Volatile var fos: FileOutputStream? = null
+    //     @Volatile var bytesWritten: Int = 0
+    //     fun open() { ... }
+    //     fun process(data: FloatArray) { ... }
+    //     fun finalize() { ... }
+    //     fun safeClose() { ... }
+    // }
+
+    // ── AI testing WAV helpers (DISABLED — AI downsampling disabled) ─────────
     //
-    // Thread model:
-    //   open() / finalize() / safeClose() → main thread
-    //   process()                         → audio IO thread
-    //   @Volatile on fos and bytesWritten ensures visibility between threads.
-
-    private inner class DownsamplingStream(
-        private val resampler: AudioDownsampler,
-        val filePath: String
-    ) {
-        @Volatile var fos: FileOutputStream? = null
-        @Volatile var bytesWritten: Int = 0
-
-        /**
-         * Open the output WAV file and write the 44-byte header.
-         * Failure is silently swallowed — the main recording is unaffected.
-         */
-        fun open() {
-            try {
-                val f = FileOutputStream(File(filePath))
-                writeAiWavHeader(f, resampler.outputSampleRate)
-                fos = f
-            } catch (_: Exception) {}
-        }
-
-        /**
-         * Anti-alias + downsample one block of raw audio and append to the file.
-         * Called on the audio IO thread for every onRawProgressUpdate() block.
-         * Exceptions are swallowed — any stream failure is isolated.
-         */
-        fun process(data: FloatArray) {
-            fos?.let { f ->
-                try {
-                    val downsampled = resampler.process(data)
-                    if (downsampled.isNotEmpty()) {
-                        val pcmBytes = floatsTo16BitPcmBytes(downsampled)
-                        f.write(pcmBytes)
-                        bytesWritten += pcmBytes.size
-                    }
-                } catch (_: Exception) {}
-            }
-        }
-
-        /**
-         * Flush, close, and back-patch the WAV header with the actual data size.
-         * Called once from stopRecording() on the main thread.
-         * The RandomAccessFile seek runs on an IO coroutine to avoid blocking.
-         */
-        fun finalize() {
-            val f = fos ?: return
-            fos = null
-            try { f.flush() } catch (_: Exception) {}
-            val bytes = bytesWritten
-            bytesWritten = 0
-            val path = filePath
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    f.close()
-                    if (path.isNotEmpty()) {
-                        RandomAccessFile(File(path), "rw").use { raf ->
-                            // Patch RIFF file size at offset 4
-                            val fileSize = bytes + 36
-                            raf.seek(4)
-                            raf.write(fileSize        and 0xff)
-                            raf.write(fileSize shr  8 and 0xff)
-                            raf.write(fileSize shr 16 and 0xff)
-                            raf.write(fileSize shr 24 and 0xff)
-                            // Patch data chunk size at offset 40
-                            raf.seek(40)
-                            raf.write(bytes        and 0xff)
-                            raf.write(bytes shr  8 and 0xff)
-                            raf.write(bytes shr 16 and 0xff)
-                            raf.write(bytes shr 24 and 0xff)
-                        }
-                    }
-                } catch (_: Exception) {}
-            }
-        }
-
-        /**
-         * Emergency close without patching the WAV header.
-         * Called from resetToIdle() and onDestroy() for safety cleanup.
-         * The resulting WAV file will have an incomplete header but no resource leak.
-         */
-        fun safeClose() {
-            try { fos?.close() } catch (_: Exception) {}
-            fos = null
-            bytesWritten = 0
-            resampler.reset()
-        }
-    }
-
-    // ── AI testing WAV helpers ────────────────────────────────────────────────
-    //
-    // writeAiWavHeader / finalizeAiWav / floatsTo16BitPcmBytes are shared by both
-    // the existing 8kHz HEART stream and DownsamplingStream instances.
-    // They deliberately duplicate the WAV-writing logic from TaalRecorder rather
-    // than sharing it, so neither module gains a dependency on the other.
-
-    /**
-     * Write a 44-byte WAV header for mono 16-bit PCM at the given sample rate.
-     *
-     * Used by both the existing 8kHz HEART stream and every DownsamplingStream.
-     * Data-size fields (bytes 4–7 and 40–43) are written as 0 placeholders
-     * and patched with the actual byte count after recording stops.
-     *
-     * WAV header layout (little-endian):
-     *   Offset  Size  Content
-     *    0       4    "RIFF"
-     *    4       4    File size − 8       (placeholder 0)
-     *    8       4    "WAVE"
-     *   12       4    "fmt "
-     *   16       4    Subchunk size = 16  (PCM)
-     *   20       2    Audio format = 1    (PCM, no compression)
-     *   22       2    Channels = 1        (mono)
-     *   24       4    Sample rate         (sampleRate param)
-     *   28       4    Byte rate           (sampleRate × 2)
-     *   32       2    Block align = 2     (1 ch × 2 bytes)
-     *   34       2    Bits per sample = 16
-     *   36       4    "data"
-     *   40       4    Data size           (placeholder 0)
-     *
-     * @param fos        Output stream — must be positioned at byte 0.
-     * @param sampleRate Target sample rate written into the header (e.g. 500, 1000, 8000).
-     */
-    private fun writeAiWavHeader(fos: FileOutputStream, sampleRate: Int) {
-        val channels = 1
-        val bitsPerSample = 16
-        val byteRate = sampleRate * channels * bitsPerSample / 8   // 16000
-        val blockAlign = channels * bitsPerSample / 8               // 2
-        val header = ByteArray(44)
-        // RIFF chunk descriptor
-        header[0] = 'R'.code.toByte(); header[1] = 'I'.code.toByte()
-        header[2] = 'F'.code.toByte(); header[3] = 'F'.code.toByte()
-        // File size placeholder — written as 0; finalizeAiWav() patches bytes 4–7
-        header[4] = 0; header[5] = 0; header[6] = 0; header[7] = 0
-        // WAVE marker
-        header[8]  = 'W'.code.toByte(); header[9]  = 'A'.code.toByte()
-        header[10] = 'V'.code.toByte(); header[11] = 'E'.code.toByte()
-        // fmt subchunk
-        header[12] = 'f'.code.toByte(); header[13] = 'm'.code.toByte()
-        header[14] = 't'.code.toByte(); header[15] = ' '.code.toByte()
-        header[16] = 16; header[17] = 0; header[18] = 0; header[19] = 0  // subchunk size = 16
-        header[20] = 1;  header[21] = 0                                   // PCM = 1
-        header[22] = channels.toByte(); header[23] = 0                    // mono
-        // Sample rate: 8000 Hz (little-endian 4 bytes)
-        header[24] = (sampleRate        and 0xff).toByte()
-        header[25] = (sampleRate shr  8 and 0xff).toByte()
-        header[26] = (sampleRate shr 16 and 0xff).toByte()
-        header[27] = (sampleRate shr 24 and 0xff).toByte()
-        // Byte rate: 16000 (little-endian 4 bytes)
-        header[28] = (byteRate        and 0xff).toByte()
-        header[29] = (byteRate shr  8 and 0xff).toByte()
-        header[30] = (byteRate shr 16 and 0xff).toByte()
-        header[31] = (byteRate shr 24 and 0xff).toByte()
-        // Block align: 2
-        header[32] = blockAlign.toByte(); header[33] = 0
-        // Bits per sample: 16
-        header[34] = bitsPerSample.toByte(); header[35] = 0
-        // data subchunk
-        header[36] = 'd'.code.toByte(); header[37] = 'a'.code.toByte()
-        header[38] = 't'.code.toByte(); header[39] = 'a'.code.toByte()
-        // Data size placeholder — written as 0; finalizeAiWav() patches bytes 40–43
-        header[40] = 0; header[41] = 0; header[42] = 0; header[43] = 0
-        fos.write(header)
-    }
-
-    /**
-     * Flush, close, and patch the WAV header of the AI testing file.
-     *
-     * The WAV spec requires the file size and data-chunk size fields in the header
-     * to reflect the actual number of bytes written.  Because we don't know the
-     * final size while recording, we wrote zeros and must back-patch them now.
-     *
-     * Header fields updated:
-     *   Bytes  4–7:  RIFF chunk size  = dataBytes + 36
-     *   Bytes 40–43: data chunk size  = dataBytes
-     *
-     * The flush+close is synchronous (caller's thread) to guarantee all buffered
-     * bytes hit the OS cache before we navigate away.  The RandomAccessFile seek
-     * runs on an IO coroutine because disk seeks can block on some devices.
-     */
-    private fun finalizeAiWav() {
-        val fos = aiTestingFos ?: return
-        aiTestingFos = null
-        try { fos.flush() } catch (_: Exception) {}
-        val bytesWritten = aiTestingBytesWritten
-        aiTestingBytesWritten = 0
-        val path = viewModel.currentAiTestingPath
-
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                fos.close()
-                if (path.isNotEmpty()) {
-                    RandomAccessFile(File(path), "rw").use { raf ->
-                        // Patch RIFF file size at offset 4
-                        val fileSize = bytesWritten + 36
-                        raf.seek(4)
-                        raf.write(fileSize        and 0xff)
-                        raf.write(fileSize shr  8 and 0xff)
-                        raf.write(fileSize shr 16 and 0xff)
-                        raf.write(fileSize shr 24 and 0xff)
-                        // Patch data chunk size at offset 40
-                        raf.seek(40)
-                        raf.write(bytesWritten        and 0xff)
-                        raf.write(bytesWritten shr  8 and 0xff)
-                        raf.write(bytesWritten shr 16 and 0xff)
-                        raf.write(bytesWritten shr 24 and 0xff)
-                    }
-                }
-            } catch (_: Exception) {}
-        }
-    }
-
-    /**
-     * Convert normalized float samples in [-1.0, 1.0] to little-endian 16-bit PCM bytes.
-     *
-     * WAV 16-bit PCM encoding:
-     *   Each sample is a signed 16-bit integer in the range [-32768, 32767],
-     *   stored as two bytes in little-endian order (low byte first).
-     *
-     * The coerceIn guard prevents clipping overflow if the anti-alias filter or
-     * pre-amp produces samples slightly outside [-1.0, 1.0].
-     *
-     * Used exclusively for the 8kHz AI testing output stream.
-     */
-    private fun floatsTo16BitPcmBytes(floats: FloatArray): ByteArray {
-        val bytes = ByteArray(floats.size * 2)
-        for (i in floats.indices) {
-            val sample = (floats[i] * 32767f).toInt().coerceIn(-32768, 32767).toShort()
-            bytes[i * 2]     = (sample.toInt()        and 0xff).toByte()  // low byte
-            bytes[i * 2 + 1] = (sample.toInt() shr 8  and 0xff).toByte() // high byte
-        }
-        return bytes
-    }
+    // private fun writeAiWavHeader(fos: FileOutputStream, sampleRate: Int) { ... }
+    // private fun finalizeAiWav() { ... }
+    // private fun floatsTo16BitPcmBytes(floats: FloatArray): ByteArray { ... }
 
     override fun onResume() {
         super.onResume()
@@ -1156,11 +942,8 @@ class RecordingFragment : Fragment() {
             taalRecorder?.stop()
         } catch (_: Exception) {
         }
-        // Safety: close all AI streams if the fragment is destroyed mid-recording
-        // (e.g. system kill).  WAV headers will be incomplete in that case,
-        // but we avoid resource leaks.
-        try { aiTestingFos?.close() } catch (_: Exception) {}
-        activeDownsamplingStreams.forEach { it.safeClose() }
-        activeDownsamplingStreams = emptyList()
+        // try { aiTestingFos?.close() } catch (_: Exception) {}  // AI downsampling disabled
+        // activeDownsamplingStreams.forEach { it.safeClose() }   // AI downsampling disabled
+        // activeDownsamplingStreams = emptyList()                 // AI downsampling disabled
     }
 }

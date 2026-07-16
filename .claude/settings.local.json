@@ -140,7 +140,31 @@
       "Bash(git restore *)",
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(Get-ChildItem -Path \"E:\\\\AndroidProjects\\\\TaalDemoApp\" -Recurse -Directory)",
+      "Bash(Select-Object FullName)",
+      "Bash(Head -30)",
+      "Bash(python -c ' *)",
+      "Bash(pip install *)",
+      "Bash(xargs grep -n \"setResult\\\\|\\\\.finish\\(\\)\")",
+      "Bash(xargs grep -l \"Dialog\\\\|DialogFragment\")",
+      "Bash(xargs grep -l \"enum.*PreFilter\\\\|PreFilter.*enum\")",
+      "Bash(xargs grep -l \"PresetFilter\\\\|PreFilter\")",
+      "Bash(xargs grep -l \"navigation\\\\|nav_graph\")",
+      "Bash(C:/Program Files/Python314/python.exe *)",
+      "Bash('C:/Program Files/Python314/python.exe' -c ' *)",
+      "Bash(rm -f \"E:/AndroidProjects/TaalDemoApp/graphify-out/.graphify_cached.json\" \"E:/AndroidProjects/TaalDemoApp/graphify-out/.graphify_uncached.txt\" \"E:/AndroidProjects/TaalDemoApp/graphify-out/.graphify_semantic_new.json\")",
+      "Bash(graphify export *)",
+      "Bash(\"C:/Program Files/Python314/python.exe\" -m graphify export html)",
+      "Bash(rm -f \"E:/AndroidProjects/TaalDemoApp/graphify-out/.graphify_detect.json\" \"E:/AndroidProjects/TaalDemoApp/graphify-out/.graphify_extract.json\" \"E:/AndroidProjects/TaalDemoApp/graphify-out/.graphify_ast.json\" \"E:/AndroidProjects/TaalDemoApp/graphify-out/.graphify_semantic.json\" \"E:/AndroidProjects/TaalDemoApp/graphify-out/.graphify_analysis.json\")",
+      "Bash(rm -f \"E:/AndroidProjects/TaalDemoApp\"/graphify-out/.graphify_chunk_*.json)",
+      "Bash(rm -f \"E:/AndroidProjects/TaalDemoApp/graphify-out/.needs_update\")",
+      "Bash(rm -f \"E:/AndroidProjects/TaalDemoApp/graphify-out/.graphify_detect.json\" \"E:/AndroidProjects/TaalDemoApp/graphify-out/.graphify_extract.json\" \"E:/AndroidProjects/TaalDemoApp/graphify-out/.graphify_ast.json\" \"E:/AndroidProjects/TaalDemoApp/graphify-out/.graphify_semantic.json\" \"E:/AndroidProjects/TaalDemoApp/graphify-out/.graphify_analysis.json\" \"E:/AndroidProjects/TaalDemoApp/graphify-out/.graphify_chunk_01_rich.json\")",
+      "Bash(graphify query *)",
+      "Bash(rm -f \"E:/AndroidProjects/TaalDemoApp/graphify-out/.graphify_detect.json\" \"E:/AndroidProjects/TaalDemoApp/graphify-out/.graphify_extract.json\" \"E:/AndroidProjects/TaalDemoApp/graphify-out/.graphify_ast.json\" \"E:/AndroidProjects/TaalDemoApp/graphify-out/.graphify_semantic.json\" \"E:/AndroidProjects/TaalDemoApp/graphify-out/.graphify_analysis.json\" \"E:/AndroidProjects/TaalDemoApp/graphify-out/.graphify_unit_test_report_update.json\")",
+      "Bash(graphify explain *)",
+      "Bash(git fetch *)",
+      "Bash(git rm *)"
     ]
   }
 }

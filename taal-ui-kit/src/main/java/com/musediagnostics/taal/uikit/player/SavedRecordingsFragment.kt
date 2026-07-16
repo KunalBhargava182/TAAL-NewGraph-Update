@@ -1,12 +1,15 @@
 package com.musediagnostics.taal.uikit.player
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.content.FileProvider
 import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.musediagnostics.taal.uikit.R
 import com.musediagnostics.taal.uikit.databinding.FragmentSavedRecordingsBinding
 import java.io.File
@@ -37,8 +40,7 @@ class SavedRecordingsFragment : Fragment() {
 
     private fun loadRecordings() {
         val savedDir = File(requireContext().filesDir, "saved")
-        // Only show _filtered.wav files — each recording's canonical playback version
-        val files = savedDir.listFiles { f -> f.extension == "wav" && f.name.contains("_filtered") }
+        val files = savedDir.listFiles { f -> f.name.endsWith("_filtered.wav") }
             ?.sortedByDescending { it.lastModified() }
             ?: emptyList()
 
@@ -48,15 +50,57 @@ class SavedRecordingsFragment : Fragment() {
         } else {
             binding.emptyState.visibility = View.GONE
             binding.recordingsList.visibility = View.VISIBLE
-            binding.recordingsList.adapter = SavedRecordingAdapter(files) { file ->
-                val bundle = Bundle().apply {
-                    putString("filePath", file.absolutePath)
-                    putBoolean("isNewRecording", false)
-                    putString("filterName", "HEART") // _filtered files skip filter anyway
-                }
-                findNavController().navigate(R.id.action_savedRecordings_to_player, bundle)
-            }
+            binding.recordingsList.adapter = SavedRecordingAdapter(
+                files,
+                onPlay = { file ->
+                    val filterName = extractFilterName(file.nameWithoutExtension)
+                    val bundle = Bundle().apply {
+                        putString("filePath", file.absolutePath)
+                        putBoolean("isNewRecording", false)
+                        putString("filterName", filterName)
+                    }
+                    findNavController().navigate(R.id.action_savedRecordings_to_player, bundle)
+                },
+                onShare = { file -> shareRecording(file) },
+                onDelete = { file -> confirmDelete(file) }
+            )
         }
+    }
+
+    private fun shareRecording(file: File) {
+        val uri = FileProvider.getUriForFile(
+            requireContext(),
+            "${requireContext().packageName}.taaluikit.fileprovider",
+            file
+        )
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "audio/wav"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            putExtra(Intent.EXTRA_SUBJECT, file.nameWithoutExtension)
+            putExtra(Intent.EXTRA_TITLE, file.nameWithoutExtension)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        startActivity(Intent.createChooser(intent, file.nameWithoutExtension))
+    }
+
+    private fun confirmDelete(file: File) {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Delete Recording")
+            .setMessage("Are you sure you want to permanently delete this recording?")
+            .setPositiveButton("Delete") { _, _ ->
+                file.delete()
+                val rawFile = File(file.parent, file.name.replace("_filtered.wav", "_raw.wav"))
+                if (rawFile.exists()) rawFile.delete()
+                loadRecordings()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    // Filename format: "{FILTER}_{userInput}_filtered" — extract the leading filter token.
+    private fun extractFilterName(fileNameWithoutExtension: String): String {
+        val known = listOf("FULL_BODY", "PREGNANCY", "CUSTOM", "LUNGS", "BOWEL", "HEART")
+        return known.firstOrNull { fileNameWithoutExtension.startsWith("${it}_") } ?: "HEART"
     }
 
     override fun onDestroyView() {

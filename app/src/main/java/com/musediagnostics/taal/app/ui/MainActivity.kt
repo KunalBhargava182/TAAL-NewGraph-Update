@@ -41,11 +41,12 @@ class MainActivity : AppCompatActivity() {
                 R.id.splashFragment, R.id.signInFragment, R.id.loginFragment,
                 R.id.otpFragment, R.id.setPinFragment, R.id.pinConfirmedFragment,
                 R.id.pinLoginFragment, R.id.fingerprintSetupFragment,
-                R.id.fingerprintConfirmFragment, R.id.signUpFragment -> {
+                R.id.fingerprintConfirmFragment, R.id.signUpFragment,
+                R.id.recordingFragment -> {
                     binding.drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
                 }
                 else -> {
-                    binding.drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED)
+                    binding.drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
                 }
             }
         }

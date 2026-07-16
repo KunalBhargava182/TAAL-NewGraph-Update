@@ -173,8 +173,14 @@ thrown by any SDK method. The USB check in `TaalAudioCapture.checkUsbConnection(
 ### BUG-007 — Pre-amplification range inconsistency across layers
 
 **Severity**: Medium
+**Status**: **RESOLVED in taal-core (verified 2026-07-16).** `TaalRecorder.setPreAmplification()`
+and `AudioFilterEngine.setPreAmplification()` both now clamp to **0–30 dB**
+(`TaalRecorder.kt:106`, `AudioFilterEngine.kt:81` — both `coerceIn(0/0f, 30/30f)`). The original
+0–20 dB clamp described below no longer exists anywhere in `taal-core`. **0–30 dB is the correct,
+current range** — treat any remaining reference to 0–20 dB (including the original description
+below, kept for history) as outdated.
 **Files**: `TaalRecorder.kt`, `AudioFilterEngine.kt`, `TaalPlayer.kt` (PlayerFragment)
-**Description**:
+**Original description** (2026-03-17, now outdated):
 
 - `TaalRecorder.setPreAmplification(db)` clamps to **0–20 dB**
 - `AudioFilterEngine.setPreAmplification(gainDb)` clamps to **0–30 dB**
@@ -183,10 +189,18 @@ thrown by any SDK method. The USB check in `TaalAudioCapture.checkUsbConnection(
 
 The public API surface (`TaalRecorder`) advertises 0–20 dB but the underlying engine silently
 accepts up to 30 dB when called directly via `TaalPlayer`.
-**Expected**: A single agreed-upon max (20 dB recommended for clinical safety); `AudioFilterEngine`
-clamp should match `TaalRecorder` clamp.
+**Original expected fix**: A single agreed-upon max (20 dB recommended for clinical safety);
+`AudioFilterEngine` clamp should match `TaalRecorder` clamp. (Superseded — the project instead
+standardized on 30 dB, not 20 dB.)
 **Tests**: `TaalRecorderTest.setPreAmplification_above20_clampsTo20()`,
-`AudioFilterEngineTest.setPreAmplification_above20_appliedUpTo30()`
+`AudioFilterEngineTest.setPreAmplification_above20_appliedUpTo30()` (both from the `taal-sdk`
+legacy module, now excluded from the build — not present for `taal-core`).
+
+**Remaining real drift found while re-verifying this bug (2026-07-16):**
+
+1. **Stale comment** — `AudioFilterEngine.kt:25` still reads `private var preAmpGainDb: Float = 0f // 0-10dB`, a leftover from an even earlier range. Harmless (the clamp on line 81 is correct) but misleading to future readers.
+2. **Stale test, real mismatch** — `taal-ui-kit/src/test/.../RecordingViewModelTest.kt`, test `test_setPreAmp_aboveTwenty_coerced()`, asserts `setPreAmp(25)` coerces to `20`. The actual `RecordingViewModel.setPreAmp()` (both `app` and `taal-ui-kit` copies) clamps with `coerceIn(0, 30)`, so `setPreAmp(25)` now returns `25`, not `20`. This test should currently fail — the range was widened to 30 without updating the test.
+3. **Live UI cap, real mismatch** — `app/src/main/res/layout/fragment_edit_recording.xml`'s `amplifySlider` (used by the shipping `EditRecordingFragment`, reachable from `RecordingLibraryFragment`) is hard-capped `valueTo="10"`, and its value is written directly into `RecordingEntity.preAmplification` (see `EditRecordingFragment.kt:144,167`) using the same "Amplify (XdB)" label the SDK uses elsewhere. A user editing a saved recording cannot set pre-amp above 10 dB post-hoc, even though the recording pipeline and DB field both support up to 30 dB. `app/src/main/res/layout/fragment_test_recording.xml` has the same 0–10 cap but is on the dev-only, not-in-nav-graph `TestRecordingFragment` — lower priority.
 
 ---
 

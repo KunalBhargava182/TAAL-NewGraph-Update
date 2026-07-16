@@ -48,13 +48,8 @@ class PlayerFragment : Fragment() {
         val filePath = arguments?.getString("filePath") ?: ""
         val isNewRecording = arguments?.getBoolean("isNewRecording", false) ?: false
         val filterName = arguments?.getString("filterName") ?: "HEART"
-        // AI testing file path — carried forward for save/discard lifecycle management.
-        // PlayerFragment does not use this file itself; it is passed to downstream
-        // fragments so the file is properly renamed on save or deleted on discard.
-        val aiTestingFilePath = arguments?.getString("aiTestingFilePath") ?: ""
-        // Additional AI downsampling files (filter-conditional).
-        // Forwarded to SaveRecordingFragment on save; deleted directly on discard.
-        val extraAiFilePaths = arguments?.getStringArrayList("extraAiFilePaths") ?: arrayListOf()
+        // val aiTestingFilePath = arguments?.getString("aiTestingFilePath") ?: ""  // AI downsampling disabled
+        // val extraAiFilePaths = arguments?.getStringArrayList("extraAiFilePaths") ?: arrayListOf()  // AI downsampling disabled
 
         binding.saveDiscardBar.visibility = if (isNewRecording) View.VISIBLE else View.GONE
 
@@ -91,9 +86,7 @@ class PlayerFragment : Fragment() {
                 val bundle = Bundle().apply {
                     putString("filePath", filePath)
                     putString("rawFilePath", rawFilePath)
-                    putString("aiTestingFilePath", aiTestingFilePath)
                     putString("filterName", filterName)
-                    putStringArrayList("extraAiFilePaths", extraAiFilePaths)
                 }
                 findNavController().navigate(R.id.action_player_to_saveRecording, bundle)
             } else {
@@ -324,8 +317,8 @@ class PlayerFragment : Fragment() {
 
     private fun showDiscardConfirmation(filePath: String) {
         val rawFilePath = arguments?.getString("rawFilePath") ?: ""
-        val aiTestingFilePath = arguments?.getString("aiTestingFilePath") ?: ""
-        val extraPaths = arguments?.getStringArrayList("extraAiFilePaths") ?: arrayListOf()
+        // val aiTestingFilePath = arguments?.getString("aiTestingFilePath") ?: ""  // AI downsampling disabled
+        // val extraPaths = arguments?.getStringArrayList("extraAiFilePaths") ?: arrayListOf()  // AI downsampling disabled
         com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
             .setTitle("Discard Recording")
             .setMessage("Are you sure you want to discard this recording? It will be permanently deleted.")
@@ -334,14 +327,12 @@ class PlayerFragment : Fragment() {
                 if (rawFilePath.isNotEmpty()) {
                     try { java.io.File(rawFilePath).delete() } catch (_: Exception) {}
                 }
-                // Delete the 8kHz HEART AI file (if present)
-                if (aiTestingFilePath.isNotEmpty()) {
-                    try { java.io.File(aiTestingFilePath).delete() } catch (_: Exception) {}
-                }
-                // Delete all additional AI downsampling files
-                for (path in extraPaths) {
-                    try { java.io.File(path).delete() } catch (_: Exception) {}
-                }
+                // if (aiTestingFilePath.isNotEmpty()) {  // AI downsampling disabled
+                //     try { java.io.File(aiTestingFilePath).delete() } catch (_: Exception) {}
+                // }
+                // for (path in extraPaths) {  // AI downsampling disabled
+                //     try { java.io.File(path).delete() } catch (_: Exception) {}
+                // }
                 findNavController().navigateUp()
             }.setNegativeButton("Cancel", null).show()
     }

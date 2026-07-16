@@ -12,7 +12,9 @@ import java.util.Locale
 
 class SavedRecordingAdapter(
     private val files: List<File>,
-    private val onPlay: (File) -> Unit
+    private val onPlay: (File) -> Unit,
+    private val onShare: (File) -> Unit,
+    private val onDelete: (File) -> Unit
 ) : RecyclerView.Adapter<SavedRecordingAdapter.ViewHolder>() {
 
     inner class ViewHolder(val binding: ItemSavedRecordingBinding) :
@@ -29,7 +31,13 @@ class SavedRecordingAdapter(
         val file = files[position]
         val b = holder.binding
 
-        val displayName = file.nameWithoutExtension
+        // Filename format: "{FILTER}_{userInput}_filtered.wav"
+        // Extract filter from the prefix, then show only the user's input as the name.
+        val baseName = file.nameWithoutExtension          // e.g. "LUNGS_20240321_filtered"
+        val filterName = extractFilter(baseName)           // e.g. "LUNGS"
+        val displayName = baseName
+            .removePrefix("${filterName}_")                // strip "LUNGS_"
+            .removeSuffix("_filtered")                      // strip "_filtered"
         b.fileName.text = displayName
 
         val durationSecs = getWavDuration(file)
@@ -38,22 +46,28 @@ class SavedRecordingAdapter(
             .format(Date(file.lastModified()))
         b.fileMeta.text = "$durationStr  •  $dateStr"
 
-        val metaFile = File(file.parent, "$displayName.meta")
-        val filter = if (metaFile.exists()) metaFile.readText().trim().uppercase() else ""
-        val icon = when (filter) {
-            "LUNGS" -> R.drawable.ic_lungs
-            "BOWEL" -> R.drawable.ic_bowel
+        val icon = when (filterName) {
+            "LUNGS"     -> R.drawable.ic_lungs
+            "BOWEL"     -> R.drawable.ic_bowel
             "PREGNANCY" -> R.drawable.ic_pregnancy
             "FULL_BODY" -> R.drawable.ic_accessibility
-            else -> R.drawable.ic_heart
+            "CUSTOM"    -> R.drawable.ic_custom_filter
+            else        -> R.drawable.ic_heart
         }
         b.filterIcon.setImageResource(icon)
 
-        b.playButton.setOnClickListener { onPlay(file) }
         b.root.setOnClickListener { onPlay(file) }
+        b.playButton.setOnClickListener { onPlay(file) }
+        b.shareButton.setOnClickListener { onShare(file) }
+        b.deleteButton.setOnClickListener { onDelete(file) }
     }
 
     override fun getItemCount() = files.size
+
+    private fun extractFilter(baseName: String): String {
+        val known = listOf("FULL_BODY", "PREGNANCY", "CUSTOM", "LUNGS", "BOWEL", "HEART")
+        return known.firstOrNull { baseName.startsWith("${it}_") } ?: "HEART"
+    }
 
     private fun getWavDuration(file: File): Int {
         return try {

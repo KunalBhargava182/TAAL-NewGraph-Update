@@ -1,4 +1,4 @@
-package com.musediagnostics.taal.app.ui.recording
+package com.musediagnostics.taal.uikit.player
 
 import android.Manifest
 import android.content.ContentValues
@@ -16,8 +16,9 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
-import com.musediagnostics.taal.app.R
-import com.musediagnostics.taal.app.databinding.FragmentSaveRecordingBinding
+import com.musediagnostics.taal.uikit.R
+import com.musediagnostics.taal.uikit.TaalRecorderActivity
+import com.musediagnostics.taal.uikit.databinding.FragmentSaveRecordingBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -33,25 +34,11 @@ class SaveRecordingFragment : Fragment() {
 
     private var filteredTempPath = ""
     private var rawTempPath = ""
-    // private var aiTestingTempPath = ""  // AI downsampling disabled
     private var filterName = "HEART"
-    // private var extraAiTempPaths: List<String> = emptyList()  // AI downsampling disabled
 
-    // Holds the safe file name between the internal save and the permission callback.
-    // Only populated on API 24–28 when WRITE_EXTERNAL_STORAGE has not been granted yet.
+    // Holds the save name between internal save and permission callback (API 24–28 only).
     private var pendingSafeName: String? = null
 
-    /**
-     * Runtime permission launcher — only exercised on API 24–28.
-     *
-     * By the time this fires, the internal save (rename to filesDir/saved/) has
-     * already completed successfully. We are here only to decide whether the
-     * device-storage copy can happen.
-     *
-     * Grant  → copy the already-saved files to Music/Taal Saved Audios, then navigate.
-     * Deny   → skip device copy, show message, then navigate.
-     *          Internal files are safe regardless.
-     */
     private val storagePermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -60,7 +47,6 @@ class SaveRecordingFragment : Fragment() {
 
         if (granted) {
             val savedDir = File(requireContext().filesDir, "saved")
-            // pendingSafeName holds fullSaveName ("{FILTER}_{userInput}")
             lifecycleScope.launch(Dispatchers.IO) {
                 copyAllToDeviceStorage(
                     requireContext(),
@@ -91,9 +77,7 @@ class SaveRecordingFragment : Fragment() {
 
         filteredTempPath = arguments?.getString("filePath") ?: ""
         rawTempPath      = arguments?.getString("rawFilePath") ?: ""
-        // aiTestingTempPath = arguments?.getString("aiTestingFilePath") ?: ""  // AI downsampling disabled
         filterName       = arguments?.getString("filterName") ?: "HEART"
-        // extraAiTempPaths = arguments?.getStringArrayList("extraAiFilePaths")?.toList() ?: emptyList()  // AI downsampling disabled
 
         binding.filterChip.visibility = View.GONE
 
@@ -115,21 +99,13 @@ class SaveRecordingFragment : Fragment() {
         }
     }
 
-    // ── Save flow ─────────────────────────────────────────────────────────────
-
     private fun triggerSave(name: String) {
         val ctx = requireContext()
         val safeName = name.replace(Regex("[/\\\\:*?\"<>|]"), "_")
-        // Capture filterName on the main thread before switching to IO — avoids any
-        // visibility issues with the plain var being read from a background thread.
         val capturedFilter = filterName
-        // Embed filter as a filename prefix so the icon is derivable from the name
-        // alone, with no sidecar .meta file that can go missing.
         val fullSaveName = "${capturedFilter}_${safeName}"
 
         lifecycleScope.launch(Dispatchers.IO) {
-
-            // Step 1: Rename temp files into filesDir/saved/ (always happens first)
             val internalOk = saveInternally(ctx, fullSaveName)
 
             withContext(Dispatchers.Main) {
@@ -141,7 +117,6 @@ class SaveRecordingFragment : Fragment() {
                     return@withContext
                 }
 
-                // Step 2: Copy to device storage (Music/Taal Saved Audios)
                 val needsPermission = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
                     ContextCompat.checkSelfPermission(ctx, Manifest.permission.WRITE_EXTERNAL_STORAGE) !=
                         PackageManager.PERMISSION_GRANTED
@@ -158,21 +133,22 @@ class SaveRecordingFragment : Fragment() {
                             File(savedDir, "${fullSaveName}_raw.wav").absolutePath
                         )
                     }
+
+                    // Notify TaalRecorderActivity so the caller receives the file path result
+                    val finalPath = File(ctx.filesDir, "saved/${fullSaveName}_filtered.wav").absolutePath
+                    (requireActivity() as? TaalRecorderActivity)?.storeResult(finalPath)
+
                     navigateAfterSave()
                 }
             }
         }
     }
 
-    // fullSaveName = "{FILTER}_{userInput}", e.g. "LUNGS_20240321_123456"
-    // Filter is embedded as a prefix so the icon is always derivable from the filename.
     private fun saveInternally(ctx: android.content.Context, fullSaveName: String): Boolean {
         return try {
             val savedDir = File(ctx.filesDir, "saved").also { it.mkdirs() }
-
             moveFile(File(filteredTempPath), File(savedDir, "${fullSaveName}_filtered.wav"))
             moveFile(File(rawTempPath),      File(savedDir, "${fullSaveName}_raw.wav"))
-
             File(savedDir, "${fullSaveName}_filtered.wav").exists()
         } catch (e: Exception) {
             e.printStackTrace()
@@ -180,9 +156,6 @@ class SaveRecordingFragment : Fragment() {
         }
     }
 
-    // renameTo can silently fail (returns false) when source and destination are on
-    // different mount points on some Android devices. Fall back to copy + delete so the
-    // file always ends up in the right place.
     private fun moveFile(src: File, dst: File) {
         if (!src.exists()) return
         if (!src.renameTo(dst)) {
@@ -191,32 +164,18 @@ class SaveRecordingFragment : Fragment() {
         }
     }
 
-    // ── Device storage copy ───────────────────────────────────────────────────
-
     private fun copyAllToDeviceStorage(
         ctx: android.content.Context,
         filteredPath: String,
         rawPath: String
-        // aiTestingPath: String,  // AI downsampling disabled
-        // extraPaths: List<String> = emptyList()  // AI downsampling disabled
     ) {
         copyOneFile(ctx, filteredPath)
         copyOneFile(ctx, rawPath)
-        // if (aiTestingPath.isNotEmpty()) copyOneFile(ctx, aiTestingPath)  // AI downsampling disabled
-        // for (path in extraPaths) copyOneFile(ctx, path)  // AI downsampling disabled
     }
 
     /**
-     * Copy a single file into Music/Taal Saved Audios on the device.
-     *
-     * API 29+ — MediaStore:
-     *   No WRITE_EXTERNAL_STORAGE needed.
-     *   IS_PENDING=1 reserves the slot; IS_PENDING=0 makes it visible to all apps.
-     *   RELATIVE_PATH places it at Music/Taal Saved Audios/.
-     *
-     * API 24–28 — Direct file write:
-     *   Requires WRITE_EXTERNAL_STORAGE (declared in manifest, granted at runtime).
-     *   Writes to Environment.DIRECTORY_MUSIC/Taal Saved Audios/.
+     * API 29+  — MediaStore with IS_PENDING pattern (no permission needed).
+     * API 24–28 — Direct file write to Music/Taal Saved Audios (requires WRITE_EXTERNAL_STORAGE).
      */
     private fun copyOneFile(ctx: android.content.Context, sourcePath: String) {
         val source = File(sourcePath)
@@ -237,7 +196,6 @@ class SaveRecordingFragment : Fragment() {
                 resolver.openOutputStream(uri)?.use { out ->
                     source.inputStream().use { it.copyTo(out) }
                 }
-                // Clear IS_PENDING so the file becomes visible to file managers and other apps
                 values.clear()
                 values.put(MediaStore.Audio.Media.IS_PENDING, 0)
                 resolver.update(uri, values, null, null)
@@ -250,11 +208,9 @@ class SaveRecordingFragment : Fragment() {
                 source.copyTo(File(folder, fileName), overwrite = true)
             }
         } catch (_: Exception) {
-            // Non-fatal — internal copy already safe in filesDir/saved/
+            // Non-fatal — internal copy in filesDir/saved/ is already complete
         }
     }
-
-    // ── Navigation ────────────────────────────────────────────────────────────
 
     private fun navigateAfterSave() {
         if (!isAdded || _binding == null) return

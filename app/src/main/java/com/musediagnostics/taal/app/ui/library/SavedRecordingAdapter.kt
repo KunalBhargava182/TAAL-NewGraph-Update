@@ -13,7 +13,8 @@ import java.util.Locale
 class SavedRecordingAdapter(
     private val files: List<File>,
     private val onPlay: (File) -> Unit,
-    private val onShare: (File) -> Unit
+    private val onShare: (File) -> Unit,
+    private val onDelete: (File) -> Unit
 ) : RecyclerView.Adapter<SavedRecordingAdapter.ViewHolder>() {
 
     inner class ViewHolder(val binding: ItemSavedRecordingBinding) :
@@ -30,53 +31,43 @@ class SavedRecordingAdapter(
         val file = files[position]
         val b = holder.binding
 
-        // Display name without extension
-        val displayName = file.nameWithoutExtension
+        // Filename format: "{FILTER}_{userInput}_filtered.wav"
+        // Extract filter from the prefix, then show only the user's input as the name.
+        val baseName = file.nameWithoutExtension          // e.g. "LUNGS_20240321_filtered"
+        val filterName = extractFilter(baseName)          // e.g. "LUNGS"
+        val displayName = baseName
+            .removePrefix("${filterName}_")              // strip "LUNGS_"
+            .removeSuffix("_filtered")                   // strip "_filtered"
         b.fileName.text = displayName
 
-        // Duration from WAV header (dataSize / 2 / 44100)
         val durationSecs = getWavDuration(file)
         val durationStr = String.format("%02d:%02d", durationSecs / 60, durationSecs % 60)
 
-        // Last modified date
         val dateStr = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
             .format(Date(file.lastModified()))
         b.fileMeta.text = "$durationStr  •  $dateStr"
 
-        // Filter icon: prefer sidecar .meta file, fall back to name prefix for older recordings
-        val filterName = readFilterMeta(file) ?: when {
-            displayName.startsWith("LUNGS", ignoreCase = true) -> "LUNGS"
-            displayName.startsWith("BOWEL", ignoreCase = true) -> "BOWEL"
-            displayName.startsWith("PREGNANCY", ignoreCase = true) -> "PREGNANCY"
-            displayName.startsWith("FULL_BODY", ignoreCase = true) -> "FULL_BODY"
-            else -> "HEART"
-        }
-        val icon = when (filterName.uppercase()) {
-            "LUNGS" -> R.drawable.ic_lungs
-            "BOWEL" -> R.drawable.ic_bowel
+        val icon = when (filterName) {
+            "LUNGS"     -> R.drawable.ic_lungs
+            "BOWEL"     -> R.drawable.ic_bowel
             "PREGNANCY" -> R.drawable.ic_pregnancy
             "FULL_BODY" -> R.drawable.ic_accessibility
-            else -> R.drawable.ic_heart
+            "CUSTOM"    -> R.drawable.ic_custom_filter
+            else        -> R.drawable.ic_heart
         }
         b.filterIcon.setImageResource(icon)
 
-        b.playButton.setOnClickListener { onPlay(file) }
         b.root.setOnClickListener { onPlay(file) }
-        b.root.setOnLongClickListener {
-            onShare(file)
-            true
-        }
+        b.playButton.setOnClickListener { onPlay(file) }
+        b.shareButton.setOnClickListener { onShare(file) }
+        b.deleteButton.setOnClickListener { onDelete(file) }
     }
 
     override fun getItemCount() = files.size
 
-    private fun readFilterMeta(wavFile: File): String? {
-        return try {
-            val meta = File(wavFile.parent, "${wavFile.nameWithoutExtension}.meta")
-            if (meta.exists()) meta.readText().trim().uppercase() else null
-        } catch (_: Exception) {
-            null
-        }
+    private fun extractFilter(baseName: String): String {
+        val known = listOf("FULL_BODY", "PREGNANCY", "CUSTOM", "LUNGS", "BOWEL", "HEART")
+        return known.firstOrNull { baseName.startsWith("${it}_") } ?: "HEART"
     }
 
     private fun getWavDuration(file: File): Int {

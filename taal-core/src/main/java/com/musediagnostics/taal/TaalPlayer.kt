@@ -72,6 +72,10 @@ class TaalPlayer(private val context: Context) {
         filterEngine.setPresetFilter(filter.toDspFilter())
     }
 
+    fun setCustomBandpass(lowCut: Double, highCut: Double) {
+        filterEngine.setCustomBandpass(lowCut, highCut)
+    }
+
     fun setGraphicEQ(eqState: AudioFilterEngine.GraphicEQState) {
         filterEngine.setGraphicEQ(eqState)
     }

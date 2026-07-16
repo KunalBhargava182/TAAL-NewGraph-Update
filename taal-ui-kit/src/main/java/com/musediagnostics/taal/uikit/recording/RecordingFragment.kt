@@ -7,10 +7,14 @@ import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
@@ -98,10 +102,29 @@ class RecordingFragment : Fragment() {
 
         setupWaveformChart()
         setupFilterButtons()
+        setupCustomRangePanel()
         setupPreAmpSlider()
         setupButtons()
         observeState()
         setupConnectionReceiver()
+
+        requireActivity().onBackPressedDispatcher.addCallback(
+            viewLifecycleOwner,
+            object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    if (viewModel.uiState.value == RecordingUiState.RECORDING) {
+                        Toast.makeText(
+                            requireContext(),
+                            "Stop the recording before going back",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    } else {
+                        isEnabled = false
+                        requireActivity().onBackPressedDispatcher.onBackPressed()
+                    }
+                }
+            }
+        )
     }
 
     private fun setupWaveformChart() {
@@ -161,25 +184,127 @@ class RecordingFragment : Fragment() {
     }
 
     private fun setupFilterButtons() {
-        val filters = mapOf(
+        val presetFilters = mapOf(
             binding.filterHeart to "HEART",
             binding.filterLungs to "LUNGS",
             binding.filterBowel to "BOWEL",
             binding.filterPregnancy to "PREGNANCY",
             binding.filterInfo to "FULL_BODY"
         )
+        val allButtons = presetFilters.keys + binding.filterCustom
 
-        // Reflect current filter from viewModel (may have been set from intent)
         val currentFilter = viewModel.currentFilter.value ?: "HEART"
-        filters.entries.find { it.value == currentFilter }?.key?.isSelected = true
-        if (currentFilter == "HEART") binding.filterHeart.isSelected = true
+        if (currentFilter == "CUSTOM") {
+            binding.filterCustom.isSelected = true
+            binding.customRangePanel.visibility = View.VISIBLE
+        } else {
+            val btn = presetFilters.entries.find { it.value == currentFilter }?.key
+            (btn ?: binding.filterHeart).isSelected = true
+            binding.customRangePanel.visibility = View.GONE
+        }
 
-        filters.forEach { (button, filterName) ->
+        presetFilters.forEach { (button, name) ->
             button.setOnClickListener {
-                filters.keys.forEach { it.isSelected = false }
+                allButtons.forEach { it.isSelected = false }
                 button.isSelected = true
-                viewModel.setFilter(filterName)
+                viewModel.setFilter(name)
+                binding.customRangePanel.visibility = View.GONE
+                dismissKeyboard()
             }
+        }
+
+        binding.filterCustom.setOnClickListener {
+            allButtons.forEach { it.isSelected = false }
+            binding.filterCustom.isSelected = true
+            viewModel.setFilter("CUSTOM")
+            binding.customRangePanel.visibility = View.VISIBLE
+        }
+    }
+
+    private fun setupCustomRangePanel() {
+        val initLow  = viewModel.customLowCut  ?: 20f
+        val initHigh = viewModel.customHighCut ?: 10000f
+
+        viewModel.customLowCut  = initLow
+        viewModel.customHighCut = initHigh
+
+        binding.customRangeSlider.values = listOf(
+            initLow.coerceIn(0f, 24000f),
+            initHigh.coerceIn(0f, 24000f)
+        )
+        binding.customLowCutInput.setText(initLow.toInt().toString())
+        binding.customHighCutInput.setText(initHigh.toInt().toString())
+
+        var isUpdating = false
+
+        binding.customRangeSlider.addOnChangeListener { _, _, _ ->
+            if (isUpdating) return@addOnChangeListener
+            isUpdating = true
+            val vals = binding.customRangeSlider.values
+            binding.customLowCutInput.setText(vals[0].toInt().toString())
+            binding.customHighCutInput.setText(vals[1].toInt().toString())
+            viewModel.customLowCut  = vals[0]
+            viewModel.customHighCut = vals[1]
+            isUpdating = false
+        }
+
+        binding.customLowCutInput.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                if (isUpdating) return
+                val v = s?.toString()?.toFloatOrNull() ?: return
+                viewModel.customLowCut = v.coerceIn(1f, 24000f)
+                val currentHigh = binding.customRangeSlider.values[1]
+                if (v in 1f..24000f && v < currentHigh) {
+                    isUpdating = true
+                    binding.customRangeSlider.values = listOf(v, currentHigh)
+                    isUpdating = false
+                }
+            }
+        })
+
+        binding.customHighCutInput.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                if (isUpdating) return
+                val v = s?.toString()?.toFloatOrNull() ?: return
+                viewModel.customHighCut = v.coerceIn(1f, 24000f)
+                val currentLow = binding.customRangeSlider.values[0]
+                if (v in 1f..24000f && v > currentLow) {
+                    isUpdating = true
+                    binding.customRangeSlider.values = listOf(currentLow, v)
+                    isUpdating = false
+                }
+            }
+        })
+    }
+
+    private fun dismissKeyboard() {
+        val imm = requireContext().getSystemService(android.content.Context.INPUT_METHOD_SERVICE)
+            as InputMethodManager
+        imm.hideSoftInputFromWindow(requireView().windowToken, 0)
+        requireView().clearFocus()
+    }
+
+    private fun setFilterButtonsEnabled(enabled: Boolean) {
+        val alpha = if (enabled) 1f else 0.4f
+        listOf(
+            binding.filterHeart,
+            binding.filterLungs,
+            binding.filterBowel,
+            binding.filterPregnancy,
+            binding.filterInfo,
+            binding.filterCustom
+        ).forEach {
+            it.isEnabled = enabled
+            it.alpha = alpha
+        }
+        if (!enabled) {
+            binding.customRangePanel.visibility = View.GONE
+        } else if (viewModel.currentFilter.value == "CUSTOM") {
+            binding.customRangePanel.visibility = View.VISIBLE
         }
     }
 
@@ -216,11 +341,14 @@ class RecordingFragment : Fragment() {
     }
 
     private fun setupButtons() {
-        // menuButton is GONE in layout (no drawer in SDK context)
         binding.menuButton.visibility = View.GONE
-
-        // settingsButton is already GONE in layout
         binding.settingsButton.visibility = View.GONE
+
+        binding.infoButton.setOnClickListener {
+            val filterName = viewModel.currentFilter.value ?: "HEART"
+            FilterPlacementDialog.newInstance(filterName)
+                .show(parentFragmentManager, "filter_placement")
+        }
 
         binding.folderButton.setOnClickListener {
             findNavController().navigate(R.id.action_recording_to_savedRecordings)
@@ -262,6 +390,7 @@ class RecordingFragment : Fragment() {
         warmupDone = false
         lastPeakUpdateTime = 0L
         totalSamplesProcessed = 0L
+        bpmCalculator.reset()
 
         val dummyDataSet = LineDataSet(listOf(Entry(0f, 0f), Entry(10f, 0f)), "").apply {
             color = Color.TRANSPARENT
@@ -288,6 +417,7 @@ class RecordingFragment : Fragment() {
                     binding.timerText.text = getString(R.string.timer_default)
                     binding.ampSlider.isEnabled = true
                     binding.ampSliderContainer.alpha = 1f
+                    setFilterButtonsEnabled(true)
                 }
 
                 RecordingUiState.RECORDING -> {
@@ -299,6 +429,7 @@ class RecordingFragment : Fragment() {
                     binding.recordButton.setImageResource(R.drawable.ic_recording_stop)
                     binding.ampSlider.isEnabled = false
                     binding.ampSliderContainer.alpha = 0.55f
+                    setFilterButtonsEnabled(false)
                 }
 
                 else -> {}
@@ -326,6 +457,42 @@ class RecordingFragment : Fragment() {
     }
 
     private fun startRecording() {
+        dismissKeyboard()
+
+        val filterName = viewModel.currentFilter.value ?: "HEART"
+
+        if (filterName == "CUSTOM") {
+            val low  = viewModel.customLowCut
+            val high = viewModel.customHighCut
+            val lowText  = binding.customLowCutInput.text?.toString()?.trim()
+            val highText = binding.customHighCutInput.text?.toString()?.trim()
+
+            val message = when {
+                lowText.isNullOrEmpty() && highText.isNullOrEmpty() ->
+                    "Low Cut and High Cut cannot be blank.\nPlease enter valid frequency values."
+                lowText.isNullOrEmpty() ->
+                    "Low Cut cannot be blank."
+                highText.isNullOrEmpty() ->
+                    "High Cut cannot be blank."
+                low == null || low <= 0f ->
+                    "Low Cut cannot be 0 Hz. Please enter a frequency greater than 0 Hz."
+                high == null || high <= 0f ->
+                    "High Cut cannot be 0 Hz. Please enter a frequency greater than 0 Hz."
+                low >= high ->
+                    "Low Cut (${low.toInt()} Hz) must be less than High Cut (${high.toInt()} Hz)."
+                else -> null
+            }
+
+            if (message != null) {
+                com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
+                    .setTitle("Custom Filter")
+                    .setMessage(message)
+                    .setPositiveButton("OK") { d, _ -> d.dismiss() }
+                    .show()
+                return
+            }
+        }
+
         try {
             val ts = System.currentTimeMillis()
             val rawFilePath = "${requireContext().filesDir}/recording_${ts}_raw.wav"
@@ -333,16 +500,20 @@ class RecordingFragment : Fragment() {
             viewModel.currentRecordingPath = rawFilePath
             viewModel.currentFilteredPath = filteredFilePath
 
-            val filterName = viewModel.currentFilter.value ?: "HEART"
-            val preFilter = PreFilter.valueOf(filterName)
-
             taalRecorder = TaalRecorder(requireContext()).apply {
                 setRawAudioFilePath(rawFilePath)
                 setFilteredAudioFilePath(filteredFilePath)
                 setRecordingTime(300)
                 setPlayback(false)
                 setPreAmplification(viewModel.preAmpDb.value ?: 5)
-                setPreFilter(preFilter)
+                if (filterName == "CUSTOM") {
+                    setCustomBandpass(
+                        viewModel.customLowCut!!.toDouble(),
+                        viewModel.customHighCut!!.toDouble()
+                    )
+                } else {
+                    setPreFilter(PreFilter.valueOf(filterName))
+                }
 
                 onInfoListener = object : TaalRecorder.OnInfoListener {
                     override fun onStateChange(state: RecorderState) {

@@ -75,7 +75,12 @@ class PlayerFragment : Fragment() {
         val rawFilePath = arguments?.getString("rawFilePath") ?: ""
 
         binding.saveButton.setOnClickListener {
-            showTaalSaveDialog(filePath, rawFilePath, filterName)
+            val bundle = Bundle().apply {
+                putString("filePath", filePath)
+                putString("rawFilePath", rawFilePath)
+                putString("filterName", filterName)
+            }
+            findNavController().navigate(R.id.action_player_to_saveRecording, bundle)
         }
 
         binding.discardButton.setOnClickListener {
@@ -259,33 +264,6 @@ class PlayerFragment : Fragment() {
                 Toast.makeText(requireContext(), "Playback error: ${e.message}", Toast.LENGTH_LONG).show()
             }
         }
-    }
-
-    /**
-     * Shows TaalSaveDialog to let the user name and save the recording.
-     * On save confirmed → renames file → finishes TaalRecorderActivity with RESULT_OK.
-     */
-    private fun showTaalSaveDialog(filePath: String, rawFilePath: String, filterName: String) {
-        TaalSaveDialog(
-            tempFilePath = filePath,
-            rawTempFilePath = rawFilePath,
-            filterName = filterName,
-            onSaved = { finalPath ->
-                // Store result so client gets it when activity eventually finishes.
-                // Then navigate to saved recordings list (pop back to recording screen).
-                (requireActivity() as? TaalRecorderActivity)?.storeResult(finalPath)
-                findNavController().navigate(
-                    R.id.action_player_to_savedRecordings,
-                    null,
-                    androidx.navigation.NavOptions.Builder()
-                        .setPopUpTo(R.id.recordingFragment, false)
-                        .build()
-                )
-            },
-            onCancelled = {
-                // Dialog was cancelled — stay on player screen
-            }
-        ).show(parentFragmentManager, "taal_save")
     }
 
     /**

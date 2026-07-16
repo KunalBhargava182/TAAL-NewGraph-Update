@@ -65,6 +65,13 @@ class AudioFilterEngine(private val sampleRate: Int = 44100) {
         updateFilters()
     }
 
+    fun setCustomBandpass(lowCut: Double, highCut: Double) {
+        val lo = lowCut.coerceAtLeast(1.0)
+        val hi = highCut.coerceAtMost(24000.0)
+        if (hi <= lo) return  // invalid range — bandwidth would be 0 → Q = ∞ → NaN coefficients
+        designBandpass(bandpassCoeffs, lo, hi, sampleRate.toDouble())
+    }
+
     fun setGraphicEQ(state: GraphicEQState) {
         eqState = state
         updateFilters()

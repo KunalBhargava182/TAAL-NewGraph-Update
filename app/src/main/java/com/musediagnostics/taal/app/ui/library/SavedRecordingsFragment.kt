@@ -9,6 +9,7 @@ import androidx.core.content.FileProvider
 import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.musediagnostics.taal.app.R
 import com.musediagnostics.taal.app.databinding.FragmentSavedRecordingsBinding
 import java.io.File
@@ -43,7 +44,7 @@ class SavedRecordingsFragment : Fragment() {
 
     private fun loadRecordings() {
         val savedDir = File(requireContext().filesDir, "saved")
-        val files = savedDir.listFiles { f -> f.extension == "wav" }
+        val files = savedDir.listFiles { f -> f.name.endsWith("_filtered.wav") }
             ?.sortedByDescending { it.lastModified() }
             ?: emptyList()
 
@@ -64,7 +65,8 @@ class SavedRecordingsFragment : Fragment() {
                     }
                     findNavController().navigate(R.id.action_savedRecordings_to_player, bundle)
                 },
-                onShare = { file -> shareRecording(file) }
+                onShare = { file -> shareRecording(file) },
+                onDelete = { file -> confirmDelete(file) }
             )
         }
     }
@@ -85,10 +87,27 @@ class SavedRecordingsFragment : Fragment() {
         startActivity(Intent.createChooser(intent, file.nameWithoutExtension))
     }
 
-    // Try longest match first so FULL_BODY isn't mis-parsed as FULL
+    private fun confirmDelete(file: File) {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Delete Recording")
+            .setMessage("Are you sure you want to permanently delete this recording?")
+            .setPositiveButton("Delete") { _, _ ->
+                // Delete filtered file
+                file.delete()
+                // Delete matching raw file (same base name, different suffix)
+                val rawFile = File(file.parent, file.name.replace("_filtered.wav", "_raw.wav"))
+                if (rawFile.exists()) rawFile.delete()
+                // Reload the list
+                loadRecordings()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    // Filename format: "{FILTER}_{userInput}_filtered" — extract the leading filter token.
     private fun extractFilterName(fileNameWithoutExtension: String): String {
-        val known = listOf("FULL_BODY", "PREGNANCY", "HEART", "LUNGS", "BOWEL")
-        return known.firstOrNull { fileNameWithoutExtension.startsWith(it) } ?: "HEART"
+        val known = listOf("FULL_BODY", "PREGNANCY", "CUSTOM", "LUNGS", "BOWEL", "HEART")
+        return known.firstOrNull { fileNameWithoutExtension.startsWith("${it}_") } ?: "HEART"
     }
 
     override fun onDestroyView() {

@@ -34,6 +34,11 @@
             android:defaultValue="" />
 
         <argument
+            android:name="rawFilePath"
+            app:argType="string"
+            android:defaultValue="" />
+
+        <argument
             android:name="isNewRecording"
             app:argType="boolean"
             android:defaultValue="false" />
@@ -44,8 +49,40 @@
             android:defaultValue="HEART" />
 
         <action
+            android:id="@+id/action_player_to_saveRecording"
+            app:destination="@id/saveRecordingFragment" />
+
+        <action
             android:id="@+id/action_player_to_savedRecordings"
             app:destination="@id/savedRecordingsFragment" />
+
+    </fragment>
+
+    <fragment
+        android:id="@+id/saveRecordingFragment"
+        android:name="com.musediagnostics.taal.uikit.player.SaveRecordingFragment"
+        android:label="Save Recording">
+
+        <argument
+            android:name="filePath"
+            app:argType="string"
+            android:defaultValue="" />
+
+        <argument
+            android:name="rawFilePath"
+            app:argType="string"
+            android:defaultValue="" />
+
+        <argument
+            android:name="filterName"
+            app:argType="string"
+            android:defaultValue="HEART" />
+
+        <action
+            android:id="@+id/action_saveRecording_to_savedRecordings"
+            app:destination="@id/savedRecordingsFragment"
+            app:popUpTo="@id/recordingFragment"
+            app:popUpToInclusive="false" />
 
     </fragment>
 

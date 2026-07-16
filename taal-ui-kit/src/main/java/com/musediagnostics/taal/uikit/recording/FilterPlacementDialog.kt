@@ -1,4 +1,4 @@
-package com.musediagnostics.taal.app.ui.recording
+package com.musediagnostics.taal.uikit.recording
 
 import android.app.Dialog
 import android.os.Bundle
@@ -14,7 +14,7 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.DialogFragment
 import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.widget.ViewPager2
-import com.musediagnostics.taal.app.R
+import com.musediagnostics.taal.uikit.R
 
 class FilterPlacementDialog : DialogFragment() {
 
@@ -42,7 +42,6 @@ class FilterPlacementDialog : DialogFragment() {
         val filterName = arguments?.getString("filterName") ?: "HEART"
         val images = resolveImages(filterName)
 
-        // Title: e.g. "FULL_BODY" → "Full Body Placement"
         val title = filterName.split("_")
             .joinToString(" ") { it.lowercase().replaceFirstChar { c -> c.uppercase() } } + " Placement"
         view.findViewById<TextView>(R.id.placementTitle).text = title
@@ -82,11 +81,13 @@ class FilterPlacementDialog : DialogFragment() {
         )
     }
 
-    // Dynamically find drawables named placement_{filter_lowercase}_{1,2,3,...}
+    // Images are bundled in taal-ui-kit as taal_placement_{filter}_{index}.png
+    // They are merged into the consuming app's resource table at build time,
+    // so getIdentifier() with the app's package name finds them correctly.
     // Indices are not guaranteed to be contiguous (e.g. lungs has _2/_3/_4 but
     // no _1), so the full range is scanned instead of stopping at the first gap.
     private fun resolveImages(filterName: String): List<Int> {
-        val prefix = "placement_${filterName.lowercase()}_"
+        val prefix = "taal_placement_${filterName.lowercase()}_"
         val result = mutableListOf<Int>()
         for (index in 1..MAX_PLACEMENT_IMAGES) {
             val resId = resources.getIdentifier(
@@ -124,8 +125,6 @@ class FilterPlacementDialog : DialogFragment() {
             )
         }
     }
-
-    // ── Inner adapter ─────────────────────────────────────────────────────────
 
     private class PlacementImageAdapter(
         private val images: List<Int>

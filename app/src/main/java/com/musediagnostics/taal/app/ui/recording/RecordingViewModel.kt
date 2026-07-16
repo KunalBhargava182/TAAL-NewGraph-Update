@@ -35,6 +35,8 @@ class RecordingViewModel(application: Application) : AndroidViewModel(applicatio
 
     var currentRecordingPath: String = ""
     var currentFilteredPath: String = ""
+    var customLowCut: Float? = null
+    var customHighCut: Float? = null
     /** Path to the 8kHz HEART AI-testing WAV file (managed by save/discard flow). */
     var currentAiTestingPath: String = ""
     /**

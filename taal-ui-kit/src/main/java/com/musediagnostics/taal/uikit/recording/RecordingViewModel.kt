@@ -23,6 +23,8 @@ class RecordingViewModel : ViewModel() {
 
     var currentRecordingPath: String = ""
     var currentFilteredPath: String = ""
+    var customLowCut: Float? = null
+    var customHighCut: Float? = null
 
     fun setUiState(state: RecordingUiState) {
         _uiState.value = state

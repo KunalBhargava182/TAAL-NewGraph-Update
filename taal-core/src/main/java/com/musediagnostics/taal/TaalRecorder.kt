@@ -97,6 +97,11 @@ class TaalRecorder(private val context: Context) {
         filterEngine.setPresetFilter(filter.toDspFilter())
     }
 
+    fun setCustomBandpass(lowCut: Double, highCut: Double) {
+        checkNotRecording("setCustomBandpass")
+        filterEngine.setCustomBandpass(lowCut, highCut)
+    }
+
     fun setPreAmplification(db: Int) {
         preAmplificationDb = db.coerceIn(0, 30)
         filterEngine.setPreAmplification(preAmplificationDb.toFloat())
