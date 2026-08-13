@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">VisualizerTaal</string>
+
+    <!-- Home -->
+    <string name="home_title">VisualizerTaal</string>
+    <string name="home_subtitle">Taal Digital Stethoscope</string>
+    <string name="btn_basic_taal">Basic TAAL</string>
+    <string name="btn_visualizer_taal">VisualizerTaal</string>
+
+    <!-- Choose recording type -->
+    <string name="choose_title">Choose Recording Type</string>
+    <string name="btn_record_heart">Record Heart</string>
+    <string name="btn_record_lungs">Record Lungs</string>
+    <string name="record_heart_subtitle">4 auscultation points</string>
+    <string name="record_lungs_subtitle">20 auscultation points</string>
+
+    <!-- Placement -->
+    <string name="placement_title">Placement</string>
+    <string name="placement_instruction">Place the stethoscope in the position and then press Record</string>
+    <string name="btn_record">Record</string>
+    <string name="btn_review">Review</string>
+
+    <!-- Recording -->
+    <string name="start_recording">Tap to Record</string>
+    <string name="stop_recording">Tap to Stop</string>
+    <string name="timer_default">00:00:00</string>
+
+    <!-- Player -->
+    <string name="player_title">Review Recording</string>
+    <string name="play_recording">Play Recording</string>
+    <string name="btn_save">Save</string>
+    <string name="btn_discard">Discard</string>
+    <string name="saving_recording">Saving…</string>
+    <string name="save_failed">Save failed. Please try again.</string>
+    <string name="discard_confirm_title">Discard Recording?</string>
+    <string name="discard_confirm_message">This recording will be permanently deleted.</string>
+    <string name="btn_discard_confirm">Discard</string>
+    <string name="btn_keep">Keep</string>
+
+    <!-- Review / Session detail -->
+    <string name="review_title">Review</string>
+    <string name="recording_not_recorded">Not recorded</string>
+    <string name="btn_rerecord">Re-record</string>
+    <string name="delete_recording_title">Delete Recording?</string>
+    <string name="delete_recording_message">will be permanently deleted.</string>
+    <string name="btn_delete_confirm">Delete</string>
+    <string name="file_not_found">File not found</string>
+
+    <!-- Point set home (per Heart/Lungs "folder") -->
+    <string name="past_sessions">Past Sessions</string>
+    <string name="no_sessions_yet">No sessions recorded yet.</string>
+    <string name="btn_start_session">Start Session %1$d</string>
+    <string name="btn_continue_session">Continue Session %1$d</string>
+    <string name="rename_session_title">Rename Session</string>
+    <string name="rename_session_hint">Session name</string>
+    <string name="btn_save_name">Save</string>
+    <string name="btn_cancel">Cancel</string>
+</resources>

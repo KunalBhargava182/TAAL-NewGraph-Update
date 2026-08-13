@@ -164,7 +164,10 @@
       "Bash(rm -f \"E:/AndroidProjects/TaalDemoApp/graphify-out/.graphify_detect.json\" \"E:/AndroidProjects/TaalDemoApp/graphify-out/.graphify_extract.json\" \"E:/AndroidProjects/TaalDemoApp/graphify-out/.graphify_ast.json\" \"E:/AndroidProjects/TaalDemoApp/graphify-out/.graphify_semantic.json\" \"E:/AndroidProjects/TaalDemoApp/graphify-out/.graphify_analysis.json\" \"E:/AndroidProjects/TaalDemoApp/graphify-out/.graphify_unit_test_report_update.json\")",
       "Bash(graphify explain *)",
       "Bash(git fetch *)",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "Bash(\"C:\\\\Users\\\\kunal\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" disconnect *)",
+      "Bash(\"C:\\\\Users\\\\kunal\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" kill-server *)",
+      "Bash(\"C:\\\\Users\\\\kunal\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" start-server *)"
     ]
   }
 }

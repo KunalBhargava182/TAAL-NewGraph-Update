@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background">
+
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/iconContainer"
+        android:layout_width="104dp"
+        android:layout_height="104dp"
+        app:cardBackgroundColor="@color/surface"
+        app:cardCornerRadius="28dp"
+        app:cardElevation="0dp"
+        app:strokeColor="@color/divider"
+        app:strokeWidth="1dp"
+        app:layout_constraintVertical_chainStyle="packed"
+        app:layout_constraintVertical_bias="0.42"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/appTitle"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <ImageView
+            android:id="@+id/appIcon"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:layout_gravity="center"
+            android:scaleType="centerInside"
+            android:src="@drawable/vt_icon_taal" />
+    </com.google.android.material.card.MaterialCardView>
+
+    <TextView
+        android:id="@+id/appTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:text="@string/home_title"
+        android:textColor="@color/teal_deep"
+        android:textSize="30sp"
+        android:fontFamily="sans-serif-medium"
+        android:letterSpacing="-0.02"
+        app:layout_constraintTop_toBottomOf="@id/iconContainer"
+        app:layout_constraintBottom_toTopOf="@id/appSubtitle"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <TextView
+        android:id="@+id/appSubtitle"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="40dp"
+        android:layout_marginTop="10dp"
+        android:text="@string/home_subtitle"
+        android:textColor="@color/text_secondary"
+        android:textSize="15sp"
+        android:textAlignment="center"
+        android:lineSpacingExtra="5dp"
+        app:layout_constraintTop_toBottomOf="@id/appTitle"
+        app:layout_constraintBottom_toTopOf="@id/btnBasicTaal"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnBasicTaal"
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:layout_marginHorizontal="24dp"
+        android:layout_marginTop="44dp"
+        android:fontFamily="sans-serif-medium"
+        android:letterSpacing="0.01"
+        android:text="@string/btn_basic_taal"
+        android:textAllCaps="false"
+        android:textColor="@color/white"
+        android:textSize="16sp"
+        app:backgroundTint="@color/teal_primary"
+        app:cornerRadius="14dp"
+        app:elevation="0dp"
+        app:icon="@drawable/vt_ic_recording_start1"
+        app:iconTint="@color/white"
+        app:iconGravity="textStart"
+        app:iconPadding="10dp"
+        app:iconSize="20dp"
+        app:layout_constraintTop_toBottomOf="@id/appSubtitle"
+        app:layout_constraintBottom_toTopOf="@id/btnVisualizerTaal"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnVisualizerTaal"
+        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:layout_marginHorizontal="24dp"
+        android:layout_marginTop="14dp"
+        android:fontFamily="sans-serif-medium"
+        android:letterSpacing="0.01"
+        android:text="@string/btn_visualizer_taal"
+        android:textAllCaps="false"
+        android:textColor="@color/teal_dark"
+        android:textSize="16sp"
+        app:cornerRadius="14dp"
+        app:strokeColor="@color/teal_primary"
+        app:strokeWidth="1.5dp"
+        app:icon="@drawable/vt_ic_placement_pin"
+        app:iconTint="@color/teal_dark"
+        app:iconGravity="textStart"
+        app:iconPadding="10dp"
+        app:iconSize="20dp"
+        app:layout_constraintTop_toBottomOf="@id/btnBasicTaal"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintVertical_bias="0"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

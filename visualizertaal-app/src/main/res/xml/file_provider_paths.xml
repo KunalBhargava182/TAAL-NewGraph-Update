@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <files-path name="visualizer_files" path="." />
+    <cache-path name="visualizer_cache" path="." />
+    <!-- Legacy (API < 29) save location: public Downloads/Audios -->
+    <external-path name="visualizer_downloads" path="Download/Audios/" />
+</paths>

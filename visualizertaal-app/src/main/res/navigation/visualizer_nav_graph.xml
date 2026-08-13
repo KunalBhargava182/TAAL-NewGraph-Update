@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/visualizer_nav_graph"
+    app:startDestination="@id/homeFragment">
+
+    <!-- Home: Basic TAAL (launches taal-ui-kit Activities directly) or VisualizerTaal -->
+    <fragment
+        android:id="@+id/homeFragment"
+        android:name="com.musediagnostics.taal.visualizer.ui.home.HomeFragment"
+        android:label="Home">
+        <action
+            android:id="@+id/action_home_to_choose"
+            app:destination="@id/chooseRecordingTypeFragment" />
+    </fragment>
+
+    <!-- Choose Record Heart or Record Lungs -->
+    <fragment
+        android:id="@+id/chooseRecordingTypeFragment"
+        android:name="com.musediagnostics.taal.visualizer.ui.choose.ChooseRecordingTypeFragment"
+        android:label="Choose Recording Type">
+        <action
+            android:id="@+id/action_choose_to_pointSetHome"
+            app:destination="@id/pointSetHomeFragment" />
+    </fragment>
+
+    <!-- Per-type "folder": start/continue a session, browse past sessions -->
+    <fragment
+        android:id="@+id/pointSetHomeFragment"
+        android:name="com.musediagnostics.taal.visualizer.ui.pointsethome.PointSetHomeFragment"
+        android:label="Sessions">
+        <argument android:name="pointSet" app:argType="string" />
+        <action
+            android:id="@+id/action_pointSetHome_to_placement"
+            app:destination="@id/placementFragment" />
+        <action
+            android:id="@+id/action_pointSetHome_to_review"
+            app:destination="@id/reviewFragment" />
+    </fragment>
+
+    <!-- Placement: tab per point (Heart flat; Lungs nested region -> point tabs) -->
+    <fragment
+        android:id="@+id/placementFragment"
+        android:name="com.musediagnostics.taal.visualizer.ui.placement.PlacementFragment"
+        android:label="Placement">
+        <argument android:name="pointSet" app:argType="string" />
+        <argument android:name="sessionId" app:argType="long" />
+        <argument android:name="sessionNumber" app:argType="integer" />
+        <action
+            android:id="@+id/action_placement_to_recording"
+            app:destination="@id/recordingFragment" />
+        <action
+            android:id="@+id/action_placement_to_review"
+            app:destination="@id/reviewFragment" />
+    </fragment>
+
+    <!-- Recording screen for a single point -->
+    <fragment
+        android:id="@+id/recordingFragment"
+        android:name="com.musediagnostics.taal.visualizer.ui.recording.RecordingFragment"
+        android:label="Recording">
+        <argument android:name="pointSet" app:argType="string" />
+        <argument android:name="pointCode" app:argType="string" />
+        <argument android:name="sessionId" app:argType="long" />
+        <argument android:name="sessionNumber" app:argType="integer" />
+        <argument android:name="returnTo" app:argType="string" android:defaultValue="placement" />
+        <action
+            android:id="@+id/action_recording_to_player"
+            app:destination="@id/playerFragment" />
+    </fragment>
+
+    <!-- Player: Save/Discard for a new recording, or review-only playback -->
+    <fragment
+        android:id="@+id/playerFragment"
+        android:name="com.musediagnostics.taal.visualizer.ui.player.PlayerFragment"
+        android:label="Review">
+        <argument android:name="filePath" app:argType="string" android:defaultValue="" />
+        <argument android:name="rawFilePath" app:argType="string" android:defaultValue="" />
+        <argument android:name="pointSet" app:argType="string" />
+        <argument android:name="pointCode" app:argType="string" android:defaultValue="" />
+        <argument android:name="sessionId" app:argType="long" />
+        <argument android:name="sessionNumber" app:argType="integer" />
+        <argument android:name="isReviewMode" app:argType="boolean" android:defaultValue="false" />
+        <argument android:name="returnTo" app:argType="string" android:defaultValue="placement" />
+    </fragment>
+
+    <!-- Session detail: play/share/delete/re-record per point -->
+    <fragment
+        android:id="@+id/reviewFragment"
+        android:name="com.musediagnostics.taal.visualizer.ui.review.ReviewFragment"
+        android:label="Review">
+        <argument android:name="pointSet" app:argType="string" />
+        <argument android:name="sessionId" app:argType="long" />
+        <argument android:name="sessionNumber" app:argType="integer" />
+        <action
+            android:id="@+id/action_review_to_player"
+            app:destination="@id/playerFragment" />
+        <action
+            android:id="@+id/action_review_to_recording"
+            app:destination="@id/recordingFragment" />
+    </fragment>
+
+</navigation>

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Primary Brand Colors -->
+    <color name="teal_primary">#2ABFBF</color>
+    <color name="teal_dark">#1FA3A3</color>
+    <color name="teal_deep">#0E5F60</color>
+    <color name="teal_device">#008DB9</color>
+    <color name="teal_soft">#E3F5F5</color>
+
+    <!-- Neutral Colors -->
+    <color name="white">#FFFFFF</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="background">#F6F8F8</color>
+    <color name="divider">#E2E6E6</color>
+
+    <!-- Text Colors -->
+    <color name="text_primary">#333333</color>
+    <color name="text_secondary">#999999</color>
+    <color name="text_hint">#BBBBBB</color>
+
+    <!-- Status Colors -->
+    <color name="recording_red">#E85555</color>
+    <color name="recording_red_soft">#FBEAEA</color>
+    <color name="success_green">#4CAF50</color>
+
+    <!-- Waveform -->
+    <color name="waveform_blue">#2D7DD2</color>
+</resources>
