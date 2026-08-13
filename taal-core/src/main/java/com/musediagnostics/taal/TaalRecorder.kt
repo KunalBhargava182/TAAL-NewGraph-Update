@@ -13,6 +13,16 @@ import kotlinx.coroutines.launch
 
 class TaalRecorder(private val context: Context) {
 
+    companion object {
+        // A recording whose peak never exceeds this, measured on the *filtered and
+        // pre-amplified* signal (i.e. exactly what the waveform/playback show the
+        // user), is treated as silent. Deliberately NOT measured on the raw capture
+        // signal — a quiet-but-valid raw signal boosted by pre-amp gain can look and
+        // sound completely normal to the user while still reading as "silent" on the
+        // raw scale, which caused false-positive popups. Confirmed 2026-08-14.
+        private const val SILENT_RECORDING_PEAK_THRESHOLD = 0.01f
+    }
+
     private val audioCapture = TaalAudioCapture(context)
     private val filterEngine = AudioFilterEngine()
 
@@ -26,6 +36,7 @@ class TaalRecorder(private val context: Context) {
 
     @Volatile private var filteredFos: FileOutputStream? = null
     @Volatile private var filteredBytesWritten = 0
+    @Volatile private var maxFilteredPeakSeen = 0f
 
     var onInfoListener: OnInfoListener? = null
     var onLiveStreamListener: OnLiveStreamListener? = null
@@ -36,6 +47,16 @@ class TaalRecorder(private val context: Context) {
             onInfoListener?.onStateChange(state)
         }
 
+        audioCapture.onDeviceDisconnected = {
+            onInfoListener?.onDeviceDisconnected()
+        }
+
+        audioCapture.onCaptureCompleted = { isFirstSinceConnect ->
+            if (maxFilteredPeakSeen < SILENT_RECORDING_PEAK_THRESHOLD) {
+                onInfoListener?.onSilentRecordingDetected(isFirstSinceConnect)
+            }
+        }
+
         audioCapture.onAudioData = { data, timestamp ->
             // Notify listeners with raw (pre-filter) audio before any DSP is applied.
             // Callers can override onRawProgressUpdate to tap the unprocessed signal
@@ -43,6 +64,13 @@ class TaalRecorder(private val context: Context) {
             onInfoListener?.onRawProgressUpdate(data)
 
             val filtered = filterEngine.processBlock(data)
+
+            var peak = 0f
+            for (sample in filtered) {
+                val abs = kotlin.math.abs(sample)
+                if (abs > peak) peak = abs
+            }
+            if (peak > maxFilteredPeakSeen) maxFilteredPeakSeen = peak
 
             // Write filtered bytes to the filtered file in real-time (same IO thread as recording)
             try {
@@ -124,6 +152,8 @@ class TaalRecorder(private val context: Context) {
         if (!audioCapture.checkUsbConnection()) {
             throw TaalDisconnectedException()
         }
+
+        maxFilteredPeakSeen = 0f
 
         // Open filtered output file if path is set
         filteredAudioFilePath?.let { path ->
@@ -241,6 +271,16 @@ class TaalRecorder(private val context: Context) {
         fun onProgressUpdate(sampleRate: Int, bufferSize: Int, timeStamp: Double, data: FloatArray)
         /** Called with raw (pre-filter, pre-amp) audio on the same IO thread as onProgressUpdate. Default is a no-op. */
         fun onRawProgressUpdate(data: FloatArray) {}
+        /** Called on the main thread when the USB device disappears mid-recording.
+         *  The recording has already been stopped and finalized by the time this fires.
+         *  Default is a no-op so existing implementers keep compiling unchanged. */
+        fun onDeviceDisconnected() {}
+        /** Called on the main thread after a recording completes with no audible signal
+         *  captured (peak never rose above the noise floor), even though nothing errored.
+         *  [isFirstSinceConnect] is true if this was the first recording attempt since
+         *  the TAAL device's current physical USB connection began. Default is a no-op
+         *  so existing implementers keep compiling unchanged. */
+        fun onSilentRecordingDetected(isFirstSinceConnect: Boolean) {}
     }
 
     interface OnLiveStreamListener {

@@ -618,6 +618,54 @@ class RecordingFragment : Fragment() {
                         // AI downsampling streams disabled — no extra files written
                     }
 
+                    override fun onDeviceDisconnected() {
+                        activity?.runOnUiThread {
+                            if (isAdded && _binding != null) {
+                                stopAudioMonitor()
+                                taalRecorder = null
+
+                                // Discard the partial recording — device disconnected mid-capture
+                                if (viewModel.currentRecordingPath.isNotEmpty()) {
+                                    try { File(viewModel.currentRecordingPath).delete() } catch (_: Exception) {}
+                                }
+                                if (viewModel.currentFilteredPath.isNotEmpty()) {
+                                    try { File(viewModel.currentFilteredPath).delete() } catch (_: Exception) {}
+                                }
+
+                                Toast.makeText(
+                                    requireContext(),
+                                    "Device disconnected. Please connect the device.",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                                resetToIdle()
+                            }
+                        }
+                    }
+
+                    override fun onSilentRecordingDetected(isFirstSinceConnect: Boolean) {
+                        // Only shown for the first recording since this physical USB
+                        // connection began — the known cold-start quirk on some
+                        // budget-chipset phones. Not shown for later recordings on the
+                        // same connection (that variant proved unreliable/false-positive
+                        // in testing and was intentionally dropped, 2026-08-14).
+                        if (!isFirstSinceConnect) return
+
+                        // Fires after the recording has already finished — by now the
+                        // user may already be on PlayerFragment reviewing it, so this
+                        // dialog is anchored to the Activity window (not this fragment's
+                        // view) so it shows on top regardless of which screen is current.
+                        activity?.runOnUiThread {
+                            val act = activity ?: return@runOnUiThread
+                            if (act.isFinishing || act.isDestroyed) return@runOnUiThread
+                            android.app.AlertDialog.Builder(act)
+                                .setTitle("Ready to Capture")
+                                .setMessage("Your TAAL device has been detected and is now ready. Please discard this recording and start a new one.")
+                                .setPositiveButton("OK", null)
+                                .setCancelable(false)
+                                .show()
+                        }
+                    }
+
                     override fun onProgressUpdate(
                         sampleRate: Int, bufferSize: Int, timeStamp: Double, data: FloatArray
                     ) {

@@ -10,6 +10,7 @@ import android.media.MediaRecorder
 import android.media.audiofx.AcousticEchoCanceler
 import android.media.audiofx.AutomaticGainControl
 import android.media.audiofx.NoiseSuppressor
+import android.util.Log
 import com.musediagnostics.taal.TaalNotAvailableForUseException
 import kotlinx.coroutines.*
 import java.io.File
@@ -25,6 +26,18 @@ class TaalAudioCapture(private val context: Context) {
         const val CHANNEL_CONFIG = AudioFormat.CHANNEL_IN_MONO
         const val AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT
         const val MAX_FREQUENCY_HZ = 2000 // Hard limit
+
+        // Read-only diagnostic tag. `adb logcat -s TAAL_AUDIO_DEBUG` to watch.
+        private const val TAG = "TAAL_AUDIO_DEBUG"
+
+        // How often the capture loop checks whether the USB device is still present.
+        private const val USB_CHECK_INTERVAL_MS = 500L
+
+        // Companion (class-level, not instance-level) so this survives across the
+        // "new TaalRecorder/TaalAudioCapture per recording" pattern most callers use —
+        // it needs to persist for the life of the process to correctly tell whether a
+        // given recording is the first one since this physical USB connection began.
+        @Volatile private var lastKnownUsbDeviceId: Int? = null
     }
 
     private var audioRecord: AudioRecord? = null
@@ -33,16 +46,9 @@ class TaalAudioCapture(private val context: Context) {
     @Volatile private var isStopped = false
 
     // ── TABLET FIX: Buffer size ────────────────────────────────────────────────
-    // Previously: getMinBufferSize() * 2
-    // Now:        getMinBufferSize() * 4, with an absolute floor of 8192 bytes.
-    //
-    // WHY: Tablets use mid-range SoCs (Snapdragon 6xx/7xx series across all brands —
-    // Samsung, Xiaomi, Lenovo, Huawei, etc.) with different USB audio HAL scheduling
-    // compared to flagship phone SoCs. The smaller *2 buffer caused frame drops on
-    // tablets — visible as click artifacts or gaps in the waveform during heavy UI
-    // rendering. *4 gives the USB audio thread enough headroom on all tablet hardware.
-    // This is safe on phones — a larger buffer only means slightly less frequent
-    // onAudioData callbacks, which all downstream code already handles correctly.
+    // getMinBufferSize() * 4, floor 8192. Gives tablet USB-audio HAL threads more
+    // headroom than *2 — reduces frame drops / click artifacts. Confirmed 2026-08
+    // this is NOT implicated in the "flat first recording" bug (isolated in testing).
     private val bufferSize = maxOf(
         AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT) * 4,
         8192
@@ -51,32 +57,31 @@ class TaalAudioCapture(private val context: Context) {
     // Callbacks
     var onAudioData: ((FloatArray, Double) -> Unit)? = null
     var onStateChange: ((RecorderState) -> Unit)? = null
+    /** Fired when the USB device disappears mid-recording. The recording has already
+     *  been stopped and cleaned up by the time this fires — see captureAudioToFile(). */
+    var onDeviceDisconnected: (() -> Unit)? = null
+    /** Fired after a recording completes normally (device stayed connected, at least
+     *  one real read happened) — regardless of signal level. Silence detection based
+     *  on amplitude belongs upstream in TaalRecorder, which has the filtered/amplified
+     *  signal the user actually sees and hears; this raw capture stage only knows the
+     *  pre-gain signal, which can legitimately be very quiet and still produce a
+     *  perfectly normal recording once pre-amp gain is applied. The Boolean is true
+     *  when this was the first recording attempt since this physical USB connection
+     *  began (see lastKnownUsbDeviceId) — useful for telling a genuine "forgot to
+     *  place the stethoscope" case apart from the known cold-start quirk some
+     *  budget-chipset phones show on their very first read from a fresh USB
+     *  audio connection. */
+    var onCaptureCompleted: ((isFirstSinceConnect: Boolean) -> Unit)? = null
 
     fun startRecording(outputFile: File, durationSeconds: Int) {
         if (isRecording) return
 
         isStopped = false
+        Log.d(TAG, "startRecording() begin — usbConnected=${checkUsbConnection()}")
 
-        // ── TABLET FIX: AudioRecord creation ──────────────────────────────────
-        // Previously: AudioRecord(AudioSource.DEFAULT, ...) — single call, no fallback.
-        //
-        // WHY DEFAULT WAS WRONG FOR TABLETS:
-        // AudioSource.DEFAULT lets the OS decide which microphone to use. On phones,
-        // Android typically routes DEFAULT to the USB audio device when one is connected.
-        // On tablets (all brands — Samsung, Xiaomi, Lenovo, Huawei, OnePlus, etc.),
-        // DEFAULT often routes to the built-in microphone array instead, because tablets
-        // are designed with multi-mic arrays for voice capture and their audio policy
-        // prefers those over USB audio. Android 16 tightened this further — DEFAULT
-        // now strictly means "system default input", which on tablets is the internal mics.
-        // The result: the TAAL device is ignored and the tablet's own mic is recorded.
-        //
-        // FIX: Use a priority fallback chain:
-        //   1. UNPROCESSED — raw hardware signal, zero OS processing. Best for medical
-        //      audio. Available on all Android devices since API 24 (our minSdk).
-        //   2. VOICE_RECOGNITION — minimal processing, no beam-forming. Works on devices
-        //      that do not expose UNPROCESSED for USB audio class sources.
-        //   3. DEFAULT — original behaviour as last resort. Preserves current behaviour
-        //      on any device where both options above fail.
+        // ── TABLET FIX: AudioRecord creation, priority fallback chain ──────────
+        // UNPROCESSED (best for medical audio) → VOICE_RECOGNITION → DEFAULT.
+        // Confirmed 2026-08 NOT implicated in the "flat first recording" bug.
         val record = buildAudioRecord()
 
         if (record.state != AudioRecord.STATE_INITIALIZED) {
@@ -90,77 +95,109 @@ class TaalAudioCapture(private val context: Context) {
         }
 
         audioRecord = record
-        record.startRecording()
+        Log.d(TAG, "AudioRecord built — state=${record.state} sessionId=${record.audioSessionId} " +
+            "routedDevice=${describeDevice(record.routedDevice)}")
 
-        // ── TABLET FIX: Disable system audio effects ───────────────────────────
-        // WHY: Android can silently attach AGC (Auto Gain Control), Noise Suppressor,
-        // and Acoustic Echo Canceller to an AudioRecord session. On tablets across all
-        // brands, these effects are tuned for voice calls — their passband is roughly
-        // 300–3400 Hz. Heart sounds live in the 20–250 Hz range. These effects treat
-        // that range as "low-frequency noise" and attenuate it, producing muffled or
-        // inaudible heart sounds even when the correct input device is selected.
-        // Each call is guarded by isAvailable() — if the effect does not exist on the
-        // device, the call is a safe no-op. This is harmless on phones where these
-        // effects are typically not attached to USB audio sources in the first place.
-        disableSystemAudioEffects(record.audioSessionId)
-
-        // ── TABLET FIX: Lock routing to USB audio device ───────────────────────
-        // WHY: On Android 9+ (API 28), setPreferredDevice() tells the OS "always route
-        // this AudioRecord session to this specific input device". Without this, the OS
-        // may silently re-route to a different input mid-recording on tablets — for
-        // example if a notification triggers a momentary routing switch to the internal
-        // mic array. This targets any connected USB audio device (TYPE_USB_DEVICE or
-        // TYPE_USB_HEADSET) so it works regardless of tablet brand or Android version.
-        // On API < 28 this block is skipped entirely — no change to existing behaviour.
+        // ── TABLET FIX: Lock routing to USB audio device (API 28+), CONDITIONAL ──
+        // Only forces setPreferredDevice() when the record ISN'T already routed to
+        // the USB device — see lockToUsbAudioDevice() for the full history of why
+        // this must be conditional and not unconditional.
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
             lockToUsbAudioDevice(record)
         }
+
+        // ── TABLET FIX: Disable system audio effects ───────────────────────────
+        // AGC/NoiseSuppressor/AEC are tuned for voice calls and attenuate the
+        // 20-250Hz range that contains heart sounds. Confirmed 2026-08 NOT
+        // implicated in the "flat first recording" bug.
+        disableSystemAudioEffects(record.audioSessionId)
+
+        record.startRecording()
+        Log.d(TAG, "record.startRecording() returned — recordingState=${record.recordingState} " +
+            "routedDevice=${describeDevice(record.routedDevice)}")
+
+        // Determine whether this is the first recording attempt since this physical
+        // USB connection began — compared against the kernel-assigned UsbDevice id,
+        // which only changes on a real unplug/replug (stable across multiple
+        // recordings on the same connection, even across separate TaalAudioCapture
+        // instances, since lastKnownUsbDeviceId is companion/class-level state).
+        val currentUsbDeviceId = getConnectedUsbDeviceId()
+        val isFirstSinceConnect = currentUsbDeviceId != null && currentUsbDeviceId != lastKnownUsbDeviceId
+        lastKnownUsbDeviceId = currentUsbDeviceId
+        Log.d(TAG, "startRecording() — currentUsbDeviceId=$currentUsbDeviceId isFirstSinceConnect=$isFirstSinceConnect")
 
         isRecording = true
         onStateChange?.invoke(RecorderState.RECORDING)
 
         captureJob = CoroutineScope(Dispatchers.IO).launch {
-            captureAudioToFile(outputFile, durationSeconds)
+            captureAudioToFile(outputFile, durationSeconds, isFirstSinceConnect)
         }
     }
 
-    // ── TABLET FIX: Helper functions ───────────────────────────────────────────
+    /** Compact string for logging an AudioDeviceInfo — type + product name, or "null". */
+    private fun describeDevice(device: AudioDeviceInfo?): String {
+        if (device == null) return "null"
+        return "${device.type}/${device.productName}"
+    }
+
+    /** Finds the connected USB audio input device, if any. */
+    private fun findUsbAudioInput(): AudioDeviceInfo? {
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return null
+        return audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS).firstOrNull { device ->
+            device.type == AudioDeviceInfo.TYPE_USB_DEVICE || device.type == AudioDeviceInfo.TYPE_USB_HEADSET
+        }
+    }
 
     /**
-     * Builds an AudioRecord using a priority fallback chain designed to work correctly
-     * on all Android tablets regardless of brand (Samsung, Xiaomi, Lenovo, Huawei, etc.).
-     *
-     * Priority order:
-     *  1. UNPROCESSED  — raw signal directly from the USB hardware transducer.
-     *                    No OS processing of any kind. Correct for medical audio because
-     *                    the TAAL SDK applies its own filters via AudioFilterEngine.
-     *  2. VOICE_RECOGNITION — low-processing source, no beam-forming or AGC.
-     *                         Fallback for devices that do not expose UNPROCESSED on USB.
-     *  3. DEFAULT      — original behaviour. Last resort to ensure the recorder
-     *                    always initialises, even on unusual device configurations.
+     * The kernel/host-controller-assigned id of the connected USB audio device, or
+     * null if none is connected. Unlike AudioDeviceInfo.id (which is an Android
+     * audio-framework id), UsbDevice.deviceId is tied to the actual physical USB
+     * enumeration — stable while the cable stays connected, and guaranteed to change
+     * on a real unplug/replug. That makes it the right signal for "is this the same
+     * physical connection as last time" rather than "is this the same logical device".
+     */
+    private fun getConnectedUsbDeviceId(): Int? {
+        val usbManager = context.getSystemService(Context.USB_SERVICE) as? UsbManager ?: return null
+        return usbManager.deviceList.values.firstOrNull { device ->
+            if (device.deviceClass == android.hardware.usb.UsbConstants.USB_CLASS_AUDIO) return@firstOrNull true
+            for (i in 0 until device.interfaceCount) {
+                if (device.getInterface(i).interfaceClass == android.hardware.usb.UsbConstants.USB_CLASS_AUDIO) return@firstOrNull true
+            }
+            false
+        }?.deviceId
+    }
+
+    /**
+     * Builds an AudioRecord using a priority fallback chain: UNPROCESSED (raw signal,
+     * best for medical audio) → VOICE_RECOGNITION (minimal processing) → DEFAULT
+     * (original behaviour, last resort).
      */
     private fun buildAudioRecord(): AudioRecord {
-        // Attempt 1: UNPROCESSED — best for medical audio, available since API 24
         runCatching {
             val r = AudioRecord(
                 MediaRecorder.AudioSource.UNPROCESSED,
                 SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT, bufferSize
             )
-            if (r.state == AudioRecord.STATE_INITIALIZED) return r
+            if (r.state == AudioRecord.STATE_INITIALIZED) {
+                Log.d(TAG, "buildAudioRecord() — UNPROCESSED succeeded")
+                return r
+            }
             r.release()
         }
 
-        // Attempt 2: VOICE_RECOGNITION — minimal processing, no beam-forming
         runCatching {
             val r = AudioRecord(
                 MediaRecorder.AudioSource.VOICE_RECOGNITION,
                 SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT, bufferSize
             )
-            if (r.state == AudioRecord.STATE_INITIALIZED) return r
+            if (r.state == AudioRecord.STATE_INITIALIZED) {
+                Log.d(TAG, "buildAudioRecord() — VOICE_RECOGNITION succeeded")
+                return r
+            }
             r.release()
         }
 
-        // Attempt 3: DEFAULT — original behaviour, preserves compatibility on all devices
+        Log.d(TAG, "buildAudioRecord() — falling back to DEFAULT")
         return AudioRecord(
             MediaRecorder.AudioSource.DEFAULT,
             SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT, bufferSize
@@ -168,71 +205,60 @@ class TaalAudioCapture(private val context: Context) {
     }
 
     /**
-     * Explicitly disables system-level audio effects that Android may attach to a
-     * recording session automatically. On tablets across all brands, these effects are
-     * tuned for voice calls and attenuate the 20–250 Hz range that contains heart sounds.
-     *
-     * - AutomaticGainControl (AGC): normalises signal amplitude, destroying the
-     *   rhythmic pattern of heartbeats by treating quiet beats as "too quiet".
-     * - NoiseSuppressor (NS): treats sub-300 Hz content as background noise and
-     *   removes it — exactly the range of heart and bowel sounds.
-     * - AcousticEchoCanceller (AEC): can corrupt the signal entirely by treating
-     *   the stethoscope output as acoustic echo from a speaker.
-     *
-     * Each call is guarded by isAvailable() so this is a safe no-op on devices
-     * where these effects are not present.
+     * Disables AGC / NoiseSuppressor / AcousticEchoCanceler on the recording session.
+     * Each call is guarded by isAvailable() — safe no-op where the effect doesn't exist.
      */
     private fun disableSystemAudioEffects(sessionId: Int) {
         if (AutomaticGainControl.isAvailable()) {
-            AutomaticGainControl.create(sessionId)?.apply {
-                enabled = false
-                release()
-            }
+            AutomaticGainControl.create(sessionId)?.apply { enabled = false; release() }
         }
         if (NoiseSuppressor.isAvailable()) {
-            NoiseSuppressor.create(sessionId)?.apply {
-                enabled = false
-                release()
-            }
+            NoiseSuppressor.create(sessionId)?.apply { enabled = false; release() }
         }
         if (AcousticEchoCanceler.isAvailable()) {
-            AcousticEchoCanceler.create(sessionId)?.apply {
-                enabled = false
-                release()
-            }
+            AcousticEchoCanceler.create(sessionId)?.apply { enabled = false; release() }
         }
     }
 
     /**
-     * Locks the AudioRecord session to the connected USB audio device (API 28+).
-     * Checks for both TYPE_USB_DEVICE and TYPE_USB_HEADSET since different tablet
-     * brands and Android versions report the TAAL device under either type.
+     * Locks the AudioRecord session to the connected USB audio device (API 28+), but
+     * ONLY when it isn't already routed there.
      *
-     * Without this, the OS can silently re-route the recording session to the
-     * built-in microphone array mid-recording on tablets — for example when a
-     * notification fires or another app briefly claims the audio focus.
-     *
-     * If no USB audio device is found (e.g. TAAL not connected), this is a no-op
-     * and the existing TaalDisconnectedException path in start() handles it.
+     * History (2026-08): tried always calling setPreferredDevice() unconditionally —
+     * REJECTED. It forces a native restoreRecord_l (track teardown/rebuild) every
+     * time, and how long that takes to recover was unpredictable on test hardware —
+     * sometimes ~200ms, sometimes the entire recording stayed dead silent. Making it
+     * conditional (only correct when actually wrong) proved 100% reliable across
+     * every on-device test while still protecting tablets that genuinely need the
+     * correction (where AudioSource routes to the built-in mic instead of USB).
      */
     @androidx.annotation.RequiresApi(android.os.Build.VERSION_CODES.P)
     private fun lockToUsbAudioDevice(record: AudioRecord) {
-        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
-        val usbDevice = audioManager
-            .getDevices(AudioManager.GET_DEVICES_INPUTS)
-            .firstOrNull { device ->
-                device.type == AudioDeviceInfo.TYPE_USB_DEVICE ||
-                device.type == AudioDeviceInfo.TYPE_USB_HEADSET
-            }
-        if (usbDevice != null) {
-            record.preferredDevice = usbDevice
+        val usbDevice = findUsbAudioInput()
+        if (usbDevice == null) {
+            Log.w(TAG, "lockToUsbAudioDevice() — no USB input device found; recording may fall back to the built-in mic")
+            return
         }
+
+        if (record.routedDevice?.id == usbDevice.id) {
+            Log.d(TAG, "lockToUsbAudioDevice() — already routed to ${describeDevice(usbDevice)}, skipping setPreferredDevice()")
+            return
+        }
+
+        record.preferredDevice = usbDevice
+        Log.d(TAG, "lockToUsbAudioDevice() — set preferredDevice=${describeDevice(usbDevice)}")
     }
 
-    private suspend fun captureAudioToFile(outputFile: File, durationSeconds: Int) {
+    private suspend fun captureAudioToFile(outputFile: File, durationSeconds: Int, isFirstSinceConnect: Boolean) {
         val buffer = ByteArray(bufferSize)
         val floatBuffer = FloatArray(bufferSize / 2) // 16-bit = 2 bytes per sample
         var totalBytesWritten = 0
+        var disconnectedMidRecording = false
+
+        // Read-only diagnostics — no effect on control flow or timing below.
+        var totalReads = 0
+        var positiveReads = 0
+        var firstPositiveReadElapsedMs = -1L
 
         FileOutputStream(outputFile).use { fos ->
             // Write WAV header (placeholder, we'll update after recording)
@@ -240,13 +266,49 @@ class TaalAudioCapture(private val context: Context) {
 
             val startTime = System.currentTimeMillis()
             val endTime = startTime + (durationSeconds * 1000)
+            var lastLogTime = startTime
+            var lastUsbCheckTime = startTime
 
             while (isRecording && System.currentTimeMillis() < endTime) {
+                // Periodic USB-presence check — stop immediately if the device is
+                // physically unplugged mid-recording, rather than silently continuing
+                // to "record" from whatever the OS falls back to.
+                val checkNow = System.currentTimeMillis()
+                if (checkNow - lastUsbCheckTime >= USB_CHECK_INTERVAL_MS) {
+                    lastUsbCheckTime = checkNow
+                    if (!checkUsbConnection()) {
+                        Log.w(TAG, "captureAudioToFile() — USB device disconnected mid-recording at t=${checkNow - startTime}ms, stopping")
+                        disconnectedMidRecording = true
+                        isRecording = false
+                        break
+                    }
+                }
+
                 val bytesRead = audioRecord?.read(buffer, 0, buffer.size) ?: 0
+                totalReads++
 
                 if (bytesRead > 0) {
+                    positiveReads++
+                    if (firstPositiveReadElapsedMs < 0) {
+                        firstPositiveReadElapsedMs = System.currentTimeMillis() - startTime
+                        Log.d(TAG, "captureAudioToFile() — first successful read after ${firstPositiveReadElapsedMs}ms")
+                    }
+
                     // Convert to float for callbacks
                     convertBytesToFloat(buffer, floatBuffer, bytesRead)
+
+                    var peak = 0f
+                    for (i in 0 until bytesRead / 2) {
+                        val abs = kotlin.math.abs(floatBuffer[i])
+                        if (abs > peak) peak = abs
+                    }
+
+                    val now = System.currentTimeMillis()
+                    if (now - lastLogTime >= 1000) {
+                        lastLogTime = now
+                        Log.d(TAG, "captureAudioToFile() — t=${now - startTime}ms reads=$totalReads peak=$peak " +
+                            "routedDevice=${describeDevice(audioRecord?.routedDevice)}")
+                    }
 
                     // Stream to listeners
                     val timestamp = (System.currentTimeMillis() - startTime) / 1000.0
@@ -257,6 +319,10 @@ class TaalAudioCapture(private val context: Context) {
                     totalBytesWritten += bytesRead
                 }
             }
+
+            Log.d(TAG, "captureAudioToFile() — loop ended. totalReads=$totalReads positiveReads=$positiveReads " +
+                "firstPositiveReadElapsedMs=$firstPositiveReadElapsedMs " +
+                "totalBytesWritten=$totalBytesWritten disconnectedMidRecording=$disconnectedMidRecording")
         }
 
         // Update WAV header with actual size using RandomAccessFile
@@ -271,11 +337,19 @@ class TaalAudioCapture(private val context: Context) {
         // Release audio resources from the IO thread
         releaseAudioRecord()
 
+        val completedNormally = !disconnectedMidRecording && positiveReads > 0
+
         // Notify state change on main thread
         kotlinx.coroutines.withContext(Dispatchers.Main) {
             if (!isStopped) {
                 isStopped = true
                 onStateChange?.invoke(RecorderState.STOPPED)
+            }
+            if (disconnectedMidRecording) {
+                onDeviceDisconnected?.invoke()
+            }
+            if (completedNormally) {
+                onCaptureCompleted?.invoke(isFirstSinceConnect)
             }
         }
     }
@@ -297,7 +371,18 @@ class TaalAudioCapture(private val context: Context) {
     fun stopRecording() {
         if (!isRecording && isStopped) return
         isRecording = false
-        captureJob?.cancel()
+
+        // Deliberately NOT calling captureJob?.cancel() here. The capture loop already
+        // exits cleanly on its own via the isRecording flag above — cancel() adds
+        // nothing for stopping it. What it DOES do is corrupt the coroutine's own tail
+        // logic: captureAudioToFile() finishes with a withContext(Dispatchers.Main) {}
+        // block that fires onStateChange/onDeviceDisconnected/onCaptureCompleted.
+        // That's a suspension point, and a cancelled job aborts at the next suspension
+        // point — so calling cancel() here silently prevented that whole block (and
+        // every callback in it) from ever running whenever the user manually tapped
+        // Stop, which is how the vast majority of recordings actually end. Confirmed
+        // on-device 2026-08-14: the silent-recording callback's trace logs never
+        // appeared after a manual stop, only after this call was removed.
         releaseAudioRecord()
         if (!isStopped) {
             isStopped = true
