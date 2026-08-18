@@ -88,12 +88,20 @@ class CalibratedRecordingFragment : Fragment() {
     private val warmupBufferPeaks = ArrayList<Float>() // one entry per buffer seen during warmup
     private var warmupDone = false         // Latches true after WARMUP_MS of signal observed
 
+    // Fix C — derived so ~one min/max bucket lands per horizontal pixel at the current paper
+    // speed, instead of a fixed constant. Recomputed only while idle (see onVisibleSecondsChanged
+    // below) and held frozen for the whole recording session: the recorder mutates
+    // LineDataSet.values in place against a monotonic sample-counter X axis, so changing the
+    // bucket size mid-recording would space already-plotted points inconsistently with new ones.
+    private var sessionBucketSize = DOWNSAMPLE_BUCKET_FALLBACK
+
     companion object {
         private const val INPUT_SAMPLE_RATE = 44100f
 
+        // Pre-layout fallback only (pxPerMmX not yet known) — see deriveBucketSize/sessionBucketSize.
         // 2 points per bucket (min+max) at this bucket size ≈ same point budget as production's
         // "1 in 44 samples" decimation (44100 / 88 * 2 ≈ 1002 pts/sec), but peaks are preserved.
-        private const val DOWNSAMPLE_BUCKET = 88
+        private const val DOWNSAMPLE_BUCKET_FALLBACK = 88
 
         // WARMUP: measure the signal's true peak over the first 2000ms, then lock in the Y-axis.
         private const val WARMUP_MS = 2000
@@ -187,6 +195,14 @@ class CalibratedRecordingFragment : Fragment() {
             // reset to the dummy grid-holder dataset when there's no real data yet.
             // updateWaveform() re-enforces the range every callback while recording is live.
             if (waveformDataSet == null) {
+                // Fix C — only re-derive the bucket size while idle; a session in progress
+                // must keep using whatever was frozen when it started (see sessionBucketSize doc).
+                val derived = CalibratedWaveformView.deriveBucketSize(
+                    INPUT_SAMPLE_RATE,
+                    waveformView.paperView.currentScale().paperSpeed.mmPerSecond,
+                    waveformView.paperView.currentScale().pxPerMmX
+                )
+                if (derived > 0) sessionBucketSize = derived
                 resetChartToDummyData()
             } else {
                 chart.setVisibleXRangeMaximum(seconds)
@@ -734,7 +750,7 @@ class CalibratedRecordingFragment : Fragment() {
         }
 
         val bufferStartSample = totalSamplesProcessed
-        val newEntries = CalibratedWaveformView.downsampleMinMax(data, DOWNSAMPLE_BUCKET) { j ->
+        val newEntries = CalibratedWaveformView.downsampleMinMax(data, sessionBucketSize) { j ->
             (bufferStartSample + j).toFloat() / INPUT_SAMPLE_RATE
         }
         waveformEntries.addAll(newEntries)

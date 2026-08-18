@@ -101,7 +101,11 @@ class CalibratedPlayerFragment : Fragment() {
         updateCalibrationCaption()
 
         if (filePath.isNotEmpty()) {
-            loadFullWaveform(filePath, filterName)
+            // Capture the scale on the main thread before loadFullWaveform's IO coroutine
+            // reads it (Fix C) — setupWaveformChart() above already applied paper speed + DPI
+            // correction synchronously, so this snapshot is final for the rest of this load.
+            val scale = binding.calibratedWaveformView.paperView.currentScale()
+            loadFullWaveform(filePath, filterName, scale.paperSpeed.mmPerSecond, scale.pxPerMmX)
             setupPlayer(filePath, filterName)
         }
 
@@ -213,8 +217,11 @@ class CalibratedPlayerFragment : Fragment() {
      * parsing (bytes 24-27, little-endian, fallback 44100 — never hardcoded, per §4.5), but
      * downsampling is min/max-bucketed instead of "every step-th sample" so a transient can't
      * fall entirely between two kept samples.
+     *
+     * [paperSpeedMmPerSecond]/[pxPerMmX] are a main-thread snapshot of the paper's current
+     * scale (Fix C) — passed in rather than read from `binding` inside the IO coroutine below.
      */
-    private fun loadFullWaveform(filePath: String, filterName: String) {
+    private fun loadFullWaveform(filePath: String, filterName: String, paperSpeedMmPerSecond: Float, pxPerMmX: Float) {
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
             val file = File(filePath)
             if (!file.exists()) return@launch
@@ -244,9 +251,13 @@ class CalibratedPlayerFragment : Fragment() {
                 i++
             }
 
-            // 2 points per bucket (min+max) -> bucket size chosen to hit the same total point
-            // budget production used with 1-point-per-step decimation.
-            val bucketSize = maxOf(1, totalSamples / (TARGET_POINT_BUDGET / 2))
+            // Fix C — derive so ~one min/max pair lands per horizontal pixel at the current
+            // paper speed, instead of a fixed constant tuned for one specific speed. Apply
+            // TARGET_POINT_BUDGET as a ceiling only: enlarge the bucket if the derived value
+            // would produce more than the budget on a long file, but never shrink below it.
+            val derivedBucket = CalibratedWaveformView.deriveBucketSize(fileSampleRate, paperSpeedMmPerSecond, pxPerMmX)
+            val budgetCeilingBucket = maxOf(1, totalSamples / (TARGET_POINT_BUDGET / 2))
+            val bucketSize = if (derivedBucket > 0) maxOf(derivedBucket, budgetCeilingBucket) else budgetCeilingBucket
             val entries = CalibratedWaveformView.downsampleMinMax(samples, bucketSize) { idx ->
                 idx.toFloat() / fileSampleRate
             }
