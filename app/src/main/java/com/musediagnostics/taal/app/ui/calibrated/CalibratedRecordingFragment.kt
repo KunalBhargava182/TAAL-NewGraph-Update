@@ -230,7 +230,8 @@ class CalibratedRecordingFragment : Fragment() {
         val correction = DpiCalibration.getCorrection(requireContext())
         val status = if (correction.isCalibrated) "calibrated (${correction.source})" else "UNCALIBRATED"
         val speed = binding.calibratedWaveformView.paperView.currentScale().paperSpeed.mmPerSecond
-        binding.calibrationCaption.text = "$speed mm/s · Y: relative amplitude (auto-scaled) · DPI: $status"
+        // Fix E — no longer auto-scaled (Fix A removed the warmup/peak lock); axis is fixed.
+        binding.calibrationCaption.text = "$speed mm/s · Y: relative amplitude (fixed) · DPI: $status"
     }
 
     private fun setupPreAmpSlider() {

@@ -246,7 +246,8 @@ class CalibratedPlayerFragment : Fragment() {
         val correction = DpiCalibration.getCorrection(requireContext())
         val status = if (correction.isCalibrated) "calibrated (${correction.source})" else "UNCALIBRATED"
         val speed = binding.calibratedWaveformView.paperView.currentScale().paperSpeed.mmPerSecond
-        binding.calibrationCaption.text = "$speed mm/s · Y: relative amplitude · DPI: $status"
+        // Fix E — matches CalibratedRecordingFragment's caption exactly (both use a fixed axis).
+        binding.calibrationCaption.text = "$speed mm/s · Y: relative amplitude (fixed) · DPI: $status"
     }
 
     /**
