@@ -49,10 +49,14 @@ import java.io.File
  * mm-accurate ECG-paper grid (via [CalibratedWaveformView]) instead of MPAndroidChart's own
  * gridlines on a fixed 10s window.
  *
- * Y-axis auto-scaling (warmup/peak/headroom) is ported verbatim from production, at the
- * user's explicit request — see chat history. This means two different recordings are no
- * longer guaranteed to be visually comparable by amplitude (each gets its own peak-based
- * zoom), which is a deliberate reversal of this feature's original design goal.
+ * Fix A (reversing an earlier chat decision to restore production's adaptive warmup/peak
+ * Y-axis): the axis is a single fixed full-scale, set once at chart setup and never touched
+ * again for the rest of the session. Frame-measurement of a real recording showed the adaptive
+ * scheme was the root cause of "graph is unstable / noisy / too small" — a loud transient in
+ * the 2s warmup window (e.g. the stethoscope contact thud) could permanently lock an oversized
+ * scale, and the axis could jump mid-recording. A fixed axis trades per-recording optimality
+ * for stability: this is deliberately how Kardia's own ECG display behaves (fixed 10mm/mV,
+ * never rescales) — see FIXED_FULL_SCALE's doc for the tuning methodology.
  */
 class CalibratedRecordingFragment : Fragment() {
 
@@ -75,19 +79,6 @@ class CalibratedRecordingFragment : Fragment() {
     // constant; this holds the most recently derived value (updated on layout/rotation).
     private var currentWindowSeconds = 4f
 
-    // Adaptive Y-axis state. Locking logic (warmup window, then freeze) is ported verbatim from
-    // RecordingFragment, but the peak itself is estimated robustly (see WARMUP_PERCENTILE)
-    // instead of a raw max — a raw max lets a single loud transient (e.g. the contact "thud"
-    // of placing the stethoscope, which often happens right at the start of the warmup window)
-    // permanently set an oversized scale that makes the actual heart/lung sound look tiny for
-    // the rest of the recording. User-reported symptom this fixes: "while recording it looks
-    // small" even though the same file looks properly sized once opened in the player (which
-    // scans the whole finished file for its peak, not just 2 seconds of live audio).
-    private var peakAmplitude = 1.0f       // Y-axis half-range; set from warmup then locked
-    private var lastPeakUpdateTime = 0L
-    private val warmupBufferPeaks = ArrayList<Float>() // one entry per buffer seen during warmup
-    private var warmupDone = false         // Latches true after WARMUP_MS of signal observed
-
     // Fix C — derived so ~one min/max bucket lands per horizontal pixel at the current paper
     // speed, instead of a fixed constant. Recomputed only while idle (see onVisibleSecondsChanged
     // below) and held frozen for the whole recording session: the recorder mutates
@@ -103,23 +94,27 @@ class CalibratedRecordingFragment : Fragment() {
         // "1 in 44 samples" decimation (44100 / 88 * 2 ≈ 1002 pts/sec), but peaks are preserved.
         private const val DOWNSAMPLE_BUCKET_FALLBACK = 88
 
-        // WARMUP: measure the signal's true peak over the first 2000ms, then lock in the Y-axis.
-        private const val WARMUP_MS = 2000
-        // After warmup, Y-axis = peakAmplitude × HEADROOM, so the waveform fills 1/HEADROOM of
-        // the chart height. Tighter than production's 1.5 (user request: bigger peaks) — 1.2
-        // fills ~83%, with enough margin that a slightly-louder sample after warmup doesn't
-        // clip against the frame edge (1.1 was tried and did clip — too little margin).
-        private const val HEADROOM = 1.2f
-        // Minimum axis half-range — prevents over-zooming on near-silence.
-        private const val MIN_PEAK = 0.02f
-        // Robust-peak percentile used to lock the warmup scale (user request — see field doc
-        // on warmupBufferPeaks). Raised from 0.9 to 0.97 after real peaks were clipping — 0.9
-        // excluded too much of the genuine signal, not just one-off transients. 0.97 still
-        // drops the loudest ~3% of buffers (protects against a single contact-thud outlier)
-        // while capturing far more of the real peak.
-        private const val WARMUP_PERCENTILE = 0.97f
-        // Trace stroke width in dp. Reverted to production's thin/crisp value — "bigger" is
-        // achieved via HEADROOM (taller peaks), not a fatter stroke (user request).
+        // Fix A — fixed display full-scale, in normalized sample units (-1..+1). The axis is
+        // ±FIXED_FULL_SCALE and NEVER changes during a session (no warmup, no re-expansion).
+        // Do NOT use ±1.0 — typical PCG content peaks well below full digital scale, so ±1.0
+        // would make the trace smaller than before, not bigger.
+        //
+        // 0.30 is the task's given starting value, derived from the measured fact that the
+        // player's existing filePeak×1.2 lock already lands at the visually-correct ~37% fill
+        // (confirmed against Kardia's 38.6%). This constant has NOT been re-derived from a
+        // logged median of real per-file peaks on this pass — that requires running the
+        // temporary-logging step in CalibratedPlayerFragment against a set of real recordings
+        // on device, which needs hardware this session doesn't have direct access to. Flagged
+        // in this change's report; whoever has the device should confirm/tune this value next
+        // using the same three-step method (log real peaks, take the median, hardcode it here).
+        //
+        // Clipping when a recording is unusually loud is expected and correct with a fixed
+        // axis — Kardia does the same. Do not add a clipping indicator or re-expand the axis
+        // in response.
+        private const val FIXED_FULL_SCALE = 0.30f
+
+        // Trace stroke width in dp. Production's thin/crisp value — "bigger" is achieved via
+        // FIXED_FULL_SCALE (taller peaks), not a fatter stroke.
         private const val TRACE_LINE_WIDTH_DP = 1.5f
     }
 
@@ -175,9 +170,9 @@ class CalibratedRecordingFragment : Fragment() {
         val chart = waveformView.chart
         chart.setTouchEnabled(false) // no pan/zoom while recording — same as production
 
-        // Initial range before warmup locks it, same as production's setupWaveformChart().
-        chart.axisLeft.axisMinimum = -peakAmplitude
-        chart.axisLeft.axisMaximum = peakAmplitude
+        // Fix A — fixed axis, set once, never touched again for the rest of the session.
+        chart.axisLeft.axisMinimum = -FIXED_FULL_SCALE
+        chart.axisLeft.axisMaximum = FIXED_FULL_SCALE
 
         // 25mm/s standard ECG paper speed (Fix B). Was SPEED_12_5 — at 12.5mm/s an S1/S2 pair
         // (~100ms apart) sits ~1.25mm apart and smears into an unreadable band; 25mm/s gives
@@ -428,10 +423,6 @@ class CalibratedRecordingFragment : Fragment() {
         waveformEntries.clear()
         waveformDataSet = null
         totalSamplesProcessed = 0L
-        peakAmplitude = 1.0f
-        warmupBufferPeaks.clear()
-        warmupDone = false
-        lastPeakUpdateTime = 0L
 
         resetChartToDummyData()
         binding.calibratedWaveformView.chart.moveViewToX(0f)
@@ -669,10 +660,6 @@ class CalibratedRecordingFragment : Fragment() {
             waveformEntries.clear()
             waveformDataSet = null
             totalSamplesProcessed = 0L
-            peakAmplitude = 1.0f
-            warmupBufferPeaks.clear()
-            warmupDone = false
-            lastPeakUpdateTime = 0L
             bpmCalculator.reset()
 
             resetChartToDummyData()
@@ -730,24 +717,18 @@ class CalibratedRecordingFragment : Fragment() {
 
     /**
      * Calibrated counterpart of RecordingFragment's V7 updateWaveform(). Differences from
-     * production, per task spec §4:
+     * production:
      *  - X window (`currentWindowSeconds`) is derived from the grid, not a WINDOW_SECONDS
-     *    constant (§4.1).
-     *  - Downsampling is min/max bucketed via CalibratedWaveformView, not "every Nth sample"
-     *    (§4.5), so a transient can't fall entirely between two kept samples.
-     * Y-axis warmup/peak/headroom logic is ported verbatim from production (restored at the
-     * user's explicit request, overriding the original §4.4 fixed-axis design).
+     *    constant.
+     *  - Downsampling is min/max bucketed via CalibratedWaveformView, not "every Nth sample",
+     *    so a transient can't fall entirely between two kept samples.
+     *  - Y-axis is fixed (Fix A) — no warmup, no peak lock, no per-buffer peak tracking. The
+     *    axis was set once in setupWaveformChart() and is never touched here.
      */
     private fun updateWaveform(data: FloatArray) {
         if (_binding == null || !isAdded) return
         val waveformView = binding.calibratedWaveformView
         val chart = waveformView.chart
-
-        var bufferPeak = 0f
-        for (sample in data) {
-            val abs = Math.abs(sample)
-            if (abs > bufferPeak) bufferPeak = abs
-        }
 
         val bufferStartSample = totalSamplesProcessed
         val newEntries = CalibratedWaveformView.downsampleMinMax(data, sessionBucketSize) { j ->
@@ -767,25 +748,6 @@ class CalibratedRecordingFragment : Fragment() {
             val iterator = waveformEntries.iterator()
             while (iterator.hasNext()) {
                 if (iterator.next().x < minXToKeep) iterator.remove() else break
-            }
-        }
-
-        // WARMUP: observe buffer peaks for the first WARMUP_MS, then lock the Y-axis to a
-        // robust estimate of the peak × HEADROOM and never re-expand it afterwards. Uses the
-        // WARMUP_PERCENTILE of buffer peaks rather than the raw max (production's original
-        // approach) — a raw max lets one loud transient (e.g. the contact "thud" of placing
-        // the stethoscope) permanently set an oversized scale for the whole recording.
-        val now = System.currentTimeMillis()
-        if (!warmupDone) {
-            warmupBufferPeaks.add(bufferPeak)
-            if (lastPeakUpdateTime == 0L) lastPeakUpdateTime = now
-            if (now - lastPeakUpdateTime >= WARMUP_MS) {
-                warmupDone = true
-                val robustPeak = robustPeakFrom(warmupBufferPeaks)
-                warmupBufferPeaks.clear() // no longer needed — free it
-                peakAmplitude = (robustPeak * HEADROOM).coerceIn(MIN_PEAK, 1.0f)
-                chart.axisLeft.axisMinimum = -peakAmplitude
-                chart.axisLeft.axisMaximum = peakAmplitude
             }
         }
 
@@ -813,19 +775,6 @@ class CalibratedRecordingFragment : Fragment() {
         chart.setVisibleXRangeMinimum(windowSeconds)
         chart.moveViewToX(currentViewX)
         chart.invalidate()
-    }
-
-    /**
-     * WARMUP_PERCENTILE of a list of per-buffer peak values, instead of the raw max. Discards
-     * the loudest tail of the distribution (single-buffer transients like a contact thud)
-     * before picking the value the Y-axis locks to, so the scale reflects the sustained signal
-     * rather than a one-off spike.
-     */
-    private fun robustPeakFrom(bufferPeaks: List<Float>): Float {
-        if (bufferPeaks.isEmpty()) return 0f
-        val sorted = bufferPeaks.sorted()
-        val index = ((sorted.size - 1) * WARMUP_PERCENTILE).toInt().coerceIn(0, sorted.size - 1)
-        return sorted[index]
     }
 
     override fun onResume() {
