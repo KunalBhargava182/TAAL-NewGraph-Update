@@ -74,13 +74,17 @@ class CalibratedEcgPaperView @JvmOverloads constructor(
     private var minorStrokeMm: Float = PAPER_MINOR_STROKE_MM
     private var majorStrokeMm: Float = PAPER_MAJOR_STROKE_MM
 
-    // Grid line transparency, applied to the minor/major PAINTS only (never to paperColor or
-    // View.alpha — those would let whatever sits behind this view bleed through and turn the
-    // paper fill grey). Minor is faded harder than major by design: it kills 1mm mush while
-    // keeping the 5mm structure readable.
-    var minorGridAlpha: Float = 0.35f
+    // Fix C — Kardia-style grid. Measured Kardia's own grid at Δ96/255 per-line contrast but
+    // only 0.7% total ink coverage of the plot area, vs. this view's earlier 7.6% at a more
+    // uniform fade. The finding is counter-intuitive: Kardia's lines are individually *higher*
+    // contrast, not lower — its minors are nearly invisible and only the 5mm majors read as
+    // ink, so the aggregate ink area stays tiny. A uniform alpha reduction can't reproduce
+    // that; the minor/major split has to be aggressive. Applied to the minor/major PAINTS
+    // only (never to paperColor or View.alpha — those would let whatever sits behind this
+    // view bleed through and turn the paper fill grey).
+    var minorGridAlpha: Float = 0.20f
         set(value) { field = value.coerceIn(0f, 1f); rebuildGridIfPossible() }
-    var majorGridAlpha: Float = 0.55f
+    var majorGridAlpha: Float = 0.50f
         set(value) { field = value.coerceIn(0f, 1f); rebuildGridIfPossible() }
 
     private var explicitPaperColor: Int? = null
@@ -272,7 +276,9 @@ class CalibratedEcgPaperView @JvmOverloads constructor(
         val selected = indices.filter { it % step == 0 }
         val pts = FloatArray(selected.size * 4)
         selected.forEachIndexed { pos, i ->
-            val x = i * pxPerMm
+            // Fix C — snap to a whole pixel. At a hairline stroke width, a line sitting between
+            // two pixels gets antialiased across both and reads as soft/fat instead of crisp.
+            val x = (i * pxPerMm).roundToInt().toFloat()
             val o = pos * 4
             pts[o] = x; pts[o + 1] = 0f; pts[o + 2] = x; pts[o + 3] = height
         }
@@ -284,7 +290,8 @@ class CalibratedEcgPaperView @JvmOverloads constructor(
         val selected = indices.filter { it % step == 0 }
         val pts = FloatArray(selected.size * 4)
         selected.forEachIndexed { pos, i ->
-            val y = i * pxPerMm
+            // Fix C — snap to a whole pixel, same reasoning as verticalLines above.
+            val y = (i * pxPerMm).roundToInt().toFloat()
             val o = pos * 4
             pts[o] = 0f; pts[o + 1] = y; pts[o + 2] = width; pts[o + 3] = y
         }
