@@ -34,14 +34,18 @@ import java.io.File
  * mm-accurate grid instead of MPAndroidChart's own gridlines on a fixed 4s window.
  *
  * No pre-amp display compensation here — the played-back file already has gain baked in from
- * record time, same as production. Y-axis starts at a fixed ±0.5 placeholder (same as production
- * PlayerFragment) but is then adapted to the loaded file's actual peak amplitude (user request:
- * bigger peaks) — since the whole file is already decoded in memory by the time it's rendered,
- * this doesn't need a warmup window the way the live recorder does. Touch/drag/scale are
- * enabled, same as production; the visible-range lock only caps the *maximum* zoom-out (not the
- * minimum), so pinch-zoom actually works — the mm-grid behind the chart is a separate, static
- * view and intentionally does not zoom with the trace (per user request: zoom the trace, don't
- * move the background).
+ * record time, same as production.
+ *
+ * Fix A/B: Y-axis is [FIXED_FULL_SCALE], the same constant CalibratedRecordingFragment uses,
+ * set once in setupWaveformChart() and never touched again — no per-file peak adaptation. Two
+ * screens sharing one fixed constant is what makes live and review render the same recording
+ * identically (the acceptance test for Fix B); a per-file peak lock (this screen's earlier
+ * approach) can't guarantee that against a recorder that isn't looking at the whole file.
+ *
+ * Touch/drag/scale are enabled, same as production; the visible-range lock only caps the
+ * *maximum* zoom-out (not the minimum), so pinch-zoom actually works — the mm-grid behind the
+ * chart is a separate, static view and intentionally does not zoom with the trace (per user
+ * request: zoom the trace, don't move the background).
  *
  * The camera-follow during playback is smoothed (see [displayedPlaybackTime]/FOLLOW_SMOOTHING),
  * not a direct snap to the real playback position — a direct snap looked "too fast" once
@@ -56,7 +60,6 @@ class CalibratedPlayerFragment : Fragment() {
     private var isPlaying = false
 
     private var currentWindowSeconds = 4f
-    private val fixedPeakAmplitude = 0.5f // placeholder until the file's real peak is known
 
     // Smoothed camera-follow position during playback — see onPlaybackProgress. Reset to 0
     // wherever the chart snaps back to its start-centered framing.
@@ -65,12 +68,10 @@ class CalibratedPlayerFragment : Fragment() {
     companion object {
         private const val INPUT_SAMPLE_RATE = 44100f
         private const val TARGET_POINT_BUDGET = 3000 // same total-point budget as production's maxPoints
-        // Same tuning as CalibratedRecordingFragment, applied to the file's actual peak instead
-        // of a live warmup window. 1.2 fills ~83% of the chart height — matches the recorder's
-        // margin (1.1 clipped, too little headroom). No percentile trimming needed here since
-        // this is already the file's true peak, not a live estimate.
-        private const val HEADROOM = 1.2f
-        private const val MIN_PEAK = 0.02f
+        // Fix A/B — must be kept identical to CalibratedRecordingFragment.FIXED_FULL_SCALE, or
+        // the same recording renders at different scales live vs. in review. See that
+        // fragment's doc comment for the tuning methodology/why 0.30.
+        private const val FIXED_FULL_SCALE = 0.30f
         // Camera-follow smoothing (user request: playback feels "too fast" when zoomed in).
         // Fraction of the remaining gap to the real playback position closed per progress
         // callback — lower = gentler/slower-feeling follow, 1.0 = instant snap (old behavior).
@@ -161,8 +162,9 @@ class CalibratedPlayerFragment : Fragment() {
         val waveformView = binding.calibratedWaveformView
         val chart = waveformView.chart
 
-        chart.axisLeft.axisMinimum = -fixedPeakAmplitude
-        chart.axisLeft.axisMaximum = fixedPeakAmplitude
+        // Fix A/B — fixed axis, set once, never touched again (matches the recorder exactly).
+        chart.axisLeft.axisMinimum = -FIXED_FULL_SCALE
+        chart.axisLeft.axisMaximum = FIXED_FULL_SCALE
 
         // 25mm/s (Fix B) — must match CalibratedRecordingFragment exactly, so a recording
         // looks the same live as it does in review. See that fragment's comment for why.
@@ -262,22 +264,14 @@ class CalibratedPlayerFragment : Fragment() {
                 idx.toFloat() / fileSampleRate
             }
 
-            // Whole file is already decoded — no warmup window needed, just take the true peak
-            // directly (user request: bigger peaks).
-            var filePeak = 0f
-            for (sample in samples) {
-                val abs = Math.abs(sample)
-                if (abs > filePeak) filePeak = abs
-            }
-
             withContext(Dispatchers.Main) {
                 if (_binding == null) return@withContext
-                renderWaveformEntries(ArrayList(entries), durationSecs, filePeak)
+                renderWaveformEntries(ArrayList(entries), durationSecs)
             }
         }
     }
 
-    private fun renderWaveformEntries(entries: ArrayList<Entry>, durationSecs: Int, filePeak: Float) {
+    private fun renderWaveformEntries(entries: ArrayList<Entry>, durationSecs: Int) {
         binding.timerText.text = String.format("%02d:%02d", durationSecs / 60, durationSecs % 60)
         val dataSet = LineDataSet(entries, "Waveform").apply {
             color = Color.parseColor("#2D7DD2")
@@ -289,12 +283,8 @@ class CalibratedPlayerFragment : Fragment() {
         // currentWindowSeconds is kept in sync by onVisibleSecondsChanged (set up in
         // setupWaveformChart, called before this) — including the case where layout hadn't
         // happened yet when this loaded; that callback will re-apply the range once it does.
+        // Y-axis is fixed (Fix A/B) — already set once in setupWaveformChart(), not touched here.
         val chart = binding.calibratedWaveformView.chart
-
-        val peakAmplitude = (filePeak * HEADROOM).coerceIn(MIN_PEAK, 1.0f)
-        chart.axisLeft.axisMinimum = -peakAmplitude
-        chart.axisLeft.axisMaximum = peakAmplitude
-
         chart.data = LineData(dataSet)
         // Cap max zoom-out only — no Minimum lock, so pinch-zoom works (see setupWaveformChart).
         chart.setVisibleXRangeMaximum(currentWindowSeconds)

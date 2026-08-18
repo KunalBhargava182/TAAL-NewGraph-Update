@@ -113,6 +113,10 @@ class CalibratedRecordingFragment : Fragment() {
         // in response.
         private const val FIXED_FULL_SCALE = 0.30f
 
+        // Fix B — off by default so the recorder shows the same amplified signal the player
+        // shows (the file already has pre-amp gain baked in). See onProgressUpdate's comment.
+        private const val COMPENSATE_PREAMP_IN_DISPLAY = false
+
         // Trace stroke width in dp. Production's thin/crisp value — "bigger" is achieved via
         // FIXED_FULL_SCALE (taller peaks), not a fatter stroke.
         private const val TRACE_LINE_WIDTH_DP = 1.5f
@@ -636,11 +640,17 @@ class CalibratedRecordingFragment : Fragment() {
                             }
                         }
 
-                        // Undo pre-amp gain before drawing, same as production (§4.4) — the
-                        // trace reflects true acoustic level, not the amplified WAV level.
+                        // Fix B — pre-amp display compensation is off by default. Production
+                        // (and this screen previously) divided the displayed signal by the
+                        // pre-amp gain so the trace reflected true acoustic level; the player
+                        // never did that (the file already has gain baked in), so at a fixed
+                        // axis the two screens rendered the same recording at different scales
+                        // — 1.78x apart at the default 5dB. Live-vs-review parity beats a
+                        // true-acoustic-level display: COMPENSATE_PREAMP_IN_DISPLAY is a
+                        // one-word revert if that tradeoff is ever reconsidered.
                         val preAmpDb = viewModel.preAmpDb.value ?: 5
                         val preAmpGain = Math.pow(10.0, preAmpDb / 20.0).toFloat()
-                        val displayData = if (preAmpGain > 1.001f) {
+                        val displayData = if (COMPENSATE_PREAMP_IN_DISPLAY && preAmpGain > 1.001f) {
                             FloatArray(data.size) { i -> data[i] / preAmpGain }
                         } else {
                             data
