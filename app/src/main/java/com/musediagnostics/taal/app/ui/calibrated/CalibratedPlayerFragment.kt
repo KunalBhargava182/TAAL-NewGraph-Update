@@ -3,6 +3,7 @@ package com.musediagnostics.taal.app.ui.calibrated
 import android.graphics.Color
 import android.os.Bundle
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
@@ -13,6 +14,8 @@ import com.github.mikephil.charting.components.YAxis
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
+import com.github.mikephil.charting.listener.ChartTouchListener
+import com.github.mikephil.charting.listener.OnChartGestureListener
 import com.musediagnostics.taal.InvalidFileNameException
 import com.musediagnostics.taal.PreFilter
 import com.musediagnostics.taal.TaalPlayer
@@ -23,6 +26,7 @@ import com.musediagnostics.taal.app.ecg.calibrated.CalibratedWaveformView
 import com.musediagnostics.taal.app.ecg.calibrated.DpiCalibration
 import com.musediagnostics.taal.app.ui.player.PlayerSaveDiscardDialog
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -51,6 +55,13 @@ import java.io.File
  * not a direct snap to the real playback position — a direct snap looked "too fast" once
  * pinch-zoom made the visible window small (user request). Audio itself always plays at true
  * speed/pitch; only the visual follow is damped.
+ *
+ * Fix D: the min/max bucket used to draw the trace is re-derived from the *currently visible*
+ * X range whenever a pinch/drag gesture ends (see [rebucketForCurrentZoom]), not fixed at
+ * load time. Frame-by-frame inspection during zoomed playback showed a regular synthetic
+ * sawtooth instead of a waveform — the load-time bucket (sized for the full 1x view) was being
+ * stretched wide by zoom instead of showing real samples at the new density. The decoded file
+ * ([decodedSamples]) is kept in memory and re-bucketed from; the WAV is never re-read.
  */
 class CalibratedPlayerFragment : Fragment() {
 
@@ -64,6 +75,14 @@ class CalibratedPlayerFragment : Fragment() {
     // Smoothed camera-follow position during playback — see onPlaybackProgress. Reset to 0
     // wherever the chart snaps back to its start-centered framing.
     private var displayedPlaybackTime = 0f
+
+    // Fix D — kept in memory for zoom-driven re-bucketing (rebucketForCurrentZoom). Never
+    // re-read from disk after the initial load.
+    private var decodedSamples: FloatArray? = null
+    private var decodedSampleRate: Float = INPUT_SAMPLE_RATE
+    private var waveformDataSet: LineDataSet? = null // persistent ref, mutated in place on re-bucket
+    private var lastAppliedBucketSize = -1
+    private var rebucketJob: Job? = null
 
     companion object {
         private const val INPUT_SAMPLE_RATE = 44100f
@@ -177,6 +196,22 @@ class CalibratedPlayerFragment : Fragment() {
         chart.isDragEnabled = true
         chart.setScaleEnabled(true)
 
+        // Fix D — re-bucket for the new zoom/pan level once the gesture settles. Debounced by
+        // construction: onChartGestureEnd fires once per discrete gesture, not per frame, so
+        // this never runs mid-pinch and can't cause scroll stutter.
+        chart.setOnChartGestureListener(object : OnChartGestureListener {
+            override fun onChartGestureStart(me: MotionEvent?, lastPerformedGesture: ChartTouchListener.ChartGesture?) {}
+            override fun onChartGestureEnd(me: MotionEvent?, lastPerformedGesture: ChartTouchListener.ChartGesture?) {
+                rebucketForCurrentZoom()
+            }
+            override fun onChartLongPressed(me: MotionEvent?) {}
+            override fun onChartDoubleTapped(me: MotionEvent?) {}
+            override fun onChartSingleTapped(me: MotionEvent?) {}
+            override fun onChartFling(me1: MotionEvent?, me2: MotionEvent?, velocityX: Float, velocityY: Float) {}
+            override fun onChartScale(me: MotionEvent?, scaleX: Float, scaleY: Float) {}
+            override fun onChartTranslate(me: MotionEvent?, dX: Float, dY: Float) {}
+        })
+
         waveformView.onVisibleSecondsChanged = { seconds ->
             currentWindowSeconds = seconds
             if (chart.data == null) {
@@ -266,6 +301,12 @@ class CalibratedPlayerFragment : Fragment() {
 
             withContext(Dispatchers.Main) {
                 if (_binding == null) return@withContext
+                // Fix D — keep the decoded file in memory for zoom-driven re-bucketing, and
+                // remember the bucket size just used so the first gesture-end after load
+                // doesn't redundantly re-derive an unchanged value.
+                decodedSamples = samples
+                decodedSampleRate = fileSampleRate
+                lastAppliedBucketSize = bucketSize
                 renderWaveformEntries(ArrayList(entries), durationSecs)
             }
         }
@@ -280,6 +321,7 @@ class CalibratedPlayerFragment : Fragment() {
             lineWidth = TRACE_LINE_WIDTH_DP
             mode = LineDataSet.Mode.LINEAR
         }
+        waveformDataSet = dataSet // Fix D — persistent ref, mutated in place on re-bucket
         // currentWindowSeconds is kept in sync by onVisibleSecondsChanged (set up in
         // setupWaveformChart, called before this) — including the case where layout hadn't
         // happened yet when this loaded; that callback will re-apply the range once it does.
@@ -290,6 +332,54 @@ class CalibratedPlayerFragment : Fragment() {
         chart.setVisibleXRangeMaximum(currentWindowSeconds)
         chart.centerViewTo(currentWindowSeconds / 2f, 0f, YAxis.AxisDependency.LEFT)
         chart.invalidate()
+    }
+
+    /**
+     * Fix D — recomputes the min/max bucket from whatever X range is currently visible
+     * (post-zoom/pan) and re-buckets the whole decoded file at that density, targeting ~one
+     * min/max pair per horizontal pixel. Re-buckets the whole file (not just the visible
+     * slice) so panning within an unchanged zoom level doesn't need to re-run this — only an
+     * actual zoom change does, since [lastAppliedBucketSize] short-circuits a no-op. Runs off
+     * the main thread since re-bucketing a long file is real work; only the dataset swap
+     * happens on Main.
+     */
+    private fun rebucketForCurrentZoom() {
+        val samples = decodedSamples ?: return
+        val ds = waveformDataSet ?: return
+        val chart = binding.calibratedWaveformView.chart
+        val plotWidthPx = chart.width.toFloat()
+        if (plotWidthPx <= 0f) return
+
+        val visibleSeconds = (chart.highestVisibleX - chart.lowestVisibleX).coerceAtLeast(0f)
+        if (visibleSeconds <= 0f) return
+        val visibleSampleCount = visibleSeconds * decodedSampleRate
+
+        val derivedBucket = CalibratedWaveformView.deriveBucketSizeForVisibleRange(visibleSampleCount, plotWidthPx)
+        if (derivedBucket <= 0) return
+        // Same budget-ceiling pattern as the load-time bucket (§ loadFullWaveform) — enlarge to
+        // stay within TARGET_POINT_BUDGET on a long file, never shrink below the derived value.
+        val ceilingBucket = maxOf(1, samples.size / (TARGET_POINT_BUDGET / 2))
+        val finalBucket = maxOf(derivedBucket, ceilingBucket)
+        if (finalBucket == lastAppliedBucketSize) return
+        lastAppliedBucketSize = finalBucket
+
+        val sampleRate = decodedSampleRate
+        rebucketJob?.cancel()
+        rebucketJob = viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Default) {
+            val entries = CalibratedWaveformView.downsampleMinMax(samples, finalBucket) { idx ->
+                idx.toFloat() / sampleRate
+            }
+            withContext(Dispatchers.Main) {
+                if (_binding == null) return@withContext
+                // Mutate in place (same pattern as the recorder) rather than replacing
+                // chart.data — a replace would reset the viewport and undo the zoom/pan the
+                // user just performed.
+                ds.values = ArrayList(entries)
+                binding.calibratedWaveformView.chart.data?.notifyDataChanged()
+                binding.calibratedWaveformView.chart.notifyDataSetChanged()
+                binding.calibratedWaveformView.chart.invalidate()
+            }
+        }
     }
 
     private fun setupPlayer(filePath: String, filterName: String) {

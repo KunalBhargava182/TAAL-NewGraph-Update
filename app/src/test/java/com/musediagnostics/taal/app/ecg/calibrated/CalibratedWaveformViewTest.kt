@@ -75,4 +75,76 @@ class CalibratedWaveformViewTest {
         assertEquals(derivedForShortFile, finalForShortFile)
         assertTrue(finalForShortFile >= derivedForShortFile)
     }
+
+    // --- Fix D: deriveBucketSizeForVisibleRange (player zoom re-bucketing) ---
+
+    @Test
+    fun `derived visible-range bucket targets roughly one pair per horizontal pixel`() {
+        val plotWidthPx = 1000f
+        val visibleSampleCount = 44_100f // 1s of audio visible across 1000px
+        val bucket = CalibratedWaveformView.deriveBucketSizeForVisibleRange(visibleSampleCount, plotWidthPx)
+        val expected = (visibleSampleCount / (plotWidthPx * 2f)).roundToInt()
+        assertEquals(expected, bucket)
+        assertTrue(bucket > 0)
+    }
+
+    @Test
+    fun `zooming in shrinks the derived bucket, zooming out grows it`() {
+        val plotWidthPx = 1000f
+        val zoomedInSamples = 4_410f    // ~0.1s visible - deep zoom
+        val defaultSamples = 44_100f    // 1s visible - default
+        val zoomedOutSamples = 441_000f // 10s visible - zoomed out
+
+        val bucketZoomedIn = CalibratedWaveformView.deriveBucketSizeForVisibleRange(zoomedInSamples, plotWidthPx)
+        val bucketDefault = CalibratedWaveformView.deriveBucketSizeForVisibleRange(defaultSamples, plotWidthPx)
+        val bucketZoomedOut = CalibratedWaveformView.deriveBucketSizeForVisibleRange(zoomedOutSamples, plotWidthPx)
+
+        assertTrue(bucketZoomedIn < bucketDefault)
+        assertTrue(bucketDefault < bucketZoomedOut)
+    }
+
+    @Test
+    fun `derived visible-range bucket never goes below 1`() {
+        // Extreme deep zoom: a handful of samples spread across a wide plot.
+        val bucket = CalibratedWaveformView.deriveBucketSizeForVisibleRange(4f, 2000f)
+        assertEquals(1, bucket)
+    }
+
+    @Test
+    fun `pre-layout fallback - invalid visible-range inputs return -1`() {
+        assertEquals(-1, CalibratedWaveformView.deriveBucketSizeForVisibleRange(44_100f, 0f))
+        assertEquals(-1, CalibratedWaveformView.deriveBucketSizeForVisibleRange(44_100f, -1f))
+        assertEquals(-1, CalibratedWaveformView.deriveBucketSizeForVisibleRange(0f, 1000f))
+        assertEquals(-1, CalibratedWaveformView.deriveBucketSizeForVisibleRange(-1f, 1000f))
+    }
+
+    @Test
+    fun `zoom re-bucket budget ceiling clamps a long file but never shrinks below derived`() {
+        val targetPointBudget = 3000
+        val plotWidthPx = 1000f
+
+        // Zoomed out on a very long file: derived-from-visible-range bucket could still be
+        // small relative to the WHOLE file's total sample count, so re-bucketing the entire
+        // file at that bucket would blow past the point budget -> ceiling must win.
+        val longFileTotalSamples = 50_000_000
+        val visibleSamples = 4_410_000f // 100s visible, zoomed out on a long file
+        val derived = CalibratedWaveformView.deriveBucketSizeForVisibleRange(visibleSamples, plotWidthPx)
+        val ceiling = maxOf(1, longFileTotalSamples / (targetPointBudget / 2))
+        val final = if (derived > 0) maxOf(derived, ceiling) else ceiling
+        assertEquals(ceiling, final)
+        assertTrue(final > derived)
+
+        // Short file viewed in a wider-than-the-file default window (e.g. a 1s recording shown
+        // in a 4s-wide view) — the visible range exceeds the file's own duration, so the
+        // derived bucket comes out larger than the budget would strictly require -> must NOT
+        // be shrunk down to the ceiling; the ceiling only ever enlarges, never shrinks.
+        val shortFileTotalSamples = 44_100 // 1s file
+        val widerThanFileVisibleSamples = 176_400f // 4s visible window on a 1s file
+        val derivedWideView = CalibratedWaveformView.deriveBucketSizeForVisibleRange(widerThanFileVisibleSamples, plotWidthPx)
+        val ceilingShortFile = maxOf(1, shortFileTotalSamples / (targetPointBudget / 2))
+        val finalWideView = if (derivedWideView > 0) maxOf(derivedWideView, ceilingShortFile) else ceilingShortFile
+        assertEquals(derivedWideView, finalWideView)
+        assertTrue(finalWideView >= derivedWideView)
+        assertTrue(derivedWideView > ceilingShortFile) // confirms this case actually exercises the "don't shrink" branch
+    }
 }

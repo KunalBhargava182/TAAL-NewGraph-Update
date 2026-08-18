@@ -133,6 +133,22 @@ class CalibratedWaveformView @JvmOverloads constructor(
         }
 
         /**
+         * Fix D — variant of [deriveBucketSize] for the player's zoom-driven re-bucketing.
+         * [deriveBucketSize] derives from paper speed, which only describes the load-time 1x
+         * view; once the user pinch-zooms, the number of samples actually visible across the
+         * plot width changes, and a bucket size still tuned for the 1x view either shows a
+         * static-looking sawtooth (bucket far larger than what's now visible) or wastes work
+         * (bucket far smaller). This derives directly from whatever is currently visible.
+         *
+         * Returns -1 if either input isn't valid (e.g. plot not laid out yet) — callers must
+         * fall back rather than divide by zero.
+         */
+        fun deriveBucketSizeForVisibleRange(visibleSampleCount: Float, plotWidthPx: Float): Int {
+            if (visibleSampleCount <= 0f || plotWidthPx <= 0f) return -1
+            return maxOf(1, (visibleSampleCount / (plotWidthPx * 2f)).roundToInt())
+        }
+
+        /**
          * §4.5 — for each bucket of [bucketSize] input samples, emit the bucket's min and its
          * max (in true time order), instead of picking every Nth sample. Same point budget as
          * a straight decimation of the same density, but a sharp S1 transient lasting a few ms
