@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Renamed from attrs_ecg_paper.xml's EcgPaperView styleable — every attr is prefixed
+         "cal" to avoid duplicate-attribute build errors when both views' attrs are present. -->
+    <declare-styleable name="CalibratedEcgPaperView">
+        <attr name="calEcgPaperSpeed" format="enum">
+            <enum name="speed_12_5" value="0" />
+            <enum name="speed_25" value="1" />
+            <enum name="speed_50" value="2" />
+        </attr>
+        <attr name="calEcgGain" format="enum">
+            <enum name="gain_5" value="0" />
+            <enum name="gain_10" value="1" />
+            <enum name="gain_20" value="2" />
+        </attr>
+        <attr name="calEcgTheme" format="enum">
+            <enum name="paper" value="0" />
+            <enum name="monitor" value="1" />
+        </attr>
+        <attr name="calEcgShowCalibrationPulse" format="boolean" />
+        <attr name="calEcgShowTimeTicks" format="boolean" />
+        <!-- Grid line transparency (0.0-1.0), applied to the minor/major paints only — never
+             to the paper fill. Tunable from XML so this is a live design knob, not a rebuild. -->
+        <attr name="calEcgGridAlphaMinor" format="float" />
+        <attr name="calEcgGridAlphaMajor" format="float" />
+        <attr name="calEcgPaperColor" format="color" />
+        <attr name="calEcgMinorGridColor" format="color" />
+        <attr name="calEcgMajorGridColor" format="color" />
+    </declare-styleable>
+</resources>

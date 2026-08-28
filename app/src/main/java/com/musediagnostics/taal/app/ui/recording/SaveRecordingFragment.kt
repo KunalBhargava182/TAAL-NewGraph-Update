@@ -35,6 +35,11 @@ class SaveRecordingFragment : Fragment() {
     private var rawTempPath = ""
     // private var aiTestingTempPath = ""  // AI downsampling disabled
     private var filterName = "HEART"
+    // Which recorder screen's back-stack entry to pop up to after saving — lets each recorder
+    // family (production, PcgScale, ...) share this screen while still landing SavedRecordingsFragment
+    // right on top of its own recorder instead of a different family's (which wouldn't be on
+    // the back stack, silently no-opping the popUpTo). Defaults to production's recordingFragment.
+    private var popUpToDestinationId = R.id.recordingFragment
     // private var extraAiTempPaths: List<String> = emptyList()  // AI downsampling disabled
 
     // Holds the safe file name between the internal save and the permission callback.
@@ -93,6 +98,7 @@ class SaveRecordingFragment : Fragment() {
         rawTempPath      = arguments?.getString("rawFilePath") ?: ""
         // aiTestingTempPath = arguments?.getString("aiTestingFilePath") ?: ""  // AI downsampling disabled
         filterName       = arguments?.getString("filterName") ?: "HEART"
+        popUpToDestinationId = arguments?.getInt("popUpToDestination", R.id.recordingFragment) ?: R.id.recordingFragment
         // extraAiTempPaths = arguments?.getStringArrayList("extraAiFilePaths")?.toList() ?: emptyList()  // AI downsampling disabled
 
         binding.filterChip.visibility = View.GONE
@@ -263,7 +269,7 @@ class SaveRecordingFragment : Fragment() {
             R.id.action_saveRecording_to_savedRecordings,
             null,
             androidx.navigation.NavOptions.Builder()
-                .setPopUpTo(R.id.recordingFragment, false).build()
+                .setPopUpTo(popUpToDestinationId, false).build()
         )
     }
 

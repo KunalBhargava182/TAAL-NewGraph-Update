@@ -2,12 +2,17 @@
 
 > **Purpose of this file**: a self-contained snapshot of the "Calibrated Recorder / Calibrated
 > Player" feature — what it is, every file involved, the exact current code, how it's wired into
-> the app, and the full history of tuning decisions made in chat (with the reasoning, so a fresh
+> the app, and the fu/resumell history of tuning decisions made in chat (with the reasoning, so a fresh
 > conversation doesn't have to re-derive it). Paste this whole file into a new Claude chat to
 > continue work with full context.
 >
-> Written 2026-08-18/19. If code and this doc disagree, trust the code — but update this file
-> to match before moving on, since its whole value is being accurate.
+> Written 2026-08-18/19. Updated 2026-08-20 with the per-device graph calibration feature
+> (pinch-to-zoom + Apply/Reset, `GraphCalibration.kt`) — see **§9** for that feature's full
+> story, including the before/in-between/now comparison table, and **§4.6/§4.7** for the
+> up-to-date full source of both fragments (spliced from disk, not retyped).
+>
+> If code and this doc disagree, trust the code — but update this file to match before moving
+> on, since its whole value is being accurate.
 
 ---
 
@@ -41,8 +46,12 @@ change — zero diff on all of the above throughout this whole feature's develop
 ## 2. Current build/run status
 
 - `./gradlew :app:assembleDebug` — **passes**, zero errors.
-- `./gradlew :app:testDebugUnitTest` — **passes**, 15/15 new tests green (plus all pre-existing
-  tests untouched).
+- `./gradlew :app:testDebugUnitTest` — **passes**, 38/38 tests green (15 original calibrated-
+  screens tests + `CalibratedWaveformViewTest` + `GraphCalibrationTest`, plus all pre-existing
+  app tests untouched).
+- **`FIXED_FULL_SCALE` is currently `0.10f`** (both fragments, must stay identical — see §9's
+  table). It has changed several more times since this doc's §6/§7 below were written; §9 is
+  the up-to-date source for current tuning values, §6/§7 are a historical record only.
 - **`nav_graph.xml` `startDestination` is currently TEMPORARILY set to `calibratedRecordingFragment`**
   (see line 6, marked `<!-- TEMP for dev testing -->`) so the app opens directly into the
   Calibrated Recorder when run from Android Studio. **Must be reverted to
@@ -64,6 +73,8 @@ app/src/main/java/com/musediagnostics/taal/app/ecg/calibrated/
     CalibratedEcgPaperView.kt     — the grid View (fork of ecg/EcgPaperView.kt)
     CalibratedWaveformView.kt     — shared paper+chart container, used by BOTH screens
     DpiCalibration.kt             — px-per-mm correction factor, persisted in SharedPreferences
+    GraphCalibration.kt           — NEW (§9) — per-device Peak Size/Time Zoom override,
+                                     persisted in SharedPreferences, read/written by both screens
 
 app/src/main/java/com/musediagnostics/taal/app/ui/calibrated/
     CalibratedRecordingFragment.kt
@@ -73,7 +84,8 @@ app/src/main/java/com/musediagnostics/taal/app/ui/calibrated/
 
 app/src/main/res/layout/
     fragment_calibrated_recording.xml
-    fragment_calibrated_player.xml
+    fragment_calibrated_player.xml    — §9: Save button repurposed to `applyButton`, slider
+                                         panel replaced by a compact status+Reset row
     fragment_dpi_calibration.xml
 
 app/src/main/res/values/
@@ -82,6 +94,10 @@ app/src/main/res/values/
 
 app/src/test/java/com/musediagnostics/taal/app/ecg/calibrated/
     CalibratedMmScaleTest.kt          — 15 unit tests
+    CalibratedWaveformViewTest.kt     — 10 unit tests (bucket-size derivation, incl. Fix D)
+    GraphCalibrationTest.kt           — NEW (§9) — 4 unit tests (data-shape only; getOverride/
+                                         saveOverride/clearOverride need a real Context, which
+                                         this plain-JVM test module doesn't have — see §9)
 
 Modified (additive only, verified via git diff --stat):
     app/src/main/res/navigation/nav_graph.xml   — 3 new destinations + 1 deep link, +56/-0 lines
@@ -857,6 +873,7 @@ import com.musediagnostics.taal.app.dsp.HeartBpmCalculator
 import com.musediagnostics.taal.app.ecg.calibrated.CalibratedPaperSpeed
 import com.musediagnostics.taal.app.ecg.calibrated.CalibratedWaveformView
 import com.musediagnostics.taal.app.ecg.calibrated.DpiCalibration
+import com.musediagnostics.taal.app.ecg.calibrated.GraphCalibration
 import com.musediagnostics.taal.utils.TaalConnectionBroadcastReceiver
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -874,10 +891,14 @@ import java.io.File
  * mm-accurate ECG-paper grid (via [CalibratedWaveformView]) instead of MPAndroidChart's own
  * gridlines on a fixed 10s window.
  *
- * Y-axis auto-scaling (warmup/peak/headroom) is ported verbatim from production, at the
- * user's explicit request — see chat history. This means two different recordings are no
- * longer guaranteed to be visually comparable by amplitude (each gets its own peak-based
- * zoom), which is a deliberate reversal of this feature's original design goal.
+ * Fix A (reversing an earlier chat decision to restore production's adaptive warmup/peak
+ * Y-axis): the axis is a single fixed full-scale, set once at chart setup and never touched
+ * again for the rest of the session. Frame-measurement of a real recording showed the adaptive
+ * scheme was the root cause of "graph is unstable / noisy / too small" — a loud transient in
+ * the 2s warmup window (e.g. the stethoscope contact thud) could permanently lock an oversized
+ * scale, and the axis could jump mid-recording. A fixed axis trades per-recording optimality
+ * for stability: this is deliberately how Kardia's own ECG display behaves (fixed 10mm/mV,
+ * never rescales) — see FIXED_FULL_SCALE's doc for the tuning methodology.
  */
 class CalibratedRecordingFragment : Fragment() {
 
@@ -900,44 +921,67 @@ class CalibratedRecordingFragment : Fragment() {
     // constant; this holds the most recently derived value (updated on layout/rotation).
     private var currentWindowSeconds = 4f
 
-    // Adaptive Y-axis state. Locking logic (warmup window, then freeze) is ported verbatim from
-    // RecordingFragment, but the peak itself is estimated robustly (see WARMUP_PERCENTILE)
-    // instead of a raw max — a raw max lets a single loud transient (e.g. the contact "thud"
-    // of placing the stethoscope, which often happens right at the start of the warmup window)
-    // permanently set an oversized scale that makes the actual heart/lung sound look tiny for
-    // the rest of the recording. User-reported symptom this fixes: "while recording it looks
-    // small" even though the same file looks properly sized once opened in the player (which
-    // scans the whole finished file for its peak, not just 2 seconds of live audio).
-    private var peakAmplitude = 1.0f       // Y-axis half-range; set from warmup then locked
-    private var lastPeakUpdateTime = 0L
-    private val warmupBufferPeaks = ArrayList<Float>() // one entry per buffer seen during warmup
-    private var warmupDone = false         // Latches true after WARMUP_MS of signal observed
+    // Fix C — derived so ~one min/max bucket lands per horizontal pixel at the current paper
+    // speed, instead of a fixed constant. Recomputed only while idle (see onVisibleSecondsChanged
+    // below) and held frozen for the whole recording session: the recorder mutates
+    // LineDataSet.values in place against a monotonic sample-counter X axis, so changing the
+    // bucket size mid-recording would space already-plotted points inconsistently with new ones.
+    private var sessionBucketSize = DOWNSAMPLE_BUCKET_FALLBACK
+
+    // Per-device calibration override (Peak Size / Time Zoom panel, set from the Player) —
+    // null means "use the built-in FIXED_FULL_SCALE/grid-derived defaults." Re-read in
+    // onResume() so returning from the Player after Apply/Reset reflects immediately.
+    private var calibrationOverride: GraphCalibration.Override? = null
 
     companion object {
         private const val INPUT_SAMPLE_RATE = 44100f
 
+        // Pre-layout fallback only (pxPerMmX not yet known) — see deriveBucketSize/sessionBucketSize.
         // 2 points per bucket (min+max) at this bucket size ≈ same point budget as production's
         // "1 in 44 samples" decimation (44100 / 88 * 2 ≈ 1002 pts/sec), but peaks are preserved.
-        private const val DOWNSAMPLE_BUCKET = 88
+        private const val DOWNSAMPLE_BUCKET_FALLBACK = 88
 
-        // WARMUP: measure the signal's true peak over the first 2000ms, then lock in the Y-axis.
-        private const val WARMUP_MS = 2000
-        // After warmup, Y-axis = peakAmplitude × HEADROOM, so the waveform fills 1/HEADROOM of
-        // the chart height. Tighter than production's 1.5 (user request: bigger peaks) — 1.2
-        // fills ~83%, with enough margin that a slightly-louder sample after warmup doesn't
-        // clip against the frame edge (1.1 was tried and did clip — too little margin).
-        private const val HEADROOM = 1.2f
-        // Minimum axis half-range — prevents over-zooming on near-silence.
-        private const val MIN_PEAK = 0.02f
-        // Robust-peak percentile used to lock the warmup scale (user request — see field doc
-        // on warmupBufferPeaks). Raised from 0.9 to 0.97 after real peaks were clipping — 0.9
-        // excluded too much of the genuine signal, not just one-off transients. 0.97 still
-        // drops the loudest ~3% of buffers (protects against a single contact-thud outlier)
-        // while capturing far more of the real peak.
-        private const val WARMUP_PERCENTILE = 0.97f
-        // Trace stroke width in dp. Reverted to production's thin/crisp value — "bigger" is
-        // achieved via HEADROOM (taller peaks), not a fatter stroke (user request).
-        private const val TRACE_LINE_WIDTH_DP = 1.5f
+        // Fix A — fixed display full-scale, in normalized sample units (-1..+1). The axis is
+        // ±FIXED_FULL_SCALE and NEVER changes during a session (no warmup, no re-expansion).
+        // Do NOT use ±1.0 — typical PCG content peaks well below full digital scale, so ±1.0
+        // would make the trace smaller than before, not bigger.
+        //
+        // 0.30 is the task's given starting value, derived from the measured fact that the
+        // player's existing filePeak×1.2 lock already lands at the visually-correct ~37% fill
+        // (confirmed against Kardia's 38.6%). This constant has NOT been re-derived from a
+        // logged median of real per-file peaks on this pass — that requires running the
+        // temporary-logging step in CalibratedPlayerFragment against a set of real recordings
+        // on device, which needs hardware this session doesn't have direct access to. Flagged
+        // in this change's report; whoever has the device should confirm/tune this value next
+        // using the same three-step method (log real peaks, take the median, hardcode it here).
+        //
+        // Clipping when a recording is unusually loud is expected and correct with a fixed
+        // axis — Kardia does the same. Do not add a clipping indicator or re-expand the axis
+        // in response.
+        //
+        // 0.30 -> 0.15 -> 0.013 (measured, see CalZoomTuning log analysis in chat history) ->
+        // 0.0065 -> 0.013 -> 0.30 (temporary check) -> 0.013 -> 0.30 -> 0.20 -> 0.10 (user:
+        // "a bit bigger" still). Still deliberately NOT re-optimized for any one device —
+        // per-device calibration (pinch + Apply, see GraphCalibration) is what does that now;
+        // this is just the small, neutral default every device starts from. Must stay
+        // identical to CalibratedPlayerFragment's copy of this constant (Fix B parity).
+        private const val FIXED_FULL_SCALE = 0.10f
+
+        // Turned back on (user request) — the pre-amp slider was visibly resizing the live
+        // trace as it moved, which is wrong: the slider should only change loudness. Fix B had
+        // set this false for live/review parity (recorder and player showing the same file at
+        // the same size), but that parity was already only ever exact at the default 5dB —
+        // the player has no record of what dB was used for a given file, so a recording made
+        // at a non-default dB will still show at a different absolute size when reviewed later
+        // regardless of this flag. Fixing that fully needs pre-amp stored as file metadata,
+        // which is a separate, bigger change. See onProgressUpdate's comment.
+        private const val COMPENSATE_PREAMP_IN_DISPLAY = true
+
+        // Trace stroke width in dp. Bumped up from production's 1.5dp (user request) — a fixed
+        // stroke width stays the same physical thickness at any zoom level, but reads as
+        // relatively thinner once FIXED_FULL_SCALE/pinch make the peaks bigger, so it needed to
+        // grow a bit too to hold up against a larger trace.
+        private const val TRACE_LINE_WIDTH_DP = 2.0f
     }
 
     private val permissionLauncher = registerForActivityResult(
@@ -992,23 +1036,55 @@ class CalibratedRecordingFragment : Fragment() {
         val chart = waveformView.chart
         chart.setTouchEnabled(false) // no pan/zoom while recording — same as production
 
-        // Initial range before warmup locks it, same as production's setupWaveformChart().
-        chart.axisLeft.axisMinimum = -peakAmplitude
-        chart.axisLeft.axisMaximum = peakAmplitude
+        // Fix A baseline, overridden below if this device has a saved calibration (set from
+        // the Player's Peak Size / Time Zoom panel) — set once, never touched again for the
+        // rest of the session outside onResume()'s re-read.
+        calibrationOverride = GraphCalibration.getOverride(requireContext())
+        val effectiveYFullScale = calibrationOverride?.yFullScale ?: FIXED_FULL_SCALE
+        chart.axisLeft.axisMinimum = -effectiveYFullScale
+        chart.axisLeft.axisMaximum = effectiveYFullScale
 
-        // Slower than the 25mm/s default (user request) — halves the trace's on-screen speed
-        // and, as a side effect, doubles the seconds visible per screen width. Grid square
-        // physical size is unaffected — only what a square means in time changes.
-        waveformView.paperView.setPaperSpeed(CalibratedPaperSpeed.SPEED_12_5)
+        // 50mm/s — the fastest standard clinical ECG speed. Was SPEED_25; a live-tuning
+        // session showed the user pinch-zooming in on the Player's time axis until only
+        // ~0.87s was visible (~83mm/s equivalent) before it looked right — beyond even 50mm/s,
+        // but 50 is the closest we get without leaving standard clinical speeds behind. Pinch-
+        // zoom is still there in the Player for the extra step to ~0.87s if needed. Both
+        // screens must be changed together or a recording looks different live vs. in review.
+        // Grid square physical size is unaffected — only what a square means in time changes.
+        waveformView.paperView.setPaperSpeed(CalibratedPaperSpeed.SPEED_50)
 
         DpiCalibration.applyTo(waveformView.paperView, requireContext())
 
         waveformView.onVisibleSecondsChanged = { seconds ->
-            currentWindowSeconds = seconds
+            // A saved Time Zoom override replaces the grid-derived default outright — see
+            // CalibratedPlayerFragment's identical substitution.
+            currentWindowSeconds = calibrationOverride?.visibleSeconds ?: seconds
             // Don't clobber an in-progress recording's dataset on rotation/resize — only
             // reset to the dummy grid-holder dataset when there's no real data yet.
             // updateWaveform() re-enforces the range every callback while recording is live.
             if (waveformDataSet == null) {
+                // Fix C — only re-derive the bucket size while idle; a session in progress
+                // must keep using whatever was frozen when it started (see sessionBucketSize doc).
+                //
+                // Derived from the *effective* window (currentWindowSeconds, which already
+                // folds in any calibration override above), not from paper speed alone —
+                // deriveBucketSize() assumes the grid's native, un-overridden pixel density,
+                // so a saved override that narrows the window (more zoomed in) left the bucket
+                // sized for the wider native view: each min/max pair then got stretched across
+                // several pixels instead of one, which is what "noisy/jagged" turned out to be
+                // (same class of bug Fix D already fixed for the Player's pinch-zoom).
+                val plotWidthPx = waveformView.chart.width.toFloat()
+                val visibleSampleCount = currentWindowSeconds * INPUT_SAMPLE_RATE
+                val derived = if (plotWidthPx > 0f) {
+                    CalibratedWaveformView.deriveBucketSizeForVisibleRange(visibleSampleCount, plotWidthPx)
+                } else {
+                    CalibratedWaveformView.deriveBucketSize(
+                        INPUT_SAMPLE_RATE,
+                        waveformView.paperView.currentScale().paperSpeed.mmPerSecond,
+                        waveformView.paperView.currentScale().pxPerMmX
+                    )
+                }
+                if (derived > 0) sessionBucketSize = derived
                 resetChartToDummyData()
             } else {
                 chart.setVisibleXRangeMaximum(seconds)
@@ -1037,7 +1113,8 @@ class CalibratedRecordingFragment : Fragment() {
         val correction = DpiCalibration.getCorrection(requireContext())
         val status = if (correction.isCalibrated) "calibrated (${correction.source})" else "UNCALIBRATED"
         val speed = binding.calibratedWaveformView.paperView.currentScale().paperSpeed.mmPerSecond
-        binding.calibrationCaption.text = "$speed mm/s · Y: relative amplitude (auto-scaled) · DPI: $status"
+        // Fix E — no longer auto-scaled (Fix A removed the warmup/peak lock); axis is fixed.
+        binding.calibrationCaption.text = "$speed mm/s · Y: relative amplitude (fixed) · DPI: $status"
     }
 
     private fun setupPreAmpSlider() {
@@ -1213,6 +1290,7 @@ class CalibratedRecordingFragment : Fragment() {
                     putString("filePath", filteredPath)
                     putString("rawFilePath", rawPath)
                     putString("filterName", filterName)
+                    putInt("preAmpDb", viewModel.preAmpDb.value ?: 5)
                 }
                 findNavController().navigate(R.id.action_calibratedRecording_to_calibratedPlayer, bundle)
             }
@@ -1234,10 +1312,6 @@ class CalibratedRecordingFragment : Fragment() {
         waveformEntries.clear()
         waveformDataSet = null
         totalSamplesProcessed = 0L
-        peakAmplitude = 1.0f
-        warmupBufferPeaks.clear()
-        warmupDone = false
-        lastPeakUpdateTime = 0L
 
         resetChartToDummyData()
         binding.calibratedWaveformView.chart.moveViewToX(0f)
@@ -1451,11 +1525,15 @@ class CalibratedRecordingFragment : Fragment() {
                             }
                         }
 
-                        // Undo pre-amp gain before drawing, same as production (§4.4) — the
-                        // trace reflects true acoustic level, not the amplified WAV level.
+                        // Undo pre-amp gain before drawing (COMPENSATE_PREAMP_IN_DISPLAY, on by
+                        // default) — the trace reflects true acoustic level, not the amplified
+                        // WAV level, so the pre-amp slider only changes loudness, never the
+                        // live graph's size. See that constant's doc for the tradeoff this
+                        // re-opens with the player (which has no way to undo gain it doesn't
+                        // know was applied to a given saved file).
                         val preAmpDb = viewModel.preAmpDb.value ?: 5
                         val preAmpGain = Math.pow(10.0, preAmpDb / 20.0).toFloat()
-                        val displayData = if (preAmpGain > 1.001f) {
+                        val displayData = if (COMPENSATE_PREAMP_IN_DISPLAY && preAmpGain > 1.001f) {
                             FloatArray(data.size) { i -> data[i] / preAmpGain }
                         } else {
                             data
@@ -1475,10 +1553,6 @@ class CalibratedRecordingFragment : Fragment() {
             waveformEntries.clear()
             waveformDataSet = null
             totalSamplesProcessed = 0L
-            peakAmplitude = 1.0f
-            warmupBufferPeaks.clear()
-            warmupDone = false
-            lastPeakUpdateTime = 0L
             bpmCalculator.reset()
 
             resetChartToDummyData()
@@ -1529,6 +1603,10 @@ class CalibratedRecordingFragment : Fragment() {
                 putString("rawFilePath", rawPath)
                 putBoolean("isNewRecording", true)
                 putString("filterName", filterName)
+                // So the Player can undo this recording's actual pre-amp gain and show the
+                // same true-acoustic-level trace the recorder showed live — see
+                // COMPENSATE_PREAMP_IN_DISPLAY's doc for why the recorder alone isn't enough.
+                putInt("preAmpDb", viewModel.preAmpDb.value ?: 5)
             }
             findNavController().navigate(R.id.action_calibratedRecording_to_calibratedPlayer, bundle)
         }
@@ -1536,27 +1614,21 @@ class CalibratedRecordingFragment : Fragment() {
 
     /**
      * Calibrated counterpart of RecordingFragment's V7 updateWaveform(). Differences from
-     * production, per task spec §4:
+     * production:
      *  - X window (`currentWindowSeconds`) is derived from the grid, not a WINDOW_SECONDS
-     *    constant (§4.1).
-     *  - Downsampling is min/max bucketed via CalibratedWaveformView, not "every Nth sample"
-     *    (§4.5), so a transient can't fall entirely between two kept samples.
-     * Y-axis warmup/peak/headroom logic is ported verbatim from production (restored at the
-     * user's explicit request, overriding the original §4.4 fixed-axis design).
+     *    constant.
+     *  - Downsampling is min/max bucketed via CalibratedWaveformView, not "every Nth sample",
+     *    so a transient can't fall entirely between two kept samples.
+     *  - Y-axis is fixed (Fix A) — no warmup, no peak lock, no per-buffer peak tracking. The
+     *    axis was set once in setupWaveformChart() and is never touched here.
      */
     private fun updateWaveform(data: FloatArray) {
         if (_binding == null || !isAdded) return
         val waveformView = binding.calibratedWaveformView
         val chart = waveformView.chart
 
-        var bufferPeak = 0f
-        for (sample in data) {
-            val abs = Math.abs(sample)
-            if (abs > bufferPeak) bufferPeak = abs
-        }
-
         val bufferStartSample = totalSamplesProcessed
-        val newEntries = CalibratedWaveformView.downsampleMinMax(data, DOWNSAMPLE_BUCKET) { j ->
+        val newEntries = CalibratedWaveformView.downsampleMinMax(data, sessionBucketSize) { j ->
             (bufferStartSample + j).toFloat() / INPUT_SAMPLE_RATE
         }
         waveformEntries.addAll(newEntries)
@@ -1573,25 +1645,6 @@ class CalibratedRecordingFragment : Fragment() {
             val iterator = waveformEntries.iterator()
             while (iterator.hasNext()) {
                 if (iterator.next().x < minXToKeep) iterator.remove() else break
-            }
-        }
-
-        // WARMUP: observe buffer peaks for the first WARMUP_MS, then lock the Y-axis to a
-        // robust estimate of the peak × HEADROOM and never re-expand it afterwards. Uses the
-        // WARMUP_PERCENTILE of buffer peaks rather than the raw max (production's original
-        // approach) — a raw max lets one loud transient (e.g. the contact "thud" of placing
-        // the stethoscope) permanently set an oversized scale for the whole recording.
-        val now = System.currentTimeMillis()
-        if (!warmupDone) {
-            warmupBufferPeaks.add(bufferPeak)
-            if (lastPeakUpdateTime == 0L) lastPeakUpdateTime = now
-            if (now - lastPeakUpdateTime >= WARMUP_MS) {
-                warmupDone = true
-                val robustPeak = robustPeakFrom(warmupBufferPeaks)
-                warmupBufferPeaks.clear() // no longer needed — free it
-                peakAmplitude = (robustPeak * HEADROOM).coerceIn(MIN_PEAK, 1.0f)
-                chart.axisLeft.axisMinimum = -peakAmplitude
-                chart.axisLeft.axisMaximum = peakAmplitude
             }
         }
 
@@ -1621,19 +1674,6 @@ class CalibratedRecordingFragment : Fragment() {
         chart.invalidate()
     }
 
-    /**
-     * WARMUP_PERCENTILE of a list of per-buffer peak values, instead of the raw max. Discards
-     * the loudest tail of the distribution (single-buffer transients like a contact thud)
-     * before picking the value the Y-axis locks to, so the scale reflects the sustained signal
-     * rather than a one-off spike.
-     */
-    private fun robustPeakFrom(bufferPeaks: List<Float>): Float {
-        if (bufferPeaks.isEmpty()) return 0f
-        val sorted = bufferPeaks.sorted()
-        val index = ((sorted.size - 1) * WARMUP_PERCENTILE).toInt().coerceIn(0, sorted.size - 1)
-        return sorted[index]
-    }
-
     override fun onResume() {
         super.onResume()
 
@@ -1644,6 +1684,18 @@ class CalibratedRecordingFragment : Fragment() {
         viewModel.setPreAmp(5)
         binding.ampSlider.value = 5f
         binding.ampLabel.text = "5 dB"
+
+        // Re-read the calibration override in case the Player's panel changed it since this
+        // fragment was created (e.g. Apply/Reset pressed there, then navigated back here).
+        calibrationOverride = GraphCalibration.getOverride(requireContext())
+        val chart = binding.calibratedWaveformView.chart
+        val effectiveYFullScale = calibrationOverride?.yFullScale ?: FIXED_FULL_SCALE
+        chart.axisLeft.axisMinimum = -effectiveYFullScale
+        chart.axisLeft.axisMaximum = effectiveYFullScale
+        // Re-fires onVisibleSecondsChanged, which now reads the refreshed override for X.
+        binding.calibratedWaveformView.recomputeVisibleSeconds()
+        chart.invalidate()
+
         updateCalibrationCaption()
     }
 
@@ -1670,6 +1722,7 @@ package com.musediagnostics.taal.app.ui.calibrated
 import android.graphics.Color
 import android.os.Bundle
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
@@ -1680,6 +1733,8 @@ import com.github.mikephil.charting.components.YAxis
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
+import com.github.mikephil.charting.listener.ChartTouchListener
+import com.github.mikephil.charting.listener.OnChartGestureListener
 import com.musediagnostics.taal.InvalidFileNameException
 import com.musediagnostics.taal.PreFilter
 import com.musediagnostics.taal.TaalPlayer
@@ -1688,8 +1743,10 @@ import com.musediagnostics.taal.app.databinding.FragmentCalibratedPlayerBinding
 import com.musediagnostics.taal.app.ecg.calibrated.CalibratedPaperSpeed
 import com.musediagnostics.taal.app.ecg.calibrated.CalibratedWaveformView
 import com.musediagnostics.taal.app.ecg.calibrated.DpiCalibration
+import com.musediagnostics.taal.app.ecg.calibrated.GraphCalibration
 import com.musediagnostics.taal.app.ui.player.PlayerSaveDiscardDialog
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -1701,19 +1758,30 @@ import java.io.File
  * mm-accurate grid instead of MPAndroidChart's own gridlines on a fixed 4s window.
  *
  * No pre-amp display compensation here — the played-back file already has gain baked in from
- * record time, same as production. Y-axis starts at a fixed ±0.5 placeholder (same as production
- * PlayerFragment) but is then adapted to the loaded file's actual peak amplitude (user request:
- * bigger peaks) — since the whole file is already decoded in memory by the time it's rendered,
- * this doesn't need a warmup window the way the live recorder does. Touch/drag/scale are
- * enabled, same as production; the visible-range lock only caps the *maximum* zoom-out (not the
- * minimum), so pinch-zoom actually works — the mm-grid behind the chart is a separate, static
- * view and intentionally does not zoom with the trace (per user request: zoom the trace, don't
- * move the background).
+ * record time, same as production.
+ *
+ * Fix A/B: Y-axis is [FIXED_FULL_SCALE], the same constant CalibratedRecordingFragment uses,
+ * set once in setupWaveformChart() and never touched again — no per-file peak adaptation. Two
+ * screens sharing one fixed constant is what makes live and review render the same recording
+ * identically (the acceptance test for Fix B); a per-file peak lock (this screen's earlier
+ * approach) can't guarantee that against a recorder that isn't looking at the whole file.
+ *
+ * Touch/drag/scale are enabled, same as production; the visible-range lock only caps the
+ * *maximum* zoom-out (not the minimum), so pinch-zoom actually works — the mm-grid behind the
+ * chart is a separate, static view and intentionally does not zoom with the trace (per user
+ * request: zoom the trace, don't move the background).
  *
  * The camera-follow during playback is smoothed (see [displayedPlaybackTime]/FOLLOW_SMOOTHING),
  * not a direct snap to the real playback position — a direct snap looked "too fast" once
  * pinch-zoom made the visible window small (user request). Audio itself always plays at true
  * speed/pitch; only the visual follow is damped.
+ *
+ * Fix D: the min/max bucket used to draw the trace is re-derived from the *currently visible*
+ * X range whenever a pinch/drag gesture ends (see [rebucketForCurrentZoom]), not fixed at
+ * load time. Frame-by-frame inspection during zoomed playback showed a regular synthetic
+ * sawtooth instead of a waveform — the load-time bucket (sized for the full 1x view) was being
+ * stretched wide by zoom instead of showing real samples at the new density. The decoded file
+ * ([decodedSamples]) is kept in memory and re-bucketed from; the WAV is never re-read.
  */
 class CalibratedPlayerFragment : Fragment() {
 
@@ -1723,28 +1791,46 @@ class CalibratedPlayerFragment : Fragment() {
     private var isPlaying = false
 
     private var currentWindowSeconds = 4f
-    private val fixedPeakAmplitude = 0.5f // placeholder until the file's real peak is known
 
     // Smoothed camera-follow position during playback — see onPlaybackProgress. Reset to 0
     // wherever the chart snaps back to its start-centered framing.
     private var displayedPlaybackTime = 0f
 
+    // Fix D — kept in memory for zoom-driven re-bucketing (rebucketForCurrentZoom). Never
+    // re-read from disk after the initial load.
+    private var decodedSamples: FloatArray? = null
+    private var decodedSampleRate: Float = INPUT_SAMPLE_RATE
+    private var waveformDataSet: LineDataSet? = null // persistent ref, mutated in place on re-bucket
+    private var lastAppliedBucketSize = -1
+    private var rebucketJob: Job? = null
+
+    // Per-device calibration override (set by pinching the graph, then pressing applyButton) —
+    // null means "use the built-in FIXED_FULL_SCALE/grid-derived defaults." Read once at setup,
+    // kept in sync by the Apply/Reset handlers so a rotation shortly after either reflects the
+    // latest state without needing the fragment recreated.
+    private var calibrationOverride: GraphCalibration.Override? = null
+
     companion object {
         private const val INPUT_SAMPLE_RATE = 44100f
         private const val TARGET_POINT_BUDGET = 3000 // same total-point budget as production's maxPoints
-        // Same tuning as CalibratedRecordingFragment, applied to the file's actual peak instead
-        // of a live warmup window. 1.2 fills ~83% of the chart height — matches the recorder's
-        // margin (1.1 clipped, too little headroom). No percentile trimming needed here since
-        // this is already the file's true peak, not a live estimate.
-        private const val HEADROOM = 1.2f
-        private const val MIN_PEAK = 0.02f
+        // Fix A/B — must be kept identical to CalibratedRecordingFragment.FIXED_FULL_SCALE, or
+        // the same recording renders at different scales live vs. in review. See that
+        // fragment's doc comment for the tuning methodology and this value's history — small,
+        // un-tuned baseline (user request), since per-device calibration (pinch + Apply) is now
+        // how each phone gets sized correctly, not this constant.
+        private const val FIXED_FULL_SCALE = 0.10f
         // Camera-follow smoothing (user request: playback feels "too fast" when zoomed in).
         // Fraction of the remaining gap to the real playback position closed per progress
         // callback — lower = gentler/slower-feeling follow, 1.0 = instant snap (old behavior).
         private const val FOLLOW_SMOOTHING = 0.15f
-        // Trace stroke width in dp. Reverted to production's thin/crisp value — "bigger" is
-        // achieved via HEADROOM (taller peaks), not a fatter stroke (user request).
-        private const val TRACE_LINE_WIDTH_DP = 2.5f
+        // Trace stroke width in dp. Bumped up further (user request) — a fixed stroke width
+        // stays the same physical thickness at any zoom level, but reads as relatively thinner
+        // once FIXED_FULL_SCALE/pinch make the peaks bigger, so it needed to grow a bit too.
+        private const val TRACE_LINE_WIDTH_DP = 3.0f
+
+        // Floor used by forceVisibleSeconds() to relax the max-zoom-in bound back to
+        // effectively unlimited after forcing an exact Time Zoom width — see that function.
+        private const val MIN_VISIBLE_SECONDS = 0.3f
     }
 
     override fun onCreateView(
@@ -1760,15 +1846,23 @@ class CalibratedPlayerFragment : Fragment() {
         val filePath = arguments?.getString("filePath") ?: ""
         val isNewRecording = arguments?.getBoolean("isNewRecording", false) ?: false
         val filterName = arguments?.getString("filterName") ?: "HEART"
+        // The dB the recorder actually used for this file, if known (0 = not passed / unknown,
+        // meaning no compensation is applied) — see loadFullWaveform's doc for why this exists.
+        val recordedPreAmpDb = arguments?.getInt("preAmpDb", 0) ?: 0
 
         binding.saveDiscardBar.visibility = if (isNewRecording) View.VISIBLE else View.GONE
 
         setupWaveformChart()
         setupAmpSlider()
+        setupGraphCalibrationPanel()
         updateCalibrationCaption()
 
         if (filePath.isNotEmpty()) {
-            loadFullWaveform(filePath, filterName)
+            // Capture the scale on the main thread before loadFullWaveform's IO coroutine
+            // reads it (Fix C) — setupWaveformChart() above already applied paper speed + DPI
+            // correction synchronously, so this snapshot is final for the rest of this load.
+            val scale = binding.calibratedWaveformView.paperView.currentScale()
+            loadFullWaveform(filePath, filterName, scale.paperSpeed.mmPerSecond, scale.pxPerMmX, recordedPreAmpDb)
             setupPlayer(filePath, filterName)
         }
 
@@ -1789,18 +1883,19 @@ class CalibratedPlayerFragment : Fragment() {
             togglePlayback(filePath)
         }
 
-        binding.saveButton.setOnClickListener {
-            if (isNewRecording) {
-                val rawFilePath = arguments?.getString("rawFilePath") ?: ""
-                val bundle = Bundle().apply {
-                    putString("filePath", filePath)
-                    putString("rawFilePath", rawFilePath)
-                    putString("filterName", filterName)
-                }
-                findNavController().navigate(R.id.action_calibratedPlayer_to_saveRecording, bundle)
-            } else {
-                showSaveDiscardDialog(filePath)
+        // Repurposed from the ported production Save button — this build isn't persisting
+        // recordings, it's for tuning graph size on-device (user request). Apply saves
+        // whatever pinch-zoom state the graph is currently showing as this device's default
+        // and goes straight back to the Recorder to see it applied live.
+        binding.applyButton.setOnClickListener {
+            val chart = binding.calibratedWaveformView.chart
+            val effectiveVisibleSeconds = chart.highestVisibleX - chart.lowestVisibleX
+            val effectiveYFullScale = currentEffectiveYFullScale()
+            if (effectiveVisibleSeconds > 0f && effectiveYFullScale > 0f) {
+                GraphCalibration.saveOverride(requireContext(), effectiveVisibleSeconds, effectiveYFullScale)
+                calibrationOverride = GraphCalibration.Override(effectiveVisibleSeconds, effectiveYFullScale)
             }
+            findNavController().navigateUp()
         }
 
         binding.discardButton.setOnClickListener {
@@ -1824,22 +1919,53 @@ class CalibratedPlayerFragment : Fragment() {
         val waveformView = binding.calibratedWaveformView
         val chart = waveformView.chart
 
-        chart.axisLeft.axisMinimum = -fixedPeakAmplitude
-        chart.axisLeft.axisMaximum = fixedPeakAmplitude
+        // Fix A/B baseline, overridden below if this device has a saved calibration (Peak
+        // Size / Time Zoom panel) — set once, never touched again outside the panel's own
+        // live-drag handlers and Apply/Reset.
+        calibrationOverride = GraphCalibration.getOverride(requireContext())
+        val effectiveYFullScale = calibrationOverride?.yFullScale ?: FIXED_FULL_SCALE
+        chart.axisLeft.axisMinimum = -effectiveYFullScale
+        chart.axisLeft.axisMaximum = effectiveYFullScale
 
-        // Same slower speed as the calibrated recorder (user request) — keeps a recording's
-        // on-screen pace consistent whether you're watching it live or reviewing it after.
-        waveformView.paperView.setPaperSpeed(CalibratedPaperSpeed.SPEED_12_5)
+        // 50mm/s — must match CalibratedRecordingFragment exactly, so a recording looks the
+        // same live as it does in review. See that fragment's comment for why 50 (not 25).
+        waveformView.paperView.setPaperSpeed(CalibratedPaperSpeed.SPEED_50)
 
         DpiCalibration.applyTo(waveformView.paperView, requireContext())
 
-        // Opposite of the recorder — user can pan/zoom to inspect the trace (§5).
+        // Opposite of the recorder — user can pan/zoom to inspect the trace with two fingers,
+        // in both directions (§5): horizontal pinch for time (Time Zoom), vertical pinch for
+        // peak height (Peak Size). MPAndroidChart scales Y via its own touch-matrix
+        // (viewPortHandler.scaleY), a separate mechanism from the Peak Size slider's
+        // axisMinimum/axisMaximum — currentEffectiveYFullScale()/the slider handler fold the
+        // two together (divide/multiply by scaleY) so either control always reflects and
+        // composes correctly with whatever the other one just did.
         chart.setTouchEnabled(true)
         chart.isDragEnabled = true
-        chart.setScaleEnabled(true)
+        chart.setScaleXEnabled(true)
+        chart.setScaleYEnabled(true)
+
+        // Fix D — re-bucket for the new zoom/pan level once the gesture settles. Debounced by
+        // construction: onChartGestureEnd fires once per discrete gesture, not per frame, so
+        // this never runs mid-pinch and can't cause scroll stutter.
+        chart.setOnChartGestureListener(object : OnChartGestureListener {
+            override fun onChartGestureStart(me: MotionEvent?, lastPerformedGesture: ChartTouchListener.ChartGesture?) {}
+            override fun onChartGestureEnd(me: MotionEvent?, lastPerformedGesture: ChartTouchListener.ChartGesture?) {
+                rebucketForCurrentZoom()
+            }
+            override fun onChartLongPressed(me: MotionEvent?) {}
+            override fun onChartDoubleTapped(me: MotionEvent?) {}
+            override fun onChartSingleTapped(me: MotionEvent?) {}
+            override fun onChartFling(me1: MotionEvent?, me2: MotionEvent?, velocityX: Float, velocityY: Float) {}
+            override fun onChartScale(me: MotionEvent?, scaleX: Float, scaleY: Float) {}
+            override fun onChartTranslate(me: MotionEvent?, dX: Float, dY: Float) {}
+        })
 
         waveformView.onVisibleSecondsChanged = { seconds ->
-            currentWindowSeconds = seconds
+            // A saved Time Zoom override replaces the grid-derived default outright (that's
+            // the point of calibrating) — physical derivation still runs every time (e.g. on
+            // rotation), it's just superseded whenever an override is active.
+            currentWindowSeconds = calibrationOverride?.visibleSeconds ?: seconds
             if (chart.data == null) {
                 resetToDummyData()
             } else {
@@ -1872,7 +1998,94 @@ class CalibratedPlayerFragment : Fragment() {
         val correction = DpiCalibration.getCorrection(requireContext())
         val status = if (correction.isCalibrated) "calibrated (${correction.source})" else "UNCALIBRATED"
         val speed = binding.calibratedWaveformView.paperView.currentScale().paperSpeed.mmPerSecond
-        binding.calibrationCaption.text = "$speed mm/s · Y: relative amplitude · DPI: $status"
+        // Fix E — matches CalibratedRecordingFragment's caption exactly (both use a fixed axis).
+        binding.calibrationCaption.text = "$speed mm/s · Y: relative amplitude (fixed) · DPI: $status"
+    }
+
+    /**
+     * Graph calibration is pinch-only now (user request: sliders were a second, redundant way
+     * to do what two fingers on the graph already do better) — this just wires the status
+     * readout and Reset. Applying a calibration happens via [R.id.applyButton] in the bottom
+     * bar (see onViewCreated), which reads whatever the pinch-tuned view currently shows.
+     */
+    private fun setupGraphCalibrationPanel() {
+        updateCalibrationStatusText()
+        binding.resetCalibrationButton.setOnClickListener {
+            GraphCalibration.clearOverride(requireContext())
+            calibrationOverride = null
+            applyBuiltInDefaultScale()
+            updateCalibrationStatusText()
+            Toast.makeText(requireContext(), "Reset to default", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /** Re-applies FIXED_FULL_SCALE and the grid-derived default window, bypassing any override — used by Reset. */
+    private fun applyBuiltInDefaultScale() {
+        val waveformView = binding.calibratedWaveformView
+        val chart = waveformView.chart
+        // Clears any pinch-driven X/Y viewport zoom (scaleX/scaleY) before reapplying the
+        // built-in defaults below — otherwise a prior vertical pinch would still be layered on
+        // top of the reset axis bounds and Reset wouldn't actually look reset.
+        chart.fitScreen()
+        chart.axisLeft.axisMinimum = -FIXED_FULL_SCALE
+        chart.axisLeft.axisMaximum = FIXED_FULL_SCALE
+        // Same reason as the Peak Size slider handler — axis bounds alone don't move the
+        // already-plotted trace without this.
+        chart.notifyDataSetChanged()
+        // Re-fires onVisibleSecondsChanged with calibrationOverride already cleared above, so
+        // currentWindowSeconds lands back on the physical grid-derived value.
+        waveformView.recomputeVisibleSeconds()
+        // onVisibleSecondsChanged only reapplies setVisibleXRangeMaximum (a zoom-OUT cap, see
+        // forceVisibleSeconds) — if the user had pinched/slid to a *wider* view than the
+        // default before hitting Reset, that alone wouldn't visually snap back. Force it.
+        forceVisibleSeconds(currentWindowSeconds)
+        rebucketForCurrentZoom()
+        chart.invalidate()
+    }
+
+    /**
+     * The Y full-scale actually being shown right now, folding together the fixed axis bounds
+     * (chart.axisLeft.axisMaximum) and any pinch-driven vertical zoom on top of them
+     * (chart.viewPortHandler.scaleY) — mirrors how X already reads its true state via
+     * chart.highestVisibleX/lowestVisibleX rather than raw axis bounds. Relies on the Y axis
+     * always being centered at 0 (every centerViewTo(...) call in this fragment passes 0f for y).
+     */
+    private fun currentEffectiveYFullScale(): Float {
+        val chart = binding.calibratedWaveformView.chart
+        val scaleY = chart.viewPortHandler.scaleY.coerceAtLeast(0.01f)
+        return chart.axisLeft.axisMaximum / scaleY
+    }
+
+    /**
+     * Forces the chart to display exactly [seconds] of width right now, regardless of whether
+     * that's narrower or wider than the current view.
+     *
+     * `setVisibleXRangeMaximum` alone only sets a *zoom-out ceiling* (a floor on scaleX) — it
+     * forces the view narrower if it's currently too wide, but does nothing if the requested
+     * width is *wider* than the current zoom (that only relaxes the ceiling, it doesn't pull
+     * the current view back out). Dragging the Time Zoom slider toward "Wide" needs the view to
+     * actually widen live, so both bounds are pinned to [seconds] momentarily — which forces
+     * scaleX to exactly the target in either direction — then the lower bound (max zoom-in) is
+     * relaxed straight back to effectively unlimited so pinch-zoom-in still works afterward.
+     * Same technique as Reset, just packaged for reuse — not left permanently locked, unlike
+     * the Fix D bug this deliberately avoids re-introducing during ordinary pinch/pan.
+     */
+    private fun forceVisibleSeconds(seconds: Float) {
+        val chart = binding.calibratedWaveformView.chart
+        chart.setVisibleXRangeMinimum(seconds)
+        chart.setVisibleXRangeMaximum(seconds)
+        chart.centerViewTo(seconds / 2f, 0f, YAxis.AxisDependency.LEFT)
+        chart.setVisibleXRangeMinimum(MIN_VISIBLE_SECONDS * 0.1f)
+        chart.invalidate()
+    }
+
+    private fun updateCalibrationStatusText() {
+        if (_binding == null) return
+        binding.graphCalibrationStatus.text = if (calibrationOverride != null) {
+            "Calibrated on this device"
+        } else {
+            "Not calibrated on this device — using default"
+        }
     }
 
     /**
@@ -1880,8 +2093,20 @@ class CalibratedPlayerFragment : Fragment() {
      * parsing (bytes 24-27, little-endian, fallback 44100 — never hardcoded, per §4.5), but
      * downsampling is min/max-bucketed instead of "every step-th sample" so a transient can't
      * fall entirely between two kept samples.
+     *
+     * [paperSpeedMmPerSecond]/[pxPerMmX] are a main-thread snapshot of the paper's current
+     * scale (Fix C) — passed in rather than read from `binding` inside the IO coroutine below.
+     *
+     * [recordedPreAmpDb] undoes the same gain the recorder applied when this file was made
+     * (user request: a recording should look the same size in the Player as it did live,
+     * whatever dB it was recorded at). 0 means unknown/not passed — no compensation applied,
+     * same as before this existed. This only works for files that arrived with that bundle
+     * arg (i.e. reviewing a just-recorded file); the app doesn't persist pre-amp per saved
+     * file, so a recording reopened later from the library still won't self-correct.
      */
-    private fun loadFullWaveform(filePath: String, filterName: String) {
+    private fun loadFullWaveform(
+        filePath: String, filterName: String, paperSpeedMmPerSecond: Float, pxPerMmX: Float, recordedPreAmpDb: Int
+    ) {
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
             val file = File(filePath)
             if (!file.exists()) return@launch
@@ -1911,29 +2136,43 @@ class CalibratedPlayerFragment : Fragment() {
                 i++
             }
 
-            // 2 points per bucket (min+max) -> bucket size chosen to hit the same total point
-            // budget production used with 1-point-per-step decimation.
-            val bucketSize = maxOf(1, totalSamples / (TARGET_POINT_BUDGET / 2))
+            // Undo the recorder's pre-amp gain, same formula CalibratedRecordingFragment uses
+            // live — makes this file render at the same size it showed on the recording screen,
+            // regardless of what dB was used. Mutates samples in place, before entries/bucket
+            // computation and before decodedSamples is stored, so Fix D's zoom re-bucketing
+            // also re-buckets from the compensated data.
+            if (recordedPreAmpDb > 0) {
+                val preAmpGain = Math.pow(10.0, recordedPreAmpDb / 20.0).toFloat()
+                if (preAmpGain > 1.001f) {
+                    for (j in samples.indices) samples[j] = samples[j] / preAmpGain
+                }
+            }
+
+            // Fix C — derive so ~one min/max pair lands per horizontal pixel at the current
+            // paper speed, instead of a fixed constant tuned for one specific speed. Apply
+            // TARGET_POINT_BUDGET as a ceiling only: enlarge the bucket if the derived value
+            // would produce more than the budget on a long file, but never shrink below it.
+            val derivedBucket = CalibratedWaveformView.deriveBucketSize(fileSampleRate, paperSpeedMmPerSecond, pxPerMmX)
+            val budgetCeilingBucket = maxOf(1, totalSamples / (TARGET_POINT_BUDGET / 2))
+            val bucketSize = if (derivedBucket > 0) maxOf(derivedBucket, budgetCeilingBucket) else budgetCeilingBucket
             val entries = CalibratedWaveformView.downsampleMinMax(samples, bucketSize) { idx ->
                 idx.toFloat() / fileSampleRate
             }
 
-            // Whole file is already decoded — no warmup window needed, just take the true peak
-            // directly (user request: bigger peaks).
-            var filePeak = 0f
-            for (sample in samples) {
-                val abs = Math.abs(sample)
-                if (abs > filePeak) filePeak = abs
-            }
-
             withContext(Dispatchers.Main) {
                 if (_binding == null) return@withContext
-                renderWaveformEntries(ArrayList(entries), durationSecs, filePeak)
+                // Fix D — keep the decoded file in memory for zoom-driven re-bucketing, and
+                // remember the bucket size just used so the first gesture-end after load
+                // doesn't redundantly re-derive an unchanged value.
+                decodedSamples = samples
+                decodedSampleRate = fileSampleRate
+                lastAppliedBucketSize = bucketSize
+                renderWaveformEntries(ArrayList(entries), durationSecs)
             }
         }
     }
 
-    private fun renderWaveformEntries(entries: ArrayList<Entry>, durationSecs: Int, filePeak: Float) {
+    private fun renderWaveformEntries(entries: ArrayList<Entry>, durationSecs: Int) {
         binding.timerText.text = String.format("%02d:%02d", durationSecs / 60, durationSecs % 60)
         val dataSet = LineDataSet(entries, "Waveform").apply {
             color = Color.parseColor("#2D7DD2")
@@ -1942,20 +2181,65 @@ class CalibratedPlayerFragment : Fragment() {
             lineWidth = TRACE_LINE_WIDTH_DP
             mode = LineDataSet.Mode.LINEAR
         }
+        waveformDataSet = dataSet // Fix D — persistent ref, mutated in place on re-bucket
         // currentWindowSeconds is kept in sync by onVisibleSecondsChanged (set up in
         // setupWaveformChart, called before this) — including the case where layout hadn't
         // happened yet when this loaded; that callback will re-apply the range once it does.
+        // Y-axis is fixed (Fix A/B) — already set once in setupWaveformChart(), not touched here.
         val chart = binding.calibratedWaveformView.chart
-
-        val peakAmplitude = (filePeak * HEADROOM).coerceIn(MIN_PEAK, 1.0f)
-        chart.axisLeft.axisMinimum = -peakAmplitude
-        chart.axisLeft.axisMaximum = peakAmplitude
-
         chart.data = LineData(dataSet)
         // Cap max zoom-out only — no Minimum lock, so pinch-zoom works (see setupWaveformChart).
         chart.setVisibleXRangeMaximum(currentWindowSeconds)
         chart.centerViewTo(currentWindowSeconds / 2f, 0f, YAxis.AxisDependency.LEFT)
         chart.invalidate()
+    }
+
+    /**
+     * Fix D — recomputes the min/max bucket from whatever X range is currently visible
+     * (post-zoom/pan) and re-buckets the whole decoded file at that density, targeting ~one
+     * min/max pair per horizontal pixel. Re-buckets the whole file (not just the visible
+     * slice) so panning within an unchanged zoom level doesn't need to re-run this — only an
+     * actual zoom change does, since [lastAppliedBucketSize] short-circuits a no-op. Runs off
+     * the main thread since re-bucketing a long file is real work; only the dataset swap
+     * happens on Main.
+     */
+    private fun rebucketForCurrentZoom() {
+        val samples = decodedSamples ?: return
+        val ds = waveformDataSet ?: return
+        val chart = binding.calibratedWaveformView.chart
+        val plotWidthPx = chart.width.toFloat()
+        if (plotWidthPx <= 0f) return
+
+        val visibleSeconds = (chart.highestVisibleX - chart.lowestVisibleX).coerceAtLeast(0f)
+        if (visibleSeconds <= 0f) return
+        val visibleSampleCount = visibleSeconds * decodedSampleRate
+
+        val derivedBucket = CalibratedWaveformView.deriveBucketSizeForVisibleRange(visibleSampleCount, plotWidthPx)
+        if (derivedBucket <= 0) return
+        // Same budget-ceiling pattern as the load-time bucket (§ loadFullWaveform) — enlarge to
+        // stay within TARGET_POINT_BUDGET on a long file, never shrink below the derived value.
+        val ceilingBucket = maxOf(1, samples.size / (TARGET_POINT_BUDGET / 2))
+        val finalBucket = maxOf(derivedBucket, ceilingBucket)
+        if (finalBucket == lastAppliedBucketSize) return
+        lastAppliedBucketSize = finalBucket
+
+        val sampleRate = decodedSampleRate
+        rebucketJob?.cancel()
+        rebucketJob = viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Default) {
+            val entries = CalibratedWaveformView.downsampleMinMax(samples, finalBucket) { idx ->
+                idx.toFloat() / sampleRate
+            }
+            withContext(Dispatchers.Main) {
+                if (_binding == null) return@withContext
+                // Mutate in place (same pattern as the recorder) rather than replacing
+                // chart.data — a replace would reset the viewport and undo the zoom/pan the
+                // user just performed.
+                ds.values = ArrayList(entries)
+                binding.calibratedWaveformView.chart.data?.notifyDataChanged()
+                binding.calibratedWaveformView.chart.notifyDataSetChanged()
+                binding.calibratedWaveformView.chart.invalidate()
+            }
+        }
     }
 
     private fun setupPlayer(filePath: String, filterName: String) {
@@ -2220,8 +2504,296 @@ above is the authoritative reference for exactly which views exist and are bound
 ### 4.11 `res/layout/fragment_calibrated_player.xml`
 
 Same pattern vs. production `fragment_player.xml`: `LineChart` → `calibratedWaveformView`,
-`calibrationCaption` added, chrome shrunk. See the actual file at
-`app/src/main/res/layout/fragment_calibrated_player.xml` (~240 lines).
+`calibrationCaption` added, chrome shrunk. **Updated by §9** (2026-08-20): the old `tuneButton`
++ `graphCalibrationPanel` card (Peak Size/Time Zoom sliders + separate Apply/Reset buttons) was
+removed; in its place, a compact `graphCalibrationRow` (LinearLayout: `graphCalibrationStatus`
+TextView + small `resetCalibrationButton`) sits between `calibrationCaption` and
+`calibratedWaveformView`. The bottom bar's `saveButton` was renamed `applyButton` (text "Apply")
+— `discardButton` is unchanged. Full current XML is short enough to inline here in full (was
+previously just described, not dumped):
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#F8F9FA">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/topBar"
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:background="@color/white"
+        android:elevation="2dp"
+        android:paddingStart="@dimen/spacing_md"
+        android:paddingEnd="@dimen/spacing_md"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <ImageButton
+            android:id="@+id/backButton"
+            android:layout_width="26dp"
+            android:layout_height="26dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Back"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_arrow_back"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <TextView
+            android:id="@+id/screenTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Calibrated Review"
+            android:textColor="@color/text_primary"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <ImageButton
+            android:id="@+id/eqButton"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Equalizer"
+            android:src="@drawable/ic_equalizer"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <TextView
+        android:id="@+id/timerText"
+        style="@style/TaalText.Timer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="@string/timer_default"
+        android:textSize="15sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/topBar" />
+
+    <!-- Compact Amp Slider Card -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/ampSliderContainer"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="4dp"
+        android:layout_marginEnd="16dp"
+        app:cardBackgroundColor="@color/white"
+        app:cardCornerRadius="10dp"
+        app:cardElevation="2dp"
+        app:strokeColor="#E0E0E0"
+        app:strokeWidth="1dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/timerText">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="10dp"
+                android:paddingTop="0dp"
+                android:paddingEnd="10dp"
+                android:paddingBottom="0dp">
+
+                <ImageView
+                    android:layout_width="14dp"
+                    android:layout_height="14dp"
+                    android:contentDescription="Amplification"
+                    android:src="@drawable/ic_volume_up"
+                    app:tint="#128CB2" />
+
+                <com.google.android.material.slider.Slider
+                    android:id="@+id/ampSlider"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:layout_marginEnd="4dp"
+                    android:layout_weight="1"
+                    android:stepSize="1"
+                    android:value="5"
+                    android:valueFrom="0"
+                    android:valueTo="30"
+                    app:haloColor="#1A128CB2"
+                    app:labelBehavior="gone"
+                    app:thumbColor="#128CB2"
+                    app:thumbRadius="5dp"
+                    app:trackColorActive="#128CB2"
+                    app:trackColorInactive="#C8E6F5"
+                    app:trackHeight="2dp" />
+
+                <TextView
+                    android:id="@+id/ampLabel"
+                    android:layout_width="40dp"
+                    android:layout_height="wrap_content"
+                    android:gravity="end"
+                    android:text="5 dB"
+                    android:textColor="#128CB2"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+
+            </LinearLayout>
+        </LinearLayout>
+
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- §4.4: axis labeling / calibration status caption — see fragment_calibrated_recording.xml -->
+    <TextView
+        android:id="@+id/calibrationCaption"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="2dp"
+        android:layout_marginEnd="16dp"
+        android:gravity="center"
+        android:text="25 mm/s · Y: relative amplitude · DPI: uncalibrated"
+        android:textColor="#999999"
+        android:textSize="9sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/ampSliderContainer" />
+
+    <!-- Per-device graph calibration status — pinch the graph below to adjust; this row is
+         just the current-state readout + a way back to the built-in default. -->
+    <LinearLayout
+        android:id="@+id/graphCalibrationRow"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="4dp"
+        android:layout_marginEnd="16dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/calibrationCaption">
+
+        <TextView
+            android:id="@+id/graphCalibrationStatus"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Not calibrated on this device — using default"
+            android:textColor="#999999"
+            android:textSize="9sp" />
+
+        <Button
+            android:id="@+id/resetCalibrationButton"
+            android:layout_width="wrap_content"
+            android:layout_height="24dp"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:background="@drawable/bg_button_outlined"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="0dp"
+            android:text="Reset"
+            android:textAllCaps="false"
+            android:textSize="10sp" />
+    </LinearLayout>
+
+    <com.musediagnostics.taal.app.ecg.calibrated.CalibratedWaveformView
+        android:id="@+id/calibratedWaveformView"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginTop="2dp"
+        android:layout_marginBottom="2dp"
+        app:layout_constraintBottom_toTopOf="@id/actionText"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/graphCalibrationRow" />
+
+    <ProgressBar
+        android:id="@+id/waveformLoadingIndicator"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:indeterminateTint="#128CB2"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="@id/calibratedWaveformView"
+        app:layout_constraintEnd_toEndOf="@id/calibratedWaveformView"
+        app:layout_constraintStart_toStartOf="@id/calibratedWaveformView"
+        app:layout_constraintTop_toTopOf="@id/calibratedWaveformView" />
+
+    <TextView
+        android:id="@+id/actionText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="4dp"
+        android:text="@string/play_recording"
+        android:textColor="@color/text_primary"
+        android:textSize="12sp"
+        app:layout_constraintBottom_toTopOf="@id/playButton"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <ImageButton
+        android:id="@+id/playButton"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_marginBottom="10dp"
+        android:background="@drawable/bg_record_button"
+        android:contentDescription="Play"
+        android:elevation="8dp"
+        android:padding="0dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_play_circle"
+        app:layout_constraintBottom_toTopOf="@id/saveDiscardBar"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:tint="@color/white" />
+
+    <LinearLayout
+        android:id="@+id/saveDiscardBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginBottom="12dp"
+        android:orientation="horizontal"
+        app:layout_constraintBottom_toBottomOf="parent">
+
+        <Button
+            android:id="@+id/discardButton"
+            android:layout_width="0dp"
+            android:layout_height="38dp"
+            android:layout_marginEnd="8dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_button_outlined"
+            android:text="Discard"
+            android:textAllCaps="false"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/applyButton"
+            android:layout_width="0dp"
+            android:layout_height="38dp"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_button_teal"
+            android:text="Apply"
+            android:textAllCaps="false"
+            android:textColor="@color/white"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>
+```
 
 ### 4.12 `res/layout/fragment_dpi_calibration.xml`
 
@@ -2646,17 +3218,24 @@ re-discovering the same problem.
 
 ## 7. Current constants — quick reference
 
-| Constant | Recorder | Player | Notes |
-|---|---|---|---|
-| `PaperSpeed` | `SPEED_12_5` (12.5mm/s) | `SPEED_12_5` (12.5mm/s) | production default via `CalibratedMmScale` is `SPEED_25`; both screens override it explicitly in `setupWaveformChart()` |
-| `HEADROOM` | `1.2f` (~83% fill) | `1.2f` (~83% fill) | production Recording was `1.5f`; production Player doesn't use this constant (fixed ±0.5, never adaptive) |
-| `MIN_PEAK` | `0.02f` | `0.02f` | unchanged from production |
-| `WARMUP_MS` | `2000` | n/a (player has the whole file already) | unchanged from production |
-| `WARMUP_PERCENTILE` | `0.97f` | n/a | new — production has no equivalent (used raw max) |
-| `TRACE_LINE_WIDTH_DP` | `1.5f` | `2.5f` | unchanged from production (reverted after a brief bump to 3.0/3.5) |
-| `FOLLOW_SMOOTHING` | n/a | `0.15f` | new — production snaps directly to timestamp every callback |
-| `DOWNSAMPLE_BUCKET` (recorder) / `TARGET_POINT_BUDGET` (player) | `88` | `3000` | min/max bucket sizing, tuned to match production's point density |
-| Zoom | disabled (`setTouchEnabled(false)`) | enabled, max-zoom-out capped at derived window, **no min cap** (fixed bug — see log point 3) | |
+> **This table is obsolete** — it describes the adaptive `HEADROOM`/`WARMUP_MS`/
+> `WARMUP_PERCENTILE`/`MIN_PEAK` scheme from §6 point 8, which the later "Fixed-scale + Kardia
+> grid" task (not logged in §6 — that log stops at point 9) removed entirely in favor of a
+> single fixed `FIXED_FULL_SCALE` constant (Fix A). None of those four constants exist in the
+> code anymore. **Kept below for historical reference only — see §9's table for accurate,
+> current values.**
+>
+> | Constant | Recorder | Player | Notes |
+> |---|---|---|---|
+> | `PaperSpeed` | `SPEED_12_5` (12.5mm/s) | `SPEED_12_5` (12.5mm/s) | production default via `CalibratedMmScale` is `SPEED_25`; both screens override it explicitly in `setupWaveformChart()` |
+> | `HEADROOM` | `1.2f` (~83% fill) | `1.2f` (~83% fill) | production Recording was `1.5f`; production Player doesn't use this constant (fixed ±0.5, never adaptive) |
+> | `MIN_PEAK` | `0.02f` | `0.02f` | unchanged from production |
+> | `WARMUP_MS` | `2000` | n/a (player has the whole file already) | unchanged from production |
+> | `WARMUP_PERCENTILE` | `0.97f` | n/a | new — production has no equivalent (used raw max) |
+> | `TRACE_LINE_WIDTH_DP` | `1.5f` | `2.5f` | unchanged from production (reverted after a brief bump to 3.0/3.5) |
+> | `FOLLOW_SMOOTHING` | n/a | `0.15f` | new — production snaps directly to timestamp every callback |
+> | `DOWNSAMPLE_BUCKET` (recorder) / `TARGET_POINT_BUDGET` (player) | `88` | `3000` | min/max bucket sizing, tuned to match production's point density |
+> | Zoom | disabled (`setTouchEnabled(false)`) | enabled, max-zoom-out capped at derived window, **no min cap** (fixed bug — see log point 3) | |
 
 ---
 
@@ -2676,14 +3255,276 @@ re-discovering the same problem.
    "1mm = 1mm" is only strictly true at 1x. This is accepted behavior, not a bug, but worth
    flagging to anyone reviewing the calibration claim.
 5. **The "translate Player's ideal zoom into Recorder's PaperSpeed" idea (log point 9)** was
-   discussed but never implemented. If picked back up: ask the user what visible-seconds count
-   (or which of the 3 standard speeds) looked best when they experimented in the Player, then
-   set that `CalibratedPaperSpeed` value in both `CalibratedRecordingFragment.setupWaveformChart()`
-   and `CalibratedPlayerFragment.setupWaveformChart()`.
+   discussed but never implemented. ~~If picked back up: ask the user what visible-seconds
+   count...~~ **Superseded, see §9**: implemented as a full feature 2026-08-20 — not a
+   `PaperSpeed` translation, but a direct per-device override (`GraphCalibration`) of the
+   effective Y full-scale and visible-seconds window, set by pinching the Player and pressing
+   Apply, consumed by both screens.
 6. **Amplitude mismatch between recorder and player is real and expected**: the recorder
    divides the live signal by the pre-amp gain before drawing (so the trace reflects true
    acoustic level); the player never does this (the file already has gain baked in, and
    production never compensated for it either). So the *same* recording can look different in
    scale between the live view and the review view whenever pre-amp ≠ 0dB (default is 5dB).
    This exactly mirrors production's own behavior — not a regression, but worth knowing before
-   "fixing" it without realizing it's intentional parity.
+   "fixing" it without realizing it's intentional parity. **Partially addressed since**: the
+   Player now receives `preAmpDb` via nav bundle for a *just-recorded* file and undoes the same
+   gain on load (`loadFullWaveform`'s `recordedPreAmpDb` param) — see §9's journey and
+   `CalibratedPlayerFragment.kt` §4.7. Still not fixed for a recording reopened later from the
+   saved-recordings library (pre-amp isn't persisted as file metadata) — that part of this gap
+   remains open.
+
+---
+
+## 9. Per-Device Graph Calibration Feature (added 2026-08-20)
+
+This section is the up-to-date source of truth for everything below — §6 and §7 above predate
+this feature entirely and are kept only as historical record (§6 stops at "point 9: never
+actually executed", which this feature is the eventual, differently-shaped implementation of).
+
+### 9.1 State immediately before this feature existed
+
+Right after the separate "Fixed-scale live waveform + Kardia-style grid" task (five fixes,
+never logged in §6 above — that gap is itself worth knowing about):
+- **Fix A**: Y-axis became a single fixed full-scale (`FIXED_FULL_SCALE`, normalized ±value),
+  set once at chart setup and never touched again during a session — replacing the earlier
+  adaptive `HEADROOM`/`WARMUP_MS`/`WARMUP_PERCENTILE` scheme (§6 point 8) entirely, on the
+  reasoning that a fixed axis trades per-recording optimality for stability (deliberately how
+  Kardia's own ECG display works).
+- **Fix B**: live/review pre-amp display parity — `CalibratedPlayerFragment` given the same
+  fixed axis constant as the Recorder, so the same recording renders at the same size live and
+  in review (at default pre-amp).
+- **Fix C**: Kardia-style grid — faint minor lines, bold major lines, pixel-snapped.
+- **Fix D**: zoom-driven re-bucketing bug in the Player fixed (`rebucketForCurrentZoom`) — the
+  min/max downsample bucket is re-derived from whatever X range is *currently visible*, not
+  frozen at load time, so pinch-zoomed playback shows real samples instead of a stretched
+  synthetic sawtooth.
+- **Fix E**: status captions updated to describe the fixed axis.
+
+After those fixes, `FIXED_FULL_SCALE` was hand-tuned via live on-device logcat analysis to
+`0.013f` on one physical phone (Samsung SM-A066B/"A06") — and it looked genuinely wrong on a
+second phone (OnePlus 7T, different pixel density/width). **That mismatch is the direct reason
+this feature exists**: a single hardcoded constant cannot look right on every screen, so instead
+of re-tuning forever, let each device calibrate itself once and remember it.
+
+### 9.2 What was asked for (paraphrased from chat)
+
+> Give users a default setting like before. Once a good recording is done, let them pinch-zoom
+> and/or drag a slider on the Player screen until the graph looks right for their phone. Apply
+> makes that the new default (for **both** Recorder and Player — same reason `FIXED_FULL_SCALE`
+> was already a single shared constant) until changed. A Reset button reverts to the built-in
+> default. The setting must be remembered (persisted) until Reset is pressed.
+
+### 9.3 Full chronological journey (this feature's own history)
+
+1. **Plan approved** (`GraphCalibration.kt` object + a toggle-able calibration panel on the
+   Player with two labeled sliders — "Peak Size" small↔large, "Time Zoom" wide↔narrow — plus
+   Apply/Reset buttons and a status line). Implemented: `GraphCalibration.kt` created;
+   `CalibratedPlayerFragment` wired with `tuneButton` (toggles the panel), `peakSizeSlider`,
+   `timeZoomSlider`, `applyCalibrationButton`, `resetCalibrationButton`; both fragments read
+   `GraphCalibration.getOverride(context)` at chart setup, substituting it for
+   `FIXED_FULL_SCALE`/the grid-derived default window when present.
+2. **Bug — Time Zoom slider only worked one direction.** Dragging toward "Wide" visibly did
+   nothing. Root cause: `chart.setVisibleXRangeMaximum(seconds)` alone only sets a *zoom-out
+   ceiling* (a floor on `scaleX`) — it forces the view narrower if it's currently too wide, but
+   does nothing if the requested width is *wider* than the current zoom (that only relaxes the
+   ceiling, it doesn't pull the view back out). Fixed by adding `forceVisibleSeconds(seconds)`:
+   momentarily pin *both* `setVisibleXRangeMinimum` and `setVisibleXRangeMaximum` to the exact
+   target (forcing `scaleX` to that value in either direction), re-center, then relax the
+   minimum bound back to effectively unlimited so pinch-zoom-in still works afterward. Reused
+   for Reset too (a prior wider pinch/slide needed the same forcing to snap back).
+3. **User: "graph should also adjust as I drag the slider so the user can see what's going
+   on."** Confirmed as the same class of fix as #2; verified working after the fix above.
+4. **User: "make it work together — pinch should move the slider and vice versa" + "small and
+   large seems not to work."** Two separate real bugs:
+   - The Peak Size slider set `chart.axisLeft.axisMinimum`/`axisMaximum` directly, but never
+     called `chart.notifyDataSetChanged()`. Axis bounds alone only update the axis's own
+     bookkeeping (labels, if drawn) — the *trace's* pixel-transform matrix isn't recomputed
+     until something calls `notifyDataSetChanged()`/`calculateOffsets()`, so the peaks visually
+     never resized even though the slider moved. Fixed by adding the missing call.
+   - Pinch was, at the time, restricted to X only (`setScaleYEnabled(false)`) specifically to
+     avoid a second, independent Y-scaling mechanism (MPAndroidChart's own touch-matrix
+     `scaleY`) fighting the slider's axis-bounds approach. `onChartGestureEnd` was wired to sync
+     the Time Zoom slider's position from the current pinch/pan state whenever the panel was
+     open.
+5. **User: "I lost my fingers for small/large."** Disabling Y-pinch in step 4 was too blunt —
+   the user actually wanted *both* mechanisms live at once, composing correctly. Re-enabled
+   `setScaleYEnabled(true)`, then reconciled the two Y mechanisms properly:
+   - `currentEffectiveYFullScale()` = `chart.axisLeft.axisMaximum / chart.viewPortHandler.scaleY`
+     — the *true* currently-displayed Y range, folding the fixed axis bounds together with
+     whatever pinch-driven `scaleY` is layered on top (mirrors how X already reads its true
+     state via `chart.highestVisibleX`/`lowestVisibleX` rather than raw axis bounds, relying on
+     the Y axis always being centered at 0 via every `centerViewTo(x, 0f, ...)` call in the
+     fragment).
+   - The Peak Size slider's handler multiplies its target by the *current* `scaleY` before
+     writing `axisMaximum`, so it always lands on exactly the value it displays regardless of
+     whether the user pinched Y before or after touching it.
+   - `applyBuiltInDefaultScale()` (Reset) now calls `chart.fitScreen()` first, clearing any
+     pinch-driven X/Y viewport zoom, before reapplying the built-in axis bounds — otherwise a
+     prior vertical pinch would still be layered on top of the "reset" state.
+6. **User: redesign request** — *"remove the save button and make it record button... once
+   apply it should go to recording screen. Add the apply button in the front itself and hide
+   the idea of sliders — best if the user just uses the graph and pinch to zoom, then Apply and
+   see it in the record screen."* Large simplification:
+   - `tuneButton` and the entire slider-panel `MaterialCardView` (Peak Size/Time Zoom sliders,
+     their own Apply/Reset row) removed from `fragment_calibrated_player.xml`.
+   - Replaced with a compact, always-visible `graphCalibrationRow` (status text + a small
+     `resetCalibrationButton`) — no toggle needed since there's nothing to hide anymore.
+   - The bottom bar's `saveButton` (`"Save"`, previously navigated to `SaveRecordingFragment` or
+     showed a save/discard dialog) was repurposed into `applyButton` (`"Apply"`): it now reads
+     the current pinch-tuned view (`chart.highestVisibleX - chart.lowestVisibleX` and
+     `currentEffectiveYFullScale()`), calls `GraphCalibration.saveOverride(...)`, and calls
+     `findNavController().navigateUp()` — which always lands back on the Recorder, since that's
+     the only screen that navigates to the Calibrated Player.
+   - All slider-mapping helper functions (`sliderToYFullScale`, `yFullScaleToSlider`,
+     `sliderToVisibleSeconds`, `visibleSecondsToSlider`) and `syncCalibrationSlidersToCurrentState()`
+     were deleted as dead code; `MAX_Y_FULL_SCALE`/`MIN_Y_FULL_SCALE`/`MAX_VISIBLE_SECONDS`
+     constants removed (only `MIN_VISIBLE_SECONDS` survives, still used by
+     `forceVisibleSeconds()`'s relax-the-floor step).
+   - `discardButton` unchanged (still deletes temp files + navigates up for a new recording).
+7. **User: "graph size is bigger... looks very noisy and bad" after Apply.** Real bug, same
+   class as Fix D but on the **Recorder** this time, only exposed once an override could make
+   the effective window differ from the grid's native derivation. `CalibratedRecordingFragment`
+   derived `sessionBucketSize` (the live min/max downsample density) purely from the paper's
+   *native*, un-overridden pixel-per-second rate (`deriveBucketSize(sampleRate, paperSpeed,
+   pxPerMmX)`) — never from the actual effective window an active override might have narrowed.
+   A saved Time Zoom override that narrowed the window (more zoomed in) left the bucket sized
+   for the old, wider native view: each min/max pair then spanned several screen pixels instead
+   of roughly one, reading as jagged/noisy. Fixed by deriving the bucket from the *effective*
+   window instead — `CalibratedWaveformView.deriveBucketSizeForVisibleRange(currentWindowSeconds
+   * sampleRate, plotWidthPx)`, the exact same function Fix D already used for the Player's
+   pinch-zoom — with the old paper-speed-only derivation kept only as a pre-layout fallback
+   (`plotWidthPx <= 0f`).
+8. **`FIXED_FULL_SCALE` retuned by direct request**, now that per-device calibration exists to
+   fix up whatever the default looks like: `0.013f` (the old, one-device-tuned value that
+   started this whole feature) → **`0.30f`** ("make the graph normal again, not 0.013" — small
+   on first launch, pinch/Apply is what should make it look correct) → **`0.20f`** ("make it a
+   bit big") → **`0.10f`** ("make it 0.20 to 0.10", still bigger). Deliberately **not**
+   re-optimized for any specific device at any of these values — that's what calibration is for
+   now; this constant is only ever the small, neutral starting point every device shares.
+9. **`TRACE_LINE_WIDTH_DP` bumped** ("check if the thickness reduces when we hit apply, it's a
+   bit thin"). Investigated first: line width is a fixed dp constant set once at dataset
+   creation, untouched by Apply/Reset/zoom code — it does **not** literally shrink. What's real:
+   a fixed-width stroke reads as *relatively* thinner once `FIXED_FULL_SCALE`/pinch make the
+   peaks occupy more of the screen. Bumped on request: Recorder `1.5f → 2.0f`, Player
+   `2.5f → 3.0f`.
+
+### 9.4 Full source: `ecg/calibrated/GraphCalibration.kt`
+
+```kotlin
+package com.musediagnostics.taal.app.ecg.calibrated
+
+import android.content.Context
+
+/**
+ * Persisted per-device override for the calibrated screens' default zoom/scale — "Peak Size"
+ * and "Time Zoom", set from the Player's calibration panel and shared by both the Player and
+ * the Recorder (so live recording and review keep matching sizes on that device).
+ *
+ * Same `SharedPreferences`-backed object pattern as [DpiCalibration], but a distinct, unrelated
+ * concern — this is a *visual preference* (how big things look on this specific screen), not a
+ * physical-accuracy correction like px-per-mm.
+ *
+ * We deliberately persist [Override.visibleSeconds] and [Override.yFullScale] — physical,
+ * portable quantities read back directly from the chart — rather than MPAndroidChart's raw
+ * pinch-zoom scale factors (`viewPortHandler.scaleX`/`scaleY`). Those scale factors are
+ * relative to whatever file happens to be loaded at the time (confirmed via a live-tuning
+ * session: the same `scaleX` value meant a different number of visible seconds depending on
+ * file length), so persisting them and replaying them against a different recording later
+ * would not reproduce the same visual result. `visibleSeconds`/`yFullScale` have no such
+ * dependency — they mean the same thing regardless of which file is open.
+ */
+object GraphCalibration {
+    private const val PREFS_NAME = "calibrated_graph_prefs"
+    private const val KEY_HAS_OVERRIDE = "has_override"
+    private const val KEY_VISIBLE_SECONDS = "visible_seconds"
+    private const val KEY_Y_FULL_SCALE = "y_full_scale"
+
+    data class Override(val visibleSeconds: Float, val yFullScale: Float)
+
+    /** Null when no calibration has been applied on this device — callers fall back to their own built-in default. */
+    fun getOverride(context: Context): Override? {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        if (!prefs.getBoolean(KEY_HAS_OVERRIDE, false)) return null
+        val visibleSeconds = prefs.getFloat(KEY_VISIBLE_SECONDS, 0f)
+        val yFullScale = prefs.getFloat(KEY_Y_FULL_SCALE, 0f)
+        if (visibleSeconds <= 0f || yFullScale <= 0f) return null // corrupt/stale — ignore rather than crash
+        return Override(visibleSeconds, yFullScale)
+    }
+
+    fun saveOverride(context: Context, visibleSeconds: Float, yFullScale: Float) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putFloat(KEY_VISIBLE_SECONDS, visibleSeconds)
+            .putFloat(KEY_Y_FULL_SCALE, yFullScale)
+            .putBoolean(KEY_HAS_OVERRIDE, true)
+            .apply()
+    }
+
+    fun clearOverride(context: Context) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .remove(KEY_VISIBLE_SECONDS)
+            .remove(KEY_Y_FULL_SCALE)
+            .putBoolean(KEY_HAS_OVERRIDE, false)
+            .apply()
+    }
+}
+```
+
+### 9.5 How it actually works today (mechanics reference)
+
+- **`CalibratedPlayerFragment.setupWaveformChart()`** reads `GraphCalibration.getOverride(context)`
+  once at setup, storing it in the `calibrationOverride` field. If present, its `yFullScale`
+  replaces `FIXED_FULL_SCALE` for the initial axis bounds, and its `visibleSeconds` replaces the
+  grid-derived default inside `onVisibleSecondsChanged` (which still runs every time, e.g. on
+  rotation — the override just supersedes its result whenever active).
+- **Pinch** (both X via `setScaleXEnabled(true)` and Y via `setScaleYEnabled(true)`) works
+  live, no extra wiring — MPAndroidChart's own touch matrix handles it; `onChartGestureEnd`
+  triggers Fix D's `rebucketForCurrentZoom()` afterward so trace density matches the new zoom.
+- **`currentEffectiveYFullScale()`** — `chart.axisLeft.axisMaximum / chart.viewPortHandler.scaleY`
+  — is the single source of truth for "what Y range is actually showing right now," used by
+  both the Apply button and (previously) the slider sync.
+- **`applyButton`** (bottom bar, was `saveButton`) reads `chart.highestVisibleX -
+  chart.lowestVisibleX` for X and `currentEffectiveYFullScale()` for Y, calls
+  `GraphCalibration.saveOverride(context, visibleSeconds, yFullScale)`, updates the in-memory
+  `calibrationOverride` field, and navigates up (back to the Recorder).
+- **`resetCalibrationButton`** calls `GraphCalibration.clearOverride(context)`, sets
+  `calibrationOverride = null`, then `applyBuiltInDefaultScale()`: `chart.fitScreen()` (clears
+  pinch-driven X/Y zoom) → reapply `±FIXED_FULL_SCALE` → `notifyDataSetChanged()` → 
+  `recomputeVisibleSeconds()` (re-derives the grid-native window, now unopposed since the
+  override is cleared) → `forceVisibleSeconds(currentWindowSeconds)` (actually snaps the view,
+  since `setVisibleXRangeMaximum` alone can't widen an already-narrower view) →
+  `rebucketForCurrentZoom()` → `invalidate()`.
+- **`CalibratedRecordingFragment.setupWaveformChart()`** does the same override substitution for
+  its initial axis and window, and **also derives `sessionBucketSize` from the effective window**
+  (not just paper speed — see journey point 7). **`onResume()`** re-reads the override and
+  re-applies axis + window, so coming back from the Player after Apply/Reset reflects
+  immediately without the fragment needing to be recreated.
+- **Tests**: `GraphCalibrationTest.kt` — plain-JVM, so it can only test `Override`'s data shape
+  and the save/get/clear validity rule as an isolated boolean check (`visibleSeconds<=0 ||
+  yFullScale<=0`), not the real `Context`-backed methods (no Robolectric/Mockito in this
+  module) — same scope limitation as the pre-existing `DpiCalibration` tests in
+  `CalibratedMmScaleTest.kt`.
+
+### 9.6 Comparison table — Original vs In-Between vs Now
+
+"Original" = right after Fix A–E, before this feature existed at all. "In-Between" = the
+slider-panel design (journey points 1–5). "Now" = current, pinch-only design (journey points
+6–9).
+
+| Aspect | Original (pre-feature) | In-Between (slider panel) | Now (pinch + Apply) |
+|---|---|---|---|
+| Default Y scale (`FIXED_FULL_SCALE`) | `0.013f` — hand-tuned on one specific device (Samsung A06), wrong on others | same `0.013f` baseline, but now *overridable* per device | `0.10f` — small, neutral, deliberately not tuned for any device (`0.30f → 0.20f → 0.10f` by request) |
+| Per-device size adjustment | **None** — one constant, shared by every install | Peak Size / Time Zoom **sliders**, plus pinch (with bugs — see journey 2–4) | **Pinch only** (both axes), no sliders |
+| Y-axis pinch-zoom | N/A (no calibration UI yet); underlying `setScaleEnabled(true)` was already on but nothing read it back | **Disabled** partway through (`setScaleYEnabled(false)`) to avoid fighting the slider | **Enabled**, reconciled with the axis-bounds mechanism via `currentEffectiveYFullScale()` |
+| X-axis pinch-zoom | Worked (production behavior, Fix D re-buckets it) | Worked, plus a **broken** one-directional slider (`forceVisibleSeconds` didn't exist yet) | Works; slider removed, pinch is now the only X control besides the caption |
+| Sync between pinch and any UI control | N/A | Attempted via `onChartGestureEnd` → `syncCalibrationSlidersToCurrentState()`, only for Time Zoom at first, later both | N/A — nothing to sync anymore; the graph itself *is* the control |
+| Peak Size slider actually resizing the trace | N/A | **Broken at first** — set axis bounds but never called `notifyDataSetChanged()`, so the trace didn't move even though the label/state did | N/A — slider removed |
+| Calibration panel UI | Doesn't exist | Toggle button (`tuneButton`) + collapsible `MaterialCardView` with 2 sliders + status text + its own Apply/Reset row | Compact **always-visible** row: status text + small `Reset` button — no toggle needed |
+| Bottom bar "Save" button | `"Save"` — production-style flow: new recording → navigate to `SaveRecordingFragment`; existing recording → save/discard dialog | Unchanged — Save still did the old thing; calibration Apply was a *separate* button inside the panel | **Repurposed to `"Apply"`** — saves the current pinch-tuned calibration and navigates back to the Recorder. No save-to-library flow left on this screen. |
+| What "Apply" does | N/A | Reads `chart.axisLeft.axisMaximum` directly for Y (didn't account for pinch `scaleY` — would've been wrong once Y-pinch was later re-enabled) | Reads `currentEffectiveYFullScale()` (axis ÷ scaleY, correct regardless of how you got there) + `highestVisibleX - lowestVisibleX`; saves; **navigates to the Recorder** |
+| Reset | N/A | Reapplied `FIXED_FULL_SCALE` + grid window; did **not** clear pinch-driven zoom (`viewPortHandler` state), so a prior pinch could still show through | Calls `chart.fitScreen()` first — actually clears all pinch/pan state — then reapplies the built-in default cleanly |
+| Recorder bucket density (live noise/jaggedness) | Not an issue — window was always grid-native by construction (no override could exist) | **Latent bug**, not yet triggered (no override with a materially different window had been Applied yet) | **Bug found and fixed** — `sessionBucketSize` now derives from the *effective* (possibly overridden) window, not just paper speed |
+| Persistence | N/A | `GraphCalibration` SharedPreferences, same as now | Same — unchanged since it was first built |
+| Trace line width | Recorder `1.5f` / Player `2.5f` | Unchanged | Recorder `2.0f` / Player `3.0f` (bumped — fixed width reads relatively thinner at higher zoom) |
+| Live-vs-review consistency across devices | Guaranteed identical (same shared constant) but only ever "correct" on the one device it was tuned against | Same guarantee, now correctable per device via the override both screens read | Same guarantee; correctable per device; default itself is now intentionally neutral instead of pre-tuned |
+
+---

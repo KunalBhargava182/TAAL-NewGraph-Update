@@ -1,0 +1,67 @@
+<!-- ============================================================================
+     PcgScale screens — ADDITIVE nav_graph.xml snippet.
+
+     This file is NOT a resource to compile. Paste the two <fragment> blocks below
+     into app/src/main/res/navigation/nav_graph.xml, alongside the existing
+     calibratedRecordingFragment / fullTimeOnRecordingFragment blocks (e.g. right
+     after the FullTimeOn section). Do NOT change startDestination as part of this
+     paste — if you flip it temporarily to test (current temp value in the live
+     file is fullTimeOnRecordingFragment), revert it when done; that flip is this
+     repo's single most repeated gotcha.
+
+     Reachable for debugging via:
+       adb shell am start -a android.intent.action.VIEW -d "taalapp://pcgscale" <applicationId>
+     The taalapp:// scheme already has an <intent-filter> on MainActivity (added
+     for taalapp://calibrated); an intent-filter matches on scheme, so no manifest
+     change should be needed — verify once on device before relying on it.
+     ============================================================================ -->
+
+    <!-- PcgScale screens — time-true grid (large box = 1s, small box = 0.2s, labeled
+         seconds, scroll-only) with RMS 60%-fill auto Y-scale. Fork of the Calibrated
+         screens; new destinations only. -->
+    <fragment
+        android:id="@+id/pcgScaleRecordingFragment"
+        android:name="com.musediagnostics.taal.app.ui.pcgscale.PcgScaleRecordingFragment"
+        android:label="PCG Scale Recorder"
+        tools:layout="@layout/fragment_pcgscale_recording">
+        <deepLink app:uri="taalapp://pcgscale" />
+        <action
+            android:id="@+id/action_pcgScaleRecording_to_pcgScalePlayer"
+            app:destination="@id/pcgScalePlayerFragment" />
+        <action
+            android:id="@+id/action_pcgScaleRecording_to_savedRecordings"
+            app:destination="@id/savedRecordingsFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/pcgScalePlayerFragment"
+        android:name="com.musediagnostics.taal.app.ui.pcgscale.PcgScalePlayerFragment"
+        android:label="PCG Scale Review"
+        tools:layout="@layout/fragment_pcgscale_player">
+        <argument
+            android:name="filePath"
+            android:defaultValue=""
+            app:argType="string" />
+        <argument
+            android:name="rawFilePath"
+            android:defaultValue=""
+            app:argType="string" />
+        <argument
+            android:name="isNewRecording"
+            android:defaultValue="false"
+            app:argType="boolean" />
+        <argument
+            android:name="filterName"
+            android:defaultValue="HEART"
+            app:argType="string" />
+        <argument
+            android:name="preAmpDb"
+            android:defaultValue="0"
+            app:argType="integer" />
+        <action
+            android:id="@+id/action_pcgScalePlayer_to_equalizer"
+            app:destination="@id/equalizerFragment" />
+        <action
+            android:id="@+id/action_pcgScalePlayer_to_addPatient"
+            app:destination="@id/addPatientFragment" />
+    </fragment>

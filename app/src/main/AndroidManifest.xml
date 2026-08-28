@@ -43,6 +43,18 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!-- Debug entry point for the calibrated ECG-paper screens (not reachable from
+                 any always-visible production button — see nav_graph.xml's calibratedRecordingFragment
+                 deep link). Reach it with:
+                 adb shell am start -a android.intent.action.VIEW -d "taalapp://calibrated" <applicationId> -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="taalapp" android:host="calibrated" />
+                <data android:scheme="taalapp" android:host="pcgscale" />
+            </intent-filter>
         </activity>
 
     </application>

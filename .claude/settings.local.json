@@ -167,7 +167,19 @@
       "Bash(git rm *)",
       "Bash(\"C:\\\\Users\\\\kunal\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" disconnect *)",
       "Bash(\"C:\\\\Users\\\\kunal\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" kill-server *)",
-      "Bash(\"C:\\\\Users\\\\kunal\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" start-server *)"
+      "Bash(\"C:\\\\Users\\\\kunal\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" start-server *)",
+      "Bash(mv __TRACKED_VAR__/sdk/core/src/main/kotlin/com/purnacardio/signal/pcg/CardiacSegmenter.kt taal-segmentation-core/src/main/kotlin/com/purnacardio/signal/pcg/)",
+      "Bash(mv __TRACKED_VAR__/sdk/core/src/main/kotlin/com/purnacardio/signal/pcg/PcgFeatureExtractor.kt taal-segmentation-core/src/main/kotlin/com/purnacardio/signal/pcg/)",
+      "Bash(mv __TRACKED_VAR__/sdk/core/src/main/kotlin/com/purnacardio/signal/pcg/Pcm.kt taal-segmentation-core/src/main/kotlin/com/purnacardio/signal/pcg/)",
+      "Bash(mv __TRACKED_VAR__/sdk/core/src/main/kotlin/com/purnacardio/signal/pcg/S1Result.kt taal-segmentation-core/src/main/kotlin/com/purnacardio/signal/pcg/)",
+      "Bash(mv __TRACKED_VAR__/sdk/core/src/main/kotlin/com/purnacardio/signal/pcg/SegmentationResult.kt taal-segmentation-core/src/main/kotlin/com/purnacardio/signal/pcg/)",
+      "Bash(mv __TRACKED_VAR__/docs/API.md docs/pcg-segmentation/)",
+      "Bash(mv __TRACKED_VAR__/docs/AUDIO_CAPTURE.md docs/pcg-segmentation/)",
+      "Bash(mv __TRACKED_VAR__/docs/INTEGRATION.md docs/pcg-segmentation/)",
+      "Bash(mv __TRACKED_VAR__/docs/MODEL_CARD.md docs/pcg-segmentation/)",
+      "Bash(mv __TRACKED_VAR__/README.md docs/pcg-segmentation/)",
+      "Bash(rm \"app/src/main/java/com/musediagnostics/taal/app/ui/segmentation/SegmentationReportFragment.kt\" \"app/src/main/res/layout/fragment_segmentation_report.xml\")",
+      "Bash(rmdir \"app/src/main/java/com/musediagnostics/taal/app/ui/segmentation\")"
     ]
   }
 }

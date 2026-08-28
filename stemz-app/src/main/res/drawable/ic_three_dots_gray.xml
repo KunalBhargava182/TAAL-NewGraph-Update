@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="26dp"
+    android:height="26dp"
+    android:viewportWidth="26"
+    android:viewportHeight="26">
+    <!-- Circle outline (stroke converted to filled ring) -->
+    <path
+        android:fillColor="#B3B3B3"
+        android:fillType="evenOdd"
+        android:pathData="M13,0c7.18,0 13,5.82 13,13c0,7.18 -5.82,13 -13,13C5.82,26 0,20.18 0,13C0,5.82 5.82,0 13,0ZM13,2.5c5.799,0 10.5,4.701 10.5,10.5c0,5.799 -4.701,10.5 -10.5,10.5C7.201,23.5 2.5,18.799 2.5,13C2.5,7.201 7.201,2.5 13,2.5Z"/>
+    <!-- Left dot -->
+    <path
+        android:fillColor="#B3B3B3"
+        android:pathData="M8.747,13.738m-1.747,0a1.747,1.738 0,1 1,3.494,0a1.747,1.738 0,1 1,-3.494,0"/>
+    <!-- Center dot -->
+    <path
+        android:fillColor="#B3B3B3"
+        android:pathData="M13.423,13.738m-1.747,0a1.747,1.738 0,1 1,3.494,0a1.747,1.738 0,1 1,-3.494,0"/>
+    <!-- Right dot -->
+    <path
+        android:fillColor="#B3B3B3"
+        android:pathData="M18.1,13.738m-1.747,0a1.747,1.738 0,1 1,3.494,0a1.747,1.738 0,1 1,-3.494,0"/>
+</vector>

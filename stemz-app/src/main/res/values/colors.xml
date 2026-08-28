@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Primary Brand Colors -->
+    <color name="red_primary">#E85555</color>
+    <color name="blue_primary">#4A90D9</color>
+    <color name="teal_primary">#2ABFBF</color>
+    <color name="teal_dark">#1FA3A3</color>
+
+    <!-- Secondary Colors -->
+    <color name="orange_secondary">#F5A623</color>
+    <color name="cyan_secondary">#7ED6D6</color>
+    <color name="blue_vibrant">#2D7DD2</color>
+
+    <!-- Neutral Colors -->
+    <color name="white">#FFFFFF</color>
+    <color name="background">#F5F5F5</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="input_background">#F0F0F0</color>
+    <color name="divider">#E0E0E0</color>
+
+    <!-- Text Colors -->
+    <color name="text_primary">#333333</color>
+    <color name="text_secondary">#999999</color>
+    <color name="text_hint">#BBBBBB</color>
+    <color name="text_on_primary">#FFFFFF</color>
+
+    <!-- Status Colors -->
+    <color name="recording_red">#E85555</color>
+    <color name="success_green">#4CAF50</color>
+    <color name="warning_orange">#FF9800</color>
+
+    <!-- EQ Frequency Range Colors -->
+    <color name="eq_heart_sound">#F5A623</color>
+    <color name="eq_lungs_sound">#4A90D9</color>
+    <color name="eq_noise">#E85555</color>
+
+    <!-- Waveform -->
+    <color name="waveform_blue">#2D7DD2</color>
+    <color name="waveform_grid">#E8E8E8</color>
+
+    <!-- ECG Grid -->
+    <color name="ecg_background">#FFF5F5</color>
+    <color name="ecg_grid_minor">#FFDEDE</color>
+    <color name="ecg_grid_major">#FFBABA</color>
+
+    <!-- Navigation Drawer -->
+    <color name="drawer_background">#FFFFFF</color>
+    <color name="drawer_item_text">#555555</color>
+    <color name="drawer_item_icon">#999999</color>
+</resources>

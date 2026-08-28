@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <declare-styleable name="EcgPaperView">
+        <attr name="ecgPaperSpeed" format="enum">
+            <enum name="speed_12_5" value="0" />
+            <enum name="speed_25" value="1" />
+            <enum name="speed_50" value="2" />
+        </attr>
+        <attr name="ecgGain" format="enum">
+            <enum name="gain_5" value="0" />
+            <enum name="gain_10" value="1" />
+            <enum name="gain_20" value="2" />
+        </attr>
+        <attr name="ecgTheme" format="enum">
+            <enum name="paper" value="0" />
+            <enum name="monitor" value="1" />
+        </attr>
+        <attr name="ecgShowCalibrationPulse" format="boolean" />
+        <attr name="ecgShowTimeTicks" format="boolean" />
+        <attr name="ecgPaperColor" format="color" />
+        <attr name="ecgMinorGridColor" format="color" />
+        <attr name="ecgMajorGridColor" format="color" />
+    </declare-styleable>
+</resources>

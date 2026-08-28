@@ -10,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId = "com.musediagnostics.taal"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 34
         versionCode = 1
         versionName = "1.1"
@@ -45,6 +45,7 @@ android {
 dependencies {
     // TAAL Core SDK
     implementation(project(":taal-core"))
+    implementation(project(":taal-segmentation"))
 
     // Core Android
     implementation("androidx.core:core-ktx:1.12.0")

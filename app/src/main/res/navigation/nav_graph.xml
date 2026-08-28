@@ -3,7 +3,9 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/nav_graph"
-    app:startDestination="@id/recordingFragment">
+    app:startDestination="@id/pcgScaleRecordingFragment">
+    <!-- TEMP: flipped to pcgScaleRecordingFragment for on-device testing (2026-08-25).
+         Revert to @id/recordingFragment before shipping. -->
 
     <!-- Splash Screen -->
     <fragment
@@ -250,7 +252,36 @@
         <action
             android:id="@+id/action_player_to_saveRecording"
             app:destination="@id/saveRecordingFragment" />
+        <action
+            android:id="@+id/action_player_to_segmentationReport"
+            app:destination="@id/segmentationReportFragment" />
     </fragment>
+
+    <!-- Heart segmentation report — reached from PlayerFragment's "Analyze Heart Sounds" button
+         on an already-saved recording (gated by SegmentationFeature.ENABLED). Runs
+         TaalCardiacSegmentation on the saved raw file and shows the PcgSegmentationView chart
+         plus a downloadable text report. -->
+    <fragment
+        android:id="@+id/segmentationReportFragment"
+        android:name="com.musediagnostics.taal.app.ui.segmentation.SegmentationReportFragment"
+        android:label="Segmentation Report"
+        tools:layout="@layout/fragment_segmentation_report">
+        <argument
+            android:name="rawFilePath"
+            android:defaultValue=""
+            app:argType="string" />
+        <action
+            android:id="@+id/action_segmentationReport_to_segmentationFullScreen"
+            app:destination="@id/segmentationFullScreenFragment" />
+    </fragment>
+
+    <!-- Full-screen landscape chart — reads the already-computed result from the shared
+         SegmentationViewModel, no nav args (SegmentationResult isn't Parcelable). -->
+    <fragment
+        android:id="@+id/segmentationFullScreenFragment"
+        android:name="com.musediagnostics.taal.app.ui.segmentation.SegmentationFullScreenFragment"
+        android:label="Full Segmentation"
+        tools:layout="@layout/fragment_segmentation_fullscreen" />
 
     <fragment
         android:id="@+id/equalizerFragment"
@@ -415,6 +446,10 @@
             android:name="filterName"
             android:defaultValue="HEART"
             app:argType="string" />
+        <argument
+            android:name="popUpToDestination"
+            android:defaultValue="@id/recordingFragment"
+            app:argType="reference" />
         <action
             android:id="@+id/action_saveRecording_to_savedRecordings"
             app:destination="@id/savedRecordingsFragment" />
@@ -429,6 +464,194 @@
         <action
             android:id="@+id/action_savedRecordings_to_player"
             app:destination="@id/playerFragment" />
+        <action
+            android:id="@+id/action_savedRecordings_to_pcgScaleReview"
+            app:destination="@id/pcgScaleReviewFragment" />
+    </fragment>
+
+    <!-- Calibrated ECG-paper screens — see docs/notes/WAVEFORM_GRAPH_AND_GRID_REFERENCE.md.
+         New destinations only; startDestination stays recordingFragment. Reachable via the
+         Calibrated Recorder's own "Calibrate grid" button chain, or directly for debugging via
+         `adb shell am start -a android.intent.action.VIEW -d "taalapp://calibrated" <applicationId>`
+         (deep link registered below + matching <intent-filter> on MainActivity). -->
+    <fragment
+        android:id="@+id/calibratedRecordingFragment"
+        android:name="com.musediagnostics.taal.app.ui.calibrated.CalibratedRecordingFragment"
+        android:label="Calibrated Recorder"
+        tools:layout="@layout/fragment_calibrated_recording">
+        <deepLink app:uri="taalapp://calibrated" />
+        <action
+            android:id="@+id/action_calibratedRecording_to_calibratedPlayer"
+            app:destination="@id/calibratedPlayerFragment" />
+        <action
+            android:id="@+id/action_calibratedRecording_to_savedRecordings"
+            app:destination="@id/savedRecordingsFragment" />
+        <action
+            android:id="@+id/action_calibratedRecording_to_dpiCalibration"
+            app:destination="@id/dpiCalibrationFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/calibratedPlayerFragment"
+        android:name="com.musediagnostics.taal.app.ui.calibrated.CalibratedPlayerFragment"
+        android:label="Calibrated Review"
+        tools:layout="@layout/fragment_calibrated_player">
+        <argument
+            android:name="filePath"
+            android:defaultValue=""
+            app:argType="string" />
+        <argument
+            android:name="isNewRecording"
+            android:defaultValue="false"
+            app:argType="boolean" />
+        <argument
+            android:name="filterName"
+            android:defaultValue="HEART"
+            app:argType="string" />
+        <argument
+            android:name="preAmpDb"
+            android:defaultValue="0"
+            app:argType="integer" />
+        <action
+            android:id="@+id/action_calibratedPlayer_to_equalizer"
+            app:destination="@id/equalizerFragment" />
+        <action
+            android:id="@+id/action_calibratedPlayer_to_addPatient"
+            app:destination="@id/addPatientFragment" />
+        <action
+            android:id="@+id/action_calibratedPlayer_to_saveRecording"
+            app:destination="@id/saveRecordingFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/dpiCalibrationFragment"
+        android:name="com.musediagnostics.taal.app.ui.calibrated.DpiCalibrationFragment"
+        android:label="Ruler Calibration"
+        tools:layout="@layout/fragment_dpi_calibration" />
+
+    <!-- FullTimeOn screens — clone of the Calibrated screens above under a new name (user
+         request, 2026-08-20), currently identical behavior, own destinations so it can evolve
+         independently. Temporarily the app's startDestination — see the comment on
+         app:startDestination at the top of this file. -->
+    <fragment
+        android:id="@+id/fullTimeOnRecordingFragment"
+        android:name="com.musediagnostics.taal.app.ui.fulltimeon.FullTimeOnRecordingFragment"
+        android:label="FullTimeOn Recorder"
+        tools:layout="@layout/fragment_fulltimeon_recording">
+        <action
+            android:id="@+id/action_fullTimeOnRecording_to_fullTimeOnPlayer"
+            app:destination="@id/fullTimeOnPlayerFragment" />
+        <action
+            android:id="@+id/action_fullTimeOnRecording_to_savedRecordings"
+            app:destination="@id/savedRecordingsFragment" />
+        <action
+            android:id="@+id/action_fullTimeOnRecording_to_dpiCalibration"
+            app:destination="@id/dpiCalibrationFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/fullTimeOnPlayerFragment"
+        android:name="com.musediagnostics.taal.app.ui.fulltimeon.FullTimeOnPlayerFragment"
+        android:label="FullTimeOn Review"
+        tools:layout="@layout/fragment_fulltimeon_player">
+        <argument
+            android:name="filePath"
+            android:defaultValue=""
+            app:argType="string" />
+        <argument
+            android:name="isNewRecording"
+            android:defaultValue="false"
+            app:argType="boolean" />
+        <argument
+            android:name="filterName"
+            android:defaultValue="HEART"
+            app:argType="string" />
+        <argument
+            android:name="preAmpDb"
+            android:defaultValue="0"
+            app:argType="integer" />
+        <action
+            android:id="@+id/action_fullTimeOnPlayer_to_equalizer"
+            app:destination="@id/equalizerFragment" />
+        <action
+            android:id="@+id/action_fullTimeOnPlayer_to_addPatient"
+            app:destination="@id/addPatientFragment" />
+        <action
+            android:id="@+id/action_fullTimeOnPlayer_to_saveRecording"
+            app:destination="@id/saveRecordingFragment" />
+    </fragment>
+
+    <!-- PcgScale screens — time-true grid (large box = 1s, small box = 0.2s, labeled
+         seconds, scroll-only) with RMS 60%-fill auto Y-scale. Fork of the Calibrated
+         screens; new destinations only. -->
+    <fragment
+        android:id="@+id/pcgScaleRecordingFragment"
+        android:name="com.musediagnostics.taal.app.ui.pcgscale.PcgScaleRecordingFragment"
+        android:label="PCG Scale Recorder"
+        tools:layout="@layout/fragment_pcgscale_recording">
+        <deepLink app:uri="taalapp://pcgscale" />
+        <action
+            android:id="@+id/action_pcgScaleRecording_to_pcgScalePlayer"
+            app:destination="@id/pcgScalePlayerFragment" />
+        <action
+            android:id="@+id/action_pcgScaleRecording_to_savedRecordings"
+            app:destination="@id/savedRecordingsFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/pcgScalePlayerFragment"
+        android:name="com.musediagnostics.taal.app.ui.pcgscale.PcgScalePlayerFragment"
+        android:label="PCG Scale Review"
+        tools:layout="@layout/fragment_pcgscale_player">
+        <argument
+            android:name="filePath"
+            android:defaultValue=""
+            app:argType="string" />
+        <argument
+            android:name="rawFilePath"
+            android:defaultValue=""
+            app:argType="string" />
+        <argument
+            android:name="isNewRecording"
+            android:defaultValue="false"
+            app:argType="boolean" />
+        <argument
+            android:name="filterName"
+            android:defaultValue="HEART"
+            app:argType="string" />
+        <argument
+            android:name="preAmpDb"
+            android:defaultValue="0"
+            app:argType="integer" />
+        <action
+            android:id="@+id/action_pcgScalePlayer_to_equalizer"
+            app:destination="@id/equalizerFragment" />
+        <action
+            android:id="@+id/action_pcgScalePlayer_to_addPatient"
+            app:destination="@id/addPatientFragment" />
+        <action
+            android:id="@+id/action_pcgScalePlayer_to_saveRecording"
+            app:destination="@id/saveRecordingFragment" />
+    </fragment>
+
+    <!-- PcgScale Review — reviewing an already-saved recording (from SavedRecordingsFragment).
+         Same look as pcgScalePlayerFragment, no save/discard (nothing left to save). -->
+    <fragment
+        android:id="@+id/pcgScaleReviewFragment"
+        android:name="com.musediagnostics.taal.app.ui.pcgscale.PcgScaleReviewFragment"
+        android:label="PCG Scale Review"
+        tools:layout="@layout/fragment_pcgscale_review">
+        <argument
+            android:name="filePath"
+            android:defaultValue=""
+            app:argType="string" />
+        <argument
+            android:name="filterName"
+            android:defaultValue="HEART"
+            app:argType="string" />
+        <action
+            android:id="@+id/action_pcgScaleReview_to_equalizer"
+            app:destination="@id/equalizerFragment" />
     </fragment>
 
 </navigation>

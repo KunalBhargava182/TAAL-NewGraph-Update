@@ -75,6 +75,10 @@
     <string name="heart_recording">Heart Recording</string>
     <string name="lungs_recording">Lungs Recording</string>
 
+    <!-- FullTimeOn live preview / speaker toggle -->
+    <string name="speaker_muted_description">Unmute stethoscope audio</string>
+    <string name="speaker_unmuted_description">Mute stethoscope audio</string>
+
     <!-- Save Alert -->
     <string name="alert">Alert!</string>
     <string name="save_recording_question">Do you want to save the recording?</string>
