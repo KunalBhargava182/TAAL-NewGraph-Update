@@ -217,6 +217,9 @@ class PcgScaleReviewFragment : Fragment() {
 
     private fun renderWaveformEntries(entries: ArrayList<Entry>, durationSecs: Int) {
         binding.timerText.text = String.format("%02d:%02d", durationSecs / 60, durationSecs % 60)
+        // Ledger Fix 3, re-applied (this line was removed 2026-08-28 only to keep the build
+        // green after update1 reverted the totalDurationSeconds property it depends on).
+        binding.pcgScaleWaveformView.totalDurationSeconds = durationSecs.toFloat()
         val dataSet = LineDataSet(entries, "Waveform").apply {
             color = Color.parseColor("#2D7DD2")
             setDrawCircles(false)

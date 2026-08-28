@@ -119,8 +119,8 @@ class PcgScaleRecordingFragment : Fragment() {
         // true acoustic level; the slider only changes loudness. See that fork's constant doc.
         private const val COMPENSATE_PREAMP_IN_DISPLAY = true
 
-        // Same as the Calibrated fork.
-        private const val TRACE_LINE_WIDTH_DP = 2.0f
+        // Halved from the Calibrated fork's 2.0 (explicit user request — ledger Fix 4, re-applied).
+        private const val TRACE_LINE_WIDTH_DP = 1.0f
     }
 
     private val permissionLauncher = registerForActivityResult(
@@ -231,8 +231,8 @@ class PcgScaleRecordingFragment : Fragment() {
             if (viewModel.uiState.value == PcgScaleRecordingUiState.RECORDING) {
                 val clampNote = if (amplitudeScale.isClampedAtMin()) " (MIN-CLAMPED: input very quiet)" else ""
                 String.format(
-                    "sr=%d Hz · peakRMS=%.4f · Y=±%.3f%s",
-                    actualSampleRate.toInt(), amplitudeScale.meanPeakRms(), appliedFullScale, clampNote
+                    "sr=%d Hz · peak=%.4f · Y=±%.3f%s",
+                    actualSampleRate.toInt(), amplitudeScale.typicalPeakAmplitude(), appliedFullScale, clampNote
                 )
             } else {
                 "1 large box = 1 s · 1 small box = 0.2 s · Y: auto (60% fill, RMS)"

@@ -147,9 +147,27 @@ class PcgScaleWaveformView @JvmOverloads constructor(
         chart.setVisibleXRangeMinimum(seconds)
     }
 
-    /** Mirror the chart's current left edge onto the grid so lines/labels stay time-pinned. */
+    /**
+     * Total recording duration in seconds, set by the player/review fragment once the file's
+     * real length is known. -1f (the default) means "unknown, don't clamp" — used while the
+     * chart still holds placeholder/dummy data before a file loads. Ledger Fix 3, re-applied.
+     */
+    var totalDurationSeconds: Float = -1f
+
+    /**
+     * Mirror the chart's current left edge onto the grid so lines/labels stay time-pinned —
+     * clamped to the last valid scroll offset (recording end minus one window) whenever the
+     * total duration is known, so the grid can never scroll past where the trace actually
+     * ends (ledger Fix 3: the grid used to keep dragging/flinging after the trace stopped).
+     */
     fun syncGridToChart() {
-        paperView.scrollOffsetSeconds = chart.lowestVisibleX
+        val raw = chart.lowestVisibleX
+        val maxOffset = if (totalDurationSeconds > 0f) {
+            (totalDurationSeconds - currentVisibleSeconds()).coerceAtLeast(0f)
+        } else {
+            Float.MAX_VALUE
+        }
+        paperView.scrollOffsetSeconds = raw.coerceAtMost(maxOffset)
     }
 
     /** Best-effort synchronous read; may return the default before first layout. */

@@ -1,5 +1,28 @@
 # PcgScale local fixes — lost in the `update1` overwrite (2026-08-28)
 
+> ## ✅ RESOLVED — 2026-08-28, rev 3 ("update2", pushed same day)
+>
+> **All four fixes below have been re-applied**, merged with rev 3 of the amplitude scaling
+> (the "energy picks, amplitude calibrates, Kth-largest + median protect" rework that fixes
+> the ~30%-under-fill / non-uniform-fill reported on device). Per-fix status:
+>
+> - **Fix 1** — merged INTO the rev 3 algorithm rather than replayed verbatim: the window's
+>   calibrating hop is still the `OUTLIER_REJECTION_K`(=3)rd-largest by RMS (this fix's
+>   idea, same constant name), but the window's value is now that hop's PEAK amplitude, not
+>   its RMS, and the cross-window statistic is a median, not a mean. The ledger's failing
+>   test was superseded by two stronger ones (first-window spike + long-recording spike),
+>   both green.
+> - **Fix 2** — re-applied verbatim in `PcgScalePlayerFragment` (Save → SaveRecordingFragment
+>   branch). The nav-graph side was never lost.
+> - **Fix 3** — re-applied verbatim (`totalDurationSeconds` + clamped `syncGridToChart()`),
+>   including restoring the removed line in `PcgScaleReviewFragment.renderWaveformEntries`.
+> - **Fix 4** — re-applied verbatim (trace widths 1.0f recorder / 1.5f player; review screen
+>   was already at 1.5f).
+>
+> The rev 2 known-failing test (`one single-sample spike cannot peg the scale`) no longer
+> exists; the full suite is green. The detailed sections below are kept as history of what
+> the fixes were and why.
+
 ## Why this file exists
 
 The `PcgScale_Handoff` bundle (2026-08-25) was integrated, then this session made four

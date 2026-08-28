@@ -40,13 +40,14 @@ import kotlin.math.roundToInt
  *    Calibrated player's pinch-zoom, GraphCalibration Apply/Reset panel, and the whole Fix-D
  *    re-bucketing machinery (with the window fixed, the load-time bucket is always right).
  *    The whole recording deliberately never fits on screen — scroll through it instead.
- *  - Y-axis is computed ONCE at load from the whole decoded file:
- *    [PcgAmplitudeScale.computeFullScaleForFile] (mean of per-5s-window peak 50ms-RMS values,
- *    scaled so those maxima fill ~60% of the half-height) — replacing FIXED_FULL_SCALE. See
- *    that class's doc for how "60% excluding noise" is made concrete.
+ *  - Y-axis is computed ONCE at load from the whole decoded file (rev 3: median of
+ *    per-5s-window calibrating-hop DRAWN peaks, scaled so those maxima fill ~60% of the
+ *    half-height) — replacing FIXED_FULL_SCALE. See [PcgAmplitudeScale]'s doc for how
+ *    "60% excluding noise" is made concrete.
  *
  * The Apply button slot from the forked layout is repurposed back to its production meaning:
- * Save (navigate to Add Patient) — this screen has no calibration to apply.
+ * Save — a NEW recording goes through SaveRecordingFragment (ledger Fix 2, re-applied),
+ * an existing one through the save/discard dialog. This screen has no calibration to apply.
  */
 class PcgScalePlayerFragment : Fragment() {
 
@@ -73,9 +74,10 @@ class PcgScalePlayerFragment : Fragment() {
         // the 300s max recording length, still leaves ~1.5 points per pixel in a 4s window.
         private const val MAX_TOTAL_POINTS = 120_000
 
-        // Same smoothing/stroke as the Calibrated player.
+        // Same smoothing as the Calibrated player.
         private const val FOLLOW_SMOOTHING = 0.15f
-        private const val TRACE_LINE_WIDTH_DP = 3.0f
+        // Halved from the Calibrated player's 3.0 (explicit user request — ledger Fix 4, re-applied).
+        private const val TRACE_LINE_WIDTH_DP = 1.5f
     }
 
     override fun onCreateView(
@@ -128,10 +130,24 @@ class PcgScalePlayerFragment : Fragment() {
         }
 
         // Production meaning restored (the Calibrated fork had repurposed this slot for graph
-        // calibration, which this screen doesn't have): Save → Add Patient.
+        // calibration, which this screen doesn't have): same branch as PlayerFragment's
+        // saveButton — a new recording goes through SaveRecordingFragment first (the step that
+        // actually renames the temp WAVs into filesDir/saved/, which is what
+        // SavedRecordingsFragment lists), an existing recording goes straight to the
+        // save/discard dialog → Add Patient. Ledger Fix 2, re-applied.
         binding.saveButton.setOnClickListener {
-            val bundle = Bundle().apply { putString("recordingFilePath", filePath) }
-            findNavController().navigate(R.id.action_pcgScalePlayer_to_addPatient, bundle)
+            if (isNewRecording) {
+                val rawFilePath = arguments?.getString("rawFilePath") ?: ""
+                val bundle = Bundle().apply {
+                    putString("filePath", filePath)
+                    putString("rawFilePath", rawFilePath)
+                    putString("filterName", filterName)
+                    putInt("popUpToDestination", R.id.pcgScaleRecordingFragment)
+                }
+                findNavController().navigate(R.id.action_pcgScalePlayer_to_saveRecording, bundle)
+            } else {
+                showSaveDiscardDialog(filePath)
+            }
         }
 
         binding.discardButton.setOnClickListener {
@@ -250,7 +266,7 @@ class PcgScalePlayerFragment : Fragment() {
 
             // Whole-file 60%-fill axis scale — "sampled mean peaks across the whole recording".
             // Streamed through an instance (rather than computeFullScaleForFile) so the
-            // diagnostics below can also read meanPeakRms/isClampedAtMin for the caption.
+            // diagnostics below can also read typicalPeakAmplitude/isClampedAtMin for the caption.
             val fileScale = PcgAmplitudeScale(fileSampleRate)
             fileScale.addSamples(samples)
             fileScale.flushPartialWindow()
@@ -291,6 +307,9 @@ class PcgScalePlayerFragment : Fragment() {
 
     private fun renderWaveformEntries(entries: ArrayList<Entry>, durationSecs: Int) {
         binding.timerText.text = String.format("%02d:%02d", durationSecs / 60, durationSecs % 60)
+        // Ledger Fix 3, re-applied: give the grid the file's real end so it can never be
+        // scrolled/flung past where the trace stops — see PcgScaleWaveformView.syncGridToChart.
+        binding.pcgScaleWaveformView.totalDurationSeconds = durationSecs.toFloat()
         val dataSet = LineDataSet(entries, "Waveform").apply {
             color = Color.parseColor("#2D7DD2")
             setDrawCircles(false)

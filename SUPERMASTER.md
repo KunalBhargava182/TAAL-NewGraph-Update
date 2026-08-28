@@ -166,6 +166,7 @@ This file is the entry point; these are supplementary/deep-dive docs — check t
 
 | Date | Change | Notes |
 |---|---|---|
+| 2026-08-28 | PcgScale rev 3: peak-calibrated median Y-scale + all four ledger fixes re-applied | Fixes the on-device "~30% bigger but not 60%, not uniform" report: the axis now calibrates on the DRAWN peak of each 5s window's 3rd-loudest-by-RMS hop, median across windows (`PcgAmplitudeScale.kt`). Ledger fixes 1–4 (`docs/notes/PCGSCALE_LOCAL_FIXES_LEDGER.md`) restored after the `update1` overwrite — Save routing, grid end-clamp, halved trace widths. Recorder caption now shows `peak=`, not `peakRMS=`. |
 | 2026-08-28 | Repo republished as new GitHub repo with full history + AAR files + SUPERMASTER.md | Includes in-flight, previously-uncommitted work: PcgScale screens (`ecg/pcgscale`, `ui/pcgscale`, `PcgScale_Handoff/`), Calibrated/DpiCalibration additions, FullTimeOn screens — all committed together as part of this push. |
 | 2026-08-19 | Fix E: update status caption — no longer auto-scaled, axis is fixed | Calibrated screens |
 | 2026-08-19 | Fix D: re-bucket the player's trace on zoom instead of a load-time-fixed bucket | Calibrated screens |
