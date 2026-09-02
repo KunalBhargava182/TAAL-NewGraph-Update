@@ -141,6 +141,39 @@
 
     </com.google.android.material.card.MaterialCardView>
 
+    <!-- Feature B: post-processing spectral-gate denoise toggle. Runs on the already-decoded
+         in-memory samples; playback audio is unaffected (display only — see caption suffix). -->
+    <LinearLayout
+        android:id="@+id/denoiseRow"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="4dp"
+        android:layout_marginEnd="16dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/ampSliderContainer">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Denoise"
+            android:textColor="#333333"
+            android:textSize="12sp" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/denoiseSwitch"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:checked="false"
+            app:thumbTint="#128CB2"
+            app:trackTint="#C8E6F5" />
+
+    </LinearLayout>
+
     <TextView
         android:id="@+id/scaleCaption"
         android:layout_width="0dp"
@@ -154,7 +187,7 @@
         android:textSize="9sp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/ampSliderContainer" />
+        app:layout_constraintTop_toBottomOf="@id/denoiseRow" />
 
     <com.musediagnostics.taal.app.ecg.pcgscale.PcgScaleWaveformView
         android:id="@+id/pcgScaleWaveformView"

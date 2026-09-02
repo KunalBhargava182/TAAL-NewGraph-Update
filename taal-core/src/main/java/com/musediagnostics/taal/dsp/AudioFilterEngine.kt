@@ -23,6 +23,7 @@ class AudioFilterEngine(private val sampleRate: Int = 44100) {
     private var currentPreset: PresetFilter = PresetFilter.NONE
     private var eqState = GraphicEQState()
     private var preAmpGainDb: Float = 0f // 0-10dB
+    private var humRumbleFilterEnabled: Boolean = false
 
     // Biquad filter coefficients (stored for efficiency)
     private data class BiquadCoeffs(
@@ -39,6 +40,23 @@ class AudioFilterEngine(private val sampleRate: Int = 44100) {
 
     private val bandpassState = BiquadState()
     private val bandpassCoeffs = BiquadCoeffs()
+
+    // Opt-in stage inserted after bandpass/EQ, before tanh — see setHumRumbleFilterEnabled().
+    // Two cascaded sections form a 4th-order Butterworth high-pass at 25Hz (fixed section Qs
+    // 0.5412/1.3066), then three RBJ-cookbook notches at 50/100/150Hz, Q=30. All fixed
+    // frequencies relative to this engine's sampleRate, so coefficients are designed once at
+    // construction, not on every updateFilters() call (unlike bandpass/EQ, which move with
+    // user-selected preset/gain).
+    private val humHpState1 = BiquadState()
+    private val humHpCoeffs1 = BiquadCoeffs()
+    private val humHpState2 = BiquadState()
+    private val humHpCoeffs2 = BiquadCoeffs()
+    private val humNotchState50 = BiquadState()
+    private val humNotchCoeffs50 = BiquadCoeffs()
+    private val humNotchState100 = BiquadState()
+    private val humNotchCoeffs100 = BiquadCoeffs()
+    private val humNotchState150 = BiquadState()
+    private val humNotchCoeffs150 = BiquadCoeffs()
 
     private val eqBands = mapOf(
         20 to BiquadState(),
@@ -58,11 +76,25 @@ class AudioFilterEngine(private val sampleRate: Int = 44100) {
 
     init {
         updateFilters()
+        designHumRumbleFilters()
     }
 
     fun setPresetFilter(preset: PresetFilter) {
         currentPreset = preset
         updateFilters()
+    }
+
+    /**
+     * Opt-in hum/rumble stage — 4th-order 25Hz Butterworth HPF + 50/100/150Hz notches (Q=30),
+     * inserted after bandpass/EQ, before tanh. Default false: zero behavioral change for every
+     * existing consumer (production app, lungs-app, stemz, visualizer) until a caller opts in.
+     * NOTE: when enabled, the filtered WAV (and therefore any saved recording) includes this
+     * filtering — that is intended. If the device's true capture rate is 48kHz mislabeled as
+     * 44.1kHz (open taal-core issue — see TaalAudioCapture.SAMPLE_RATE), the notch centers land
+     * ~8.8% high; acceptable at Q=30 for now, revisit after the sample-rate root-cause task.
+     */
+    fun setHumRumbleFilterEnabled(enabled: Boolean) {
+        humRumbleFilterEnabled = enabled
     }
 
     fun setCustomBandpass(lowCut: Double, highCut: Double) {
@@ -118,6 +150,45 @@ class AudioFilterEngine(private val sampleRate: Int = 44100) {
         coeffs.a2 = (1.0 - alpha) / a0
     }
 
+    private fun designHumRumbleFilters() {
+        val fs = sampleRate.toDouble()
+        designHighPassSection(humHpCoeffs1, 25.0, 0.5412, fs)
+        designHighPassSection(humHpCoeffs2, 25.0, 1.3066, fs)
+        designNotch(humNotchCoeffs50, 50.0, 30.0, fs)
+        designNotch(humNotchCoeffs100, 100.0, 30.0, fs)
+        designNotch(humNotchCoeffs150, 150.0, 30.0, fs)
+    }
+
+    /** RBJ cookbook high-pass biquad section. */
+    private fun designHighPassSection(coeffs: BiquadCoeffs, cutoffHz: Double, q: Double, fs: Double) {
+        val omega = 2.0 * PI * cutoffHz / fs
+        val cosOmega = cos(omega)
+        val sinOmega = sin(omega)
+        val alpha = sinOmega / (2.0 * q)
+        val a0 = 1.0 + alpha
+
+        coeffs.b0 = ((1.0 + cosOmega) / 2.0) / a0
+        coeffs.b1 = (-(1.0 + cosOmega)) / a0
+        coeffs.b2 = ((1.0 + cosOmega) / 2.0) / a0
+        coeffs.a1 = (-2.0 * cosOmega) / a0
+        coeffs.a2 = (1.0 - alpha) / a0
+    }
+
+    /** RBJ cookbook notch biquad. */
+    private fun designNotch(coeffs: BiquadCoeffs, freqHz: Double, q: Double, fs: Double) {
+        val omega = 2.0 * PI * freqHz / fs
+        val cosOmega = cos(omega)
+        val sinOmega = sin(omega)
+        val alpha = sinOmega / (2.0 * q)
+        val a0 = 1.0 + alpha
+
+        coeffs.b0 = 1.0 / a0
+        coeffs.b1 = (-2.0 * cosOmega) / a0
+        coeffs.b2 = 1.0 / a0
+        coeffs.a1 = (-2.0 * cosOmega) / a0
+        coeffs.a2 = (1.0 - alpha) / a0
+    }
+
     private fun updatePeakingFilter(
         coeffs: BiquadCoeffs, centerFreq: Double, gainDb: Float
     ) {
@@ -162,6 +233,15 @@ class AudioFilterEngine(private val sampleRate: Int = 44100) {
             // Apply graphic EQ (cascade peaking filters)
             for ((freq, state) in eqBands) {
                 sample = processBiquad(sample, eqCoeffs[freq]!!, state)
+            }
+
+            // Opt-in hum/rumble stage (default off — see setHumRumbleFilterEnabled doc).
+            if (humRumbleFilterEnabled) {
+                sample = processBiquad(sample, humHpCoeffs1, humHpState1)
+                sample = processBiquad(sample, humHpCoeffs2, humHpState2)
+                sample = processBiquad(sample, humNotchCoeffs50, humNotchState50)
+                sample = processBiquad(sample, humNotchCoeffs100, humNotchState100)
+                sample = processBiquad(sample, humNotchCoeffs150, humNotchState150)
             }
 
             // Hard limit at 2000Hz is built into filter design

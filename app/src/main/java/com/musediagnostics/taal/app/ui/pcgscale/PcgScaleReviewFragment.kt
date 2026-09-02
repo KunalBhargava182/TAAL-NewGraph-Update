@@ -20,6 +20,7 @@ import com.musediagnostics.taal.app.R
 import com.musediagnostics.taal.app.databinding.FragmentPcgscaleReviewBinding
 import com.musediagnostics.taal.app.ecg.pcgscale.PcgAmplitudeScale
 import com.musediagnostics.taal.app.ecg.pcgscale.PcgScaleWaveformView
+import com.musediagnostics.taal.app.ecg.pcgscale.PcgSpectralGate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -53,6 +54,18 @@ class PcgScaleReviewFragment : Fragment() {
     // wherever the chart snaps back to its start-centered framing.
     private var displayedPlaybackTime = 0f
 
+    // Feature B: Denoise toggle state. Both the as-decoded and (once computed) the
+    // spectral-gated sample arrays are kept in memory so toggling back is instant — only the
+    // FIRST enable pays the PcgSpectralGate.process() cost. Playback always plays the
+    // ORIGINAL file (see setupPlayer/togglePlayback, untouched) — the gate affects the
+    // display trace only.
+    private var originalSamples: FloatArray? = null
+    private var gatedSamples: FloatArray? = null
+    private var fileSampleRateForGate: Float = INPUT_SAMPLE_RATE
+    private var pixelsPerSecondForRender: Float = -1f
+    private var recordingDurationSecs: Int = 0
+    private var denoiseEnabled = false
+
     companion object {
         private const val INPUT_SAMPLE_RATE = 44100f
 
@@ -61,6 +74,9 @@ class PcgScaleReviewFragment : Fragment() {
 
         private const val FOLLOW_SMOOTHING = 0.15f
         private const val TRACE_LINE_WIDTH_DP = 1.5f
+
+        // FIX 2026-09-02: shared tag — see taal-core's capture/playback logging.
+        private const val TAG = "TAAL_AUDIO_DEBUG"
     }
 
     override fun onCreateView(
@@ -78,6 +94,7 @@ class PcgScaleReviewFragment : Fragment() {
 
         setupWaveformChart()
         setupAmpSlider()
+        setupDenoiseSwitch()
         updateScaleCaption()
 
         if (filePath.isNotEmpty()) {
@@ -109,6 +126,15 @@ class PcgScaleReviewFragment : Fragment() {
             val db = value.toInt()
             binding.ampLabel.text = "$db dB"
             player?.setPreAmplification(db.toFloat())
+        }
+    }
+
+    /** Feature B: display-only spectral-gate denoise toggle — see field docs above. Disabled
+     *  until the file finishes decoding (there is nothing to gate yet). */
+    private fun setupDenoiseSwitch() {
+        binding.denoiseSwitch.isEnabled = false
+        binding.denoiseSwitch.setOnCheckedChangeListener { _, checked ->
+            onDenoiseToggled(checked)
         }
     }
 
@@ -159,15 +185,71 @@ class PcgScaleReviewFragment : Fragment() {
 
     private fun updateScaleCaption() {
         if (_binding == null) return
-        binding.scaleCaption.text = "1 large box = 1 s · 1 small box = 0.2 s · Y: auto (60% fill, RMS) · scroll to browse"
+        val suffix = if (denoiseEnabled) " · denoised" else ""
+        binding.scaleCaption.text =
+            "1 large box = 1 s · 1 small box = 0.2 s · Y: auto (60% fill, RMS) · scroll to browse$suffix"
     }
 
-    /** Same decode/scale/bucket pipeline as PcgScalePlayerFragment.loadFullWaveform, minus the
-     *  pre-amp undo step — a saved file has no known recorder gain to undo. */
+    private data class RenderPayload(val fullScale: Float, val entries: ArrayList<Entry>)
+
+    /** Whole-file 60%-fill axis scale + downsample bucket, shared by the initial load and every
+     *  Denoise toggle re-render (same math PcgScalePlayerFragment.loadFullWaveform uses). */
+    private fun computeRenderPayload(samples: FloatArray, sampleRate: Float): RenderPayload {
+        val fullScale = PcgAmplitudeScale.computeFullScaleForFile(samples, sampleRate)
+        val totalSamples = samples.size
+        val derivedBucket = if (pixelsPerSecondForRender > 0f) {
+            maxOf(1, (sampleRate / (pixelsPerSecondForRender * 2f)).roundToInt())
+        } else -1
+        val ceilingBucket = maxOf(1, totalSamples / (MAX_TOTAL_POINTS / 2))
+        val bucketSize = if (derivedBucket > 0) maxOf(derivedBucket, ceilingBucket) else ceilingBucket
+        val entries = PcgScaleWaveformView.downsampleMinMax(samples, bucketSize) { idx ->
+            idx.toFloat() / sampleRate
+        }
+        // FIX 2026-09-02: the display maths, made visible. fullScale is the Y-axis half-range
+        // PcgAmplitudeScale derived from this data; comparing it against the signal's own
+        // peak/RMS shows whether the trace is filling the graph as intended, and whether the
+        // MIN_FULL_SCALE clamp is what's setting the axis.
+        var pk = 0f
+        var sumSq = 0.0
+        for (s in samples) {
+            val a = kotlin.math.abs(s)
+            if (a > pk) pk = a
+            sumSq += s.toDouble() * s.toDouble()
+        }
+        val rms = if (samples.isNotEmpty()) kotlin.math.sqrt(sumSq / samples.size) else 0.0
+        val fillPct = if (fullScale > 0f) 100.0 * pk / fullScale else 0.0
+        android.util.Log.i(TAG, "REVIEW computeRenderPayload — samples=$totalSamples " +
+            "rate=${sampleRate.toInt()}Hz dataPeak=$pk dataRms=$rms " +
+            "fullScale=$fullScale peakFillOfAxis=${"%.1f".format(fillPct)}% " +
+            "bucketSize=$bucketSize (derived=$derivedBucket ceiling=$ceilingBucket) " +
+            "entries=${entries.size} denoise=$denoiseEnabled")
+        return RenderPayload(fullScale, ArrayList(entries))
+    }
+
+    private fun applyRenderPayload(payload: RenderPayload, durationSecs: Int) {
+        if (_binding == null) return
+        val chart = binding.pcgScaleWaveformView.chart
+        chart.axisLeft.axisMinimum = -payload.fullScale
+        chart.axisLeft.axisMaximum = payload.fullScale
+        renderWaveformEntries(payload.entries, durationSecs)
+        updateScaleCaption()
+    }
+
+    /** Decode/scale/bucket pipeline, same as PcgScalePlayerFragment.loadFullWaveform minus the
+     *  pre-amp undo step (a saved file has no known recorder gain to undo). Also caches the
+     *  decoded samples for the Denoise toggle (see field docs). */
     private fun loadFullWaveform(filePath: String, pixelsPerSecond: Float) {
+        pixelsPerSecondForRender = pixelsPerSecond
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
             val file = File(filePath)
-            if (!file.exists()) return@launch
+            if (!file.exists()) {
+                // FIX 2026-09-02: this silent return is why a missing file shows an empty
+                // graph with no explanation.
+                android.util.Log.e(TAG, "════════ REVIEW LOAD FAILED ════════ file does not exist: $filePath")
+                return@launch
+            }
+            android.util.Log.i(TAG, "════════ REVIEW LOAD ════════ file=${file.name} " +
+                "bytes=${file.length()} path=${file.parent}")
             val bytes = file.readBytes()
 
             val fileSampleRate: Float = if (bytes.size >= 28) {
@@ -193,24 +275,66 @@ class PcgScaleReviewFragment : Fragment() {
                 i++
             }
 
-            // Whole-file 60%-fill axis scale — "sampled mean peaks across the whole recording".
-            val fullScale = PcgAmplitudeScale.computeFullScaleForFile(samples, fileSampleRate)
+            // FIX 2026-09-02: decode results — ties the on-screen trace back to the file,
+            // and to the capture session that wrote it.
+            android.util.Log.i(TAG, "REVIEW decoded — headerRate=${fileSampleRate.toInt()}Hz " +
+                "dataBytes=$dataSize totalSamples=$totalSamples durationSecs=$durationSecs")
 
-            val derivedBucket = if (pixelsPerSecond > 0f) {
-                maxOf(1, (fileSampleRate / (pixelsPerSecond * 2f)).roundToInt())
-            } else -1
-            val ceilingBucket = maxOf(1, totalSamples / (MAX_TOTAL_POINTS / 2))
-            val bucketSize = if (derivedBucket > 0) maxOf(derivedBucket, ceilingBucket) else ceilingBucket
-            val entries = PcgScaleWaveformView.downsampleMinMax(samples, bucketSize) { idx ->
-                idx.toFloat() / fileSampleRate
-            }
+            val payload = computeRenderPayload(samples, fileSampleRate)
 
             withContext(Dispatchers.Main) {
                 if (_binding == null) return@withContext
-                val chart = binding.pcgScaleWaveformView.chart
-                chart.axisLeft.axisMinimum = -fullScale
-                chart.axisLeft.axisMaximum = fullScale
-                renderWaveformEntries(ArrayList(entries), durationSecs)
+                originalSamples = samples
+                fileSampleRateForGate = fileSampleRate
+                recordingDurationSecs = durationSecs
+                binding.denoiseSwitch.isEnabled = true
+                applyRenderPayload(payload, durationSecs)
+            }
+        }
+    }
+
+    /**
+     * Denoise toggle: ON with no cached gated version yet runs [PcgSpectralGate] on the
+     * already-decoded original samples on Dispatchers.Default (CPU-bound FFT work), showing
+     * waveformLoadingIndicator for the few seconds a 300s file can take. Every other
+     * transition (ON with a cache hit, or OFF back to the original) is synchronous — both
+     * arrays are already in memory, so it's just a re-bucket + re-render, "instant" per spec.
+     * Playback is untouched either way — see the field doc on [originalSamples].
+     */
+    private fun onDenoiseToggled(enabled: Boolean) {
+        val original = originalSamples ?: return
+        denoiseEnabled = enabled
+        val durationSecs = recordingDurationSecs
+        // FIX 2026-09-02: which path the toggle took — cache hit/miss matters because a miss
+        // runs the FFT gate and can take seconds on a long file.
+        android.util.Log.i(TAG, "REVIEW denoise toggled -> $enabled " +
+            "(cached=${gatedSamples != null}, samples=${original.size})")
+
+        if (!enabled) {
+            applyRenderPayload(computeRenderPayload(original, fileSampleRateForGate), durationSecs)
+            return
+        }
+
+        val cached = gatedSamples
+        if (cached != null) {
+            applyRenderPayload(computeRenderPayload(cached, fileSampleRateForGate), durationSecs)
+            return
+        }
+
+        binding.waveformLoadingIndicator.visibility = View.VISIBLE
+        binding.denoiseSwitch.isEnabled = false
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Default) {
+            val gateStartMs = System.currentTimeMillis()
+            val gated = PcgSpectralGate().process(original, fileSampleRateForGate)
+            android.util.Log.i(TAG, "REVIEW spectral gate computed in " +
+                "${System.currentTimeMillis() - gateStartMs}ms (${original.size} samples)")
+            val payload = computeRenderPayload(gated, fileSampleRateForGate)
+            withContext(Dispatchers.Main) {
+                if (_binding == null) return@withContext
+                gatedSamples = gated
+                binding.waveformLoadingIndicator.visibility = View.GONE
+                binding.denoiseSwitch.isEnabled = true
+                applyRenderPayload(payload, durationSecs)
             }
         }
     }
@@ -242,7 +366,12 @@ class PcgScaleReviewFragment : Fragment() {
             player = TaalPlayer(requireContext()).apply {
                 setDataSource(filePath)
                 val fileName = File(filePath).name
-                if (!fileName.contains("_filtered") && !fileName.contains("_8k_downsampling")) {
+                // FIX 2026-09-02: see the same note in PcgScalePlayerFragment — makes
+                // double-filtering on playback visible.
+                val skipFilter = fileName.contains("_filtered") || fileName.contains("_8k_downsampling")
+                android.util.Log.i(TAG, "REVIEW setupPlayer — file=$fileName " +
+                    "preFilterOnPlayback=${if (skipFilter) "SKIPPED (already-filtered file)" else filterName}")
+                if (!skipFilter) {
                     val preFilter = try { PreFilter.valueOf(filterName) } catch (_: Exception) { PreFilter.HEART }
                     setPreFilter(preFilter)
                 }
@@ -291,6 +420,7 @@ class PcgScaleReviewFragment : Fragment() {
     }
 
     private fun togglePlayback(filePath: String) {
+        android.util.Log.i(TAG, "REVIEW play button — ${if (isPlaying) "STOPPING" else "STARTING"} playback")
         if (isPlaying) {
             player?.stop()
             isPlaying = false

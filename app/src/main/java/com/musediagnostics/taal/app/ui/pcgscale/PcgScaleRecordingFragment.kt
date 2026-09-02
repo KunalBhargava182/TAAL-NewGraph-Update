@@ -461,6 +461,9 @@ class PcgScaleRecordingFragment : Fragment() {
         } else if (viewModel.currentFilter.value == "CUSTOM") {
             binding.customRangePanel.visibility = View.VISIBLE
         }
+        // Feature A: hum filter state is fixed per session, same as the preset filter buttons.
+        binding.humFilterSwitch.isEnabled = enabled
+        binding.humFilterSwitch.alpha = alpha
     }
 
     private fun observeState() {
@@ -567,6 +570,9 @@ class PcgScaleRecordingFragment : Fragment() {
                 setRecordingTime(300)
                 setPlayback(false)
                 setPreAmplification(viewModel.preAmpDb.value ?: 5)
+                // Feature A: opt-in hum/rumble filter, default off. Not yet persisted across
+                // sessions — read fresh from the switch every recording.
+                setHumRumbleFilterEnabled(binding.humFilterSwitch.isChecked)
                 if (filterName == "CUSTOM") {
                     setCustomBandpass(
                         viewModel.customLowCut!!.toDouble(),
@@ -612,19 +618,38 @@ class PcgScaleRecordingFragment : Fragment() {
                         }
                     }
 
-                    override fun onSilentRecordingDetected(isFirstSinceConnect: Boolean) {
-                        if (!isFirstSinceConnect) return
-                        activity?.runOnUiThread {
-                            val act = activity ?: return@runOnUiThread
-                            if (act.isFinishing || act.isDestroyed) return@runOnUiThread
-                            android.app.AlertDialog.Builder(act)
-                                .setTitle("Ready to Capture")
-                                .setMessage("Your TAAL device has been detected and is now ready. Please discard this recording and start a new one.")
-                                .setPositiveButton("OK", null)
-                                .setCancelable(false)
-                                .show()
-                        }
-                    }
+                    // DISABLED 2026-09-02 — this silence detector false-positives on this
+                    // hardware, so the dialog fired on good recordings and told the user to
+                    // throw them away.
+                    //
+                    // TaalRecorder flags a recording as silent when the FILTERED peak never
+                    // exceeds SILENT_RECORDING_PEAK_THRESHOLD (0.01). Measured on the Samsung
+                    // SM-A066B study phone: a clean chest recording with clearly audible heart
+                    // sounds gave raw sessionPeak=0.00418 -> filtered maxFilteredPeak=0.00365,
+                    // i.e. ~2.7x BELOW the threshold, so silentVerdict=true on a perfectly
+                    // valid recording. The fixed threshold was evidently calibrated on a
+                    // louder handset — this phone's USB capture level is roughly 5x lower.
+                    // See docs/notes/SAMSUNG_AUDIO_LEVEL_ATTENUATION_DIAGNOSTIC.md and
+                    // docs/notes/AUDIO_DIAGNOSTIC_REMEDIATION_TRACKER.md.
+                    //
+                    // Re-enable only once the threshold is derived from a measured noise floor
+                    // (or normalised for the device's capture level) instead of a constant.
+                    // The interface default is a no-op, so leaving this commented out simply
+                    // means no silence dialog on this screen.
+                    //
+                    // override fun onSilentRecordingDetected(isFirstSinceConnect: Boolean) {
+                    //     if (!isFirstSinceConnect) return
+                    //     activity?.runOnUiThread {
+                    //         val act = activity ?: return@runOnUiThread
+                    //         if (act.isFinishing || act.isDestroyed) return@runOnUiThread
+                    //         android.app.AlertDialog.Builder(act)
+                    //             .setTitle("Ready to Capture")
+                    //             .setMessage("Your TAAL device has been detected and is now ready. Please discard this recording and start a new one.")
+                    //             .setPositiveButton("OK", null)
+                    //             .setCancelable(false)
+                    //             .show()
+                    //     }
+                    // }
 
                     override fun onProgressUpdate(
                         sampleRate: Int, bufferSize: Int, timeStamp: Double, data: FloatArray

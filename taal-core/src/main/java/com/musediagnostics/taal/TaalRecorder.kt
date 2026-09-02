@@ -1,6 +1,7 @@
 package com.musediagnostics.taal
 
 import android.content.Context
+import android.util.Log
 import com.musediagnostics.taal.core.TaalAudioCapture
 import com.musediagnostics.taal.core.RecorderState
 import com.musediagnostics.taal.dsp.AudioFilterEngine
@@ -21,6 +22,11 @@ class TaalRecorder(private val context: Context) {
         // sound completely normal to the user while still reading as "silent" on the
         // raw scale, which caused false-positive popups. Confirmed 2026-08-14.
         private const val SILENT_RECORDING_PEAK_THRESHOLD = 0.01f
+
+        // FIX 2026-09-02: same tag as TaalAudioCapture so one `adb logcat -s
+        // TAAL_AUDIO_DEBUG` gives the whole chain — raw capture AND the filtered/
+        // pre-amplified path the user actually sees and hears.
+        private const val TAG = "TAAL_AUDIO_DEBUG"
     }
 
     private val audioCapture = TaalAudioCapture(context)
@@ -32,6 +38,7 @@ class TaalRecorder(private val context: Context) {
     private var playbackEnabled: Boolean = false
     private var preFilter: PreFilter = PreFilter.HEART
     private var preAmplificationDb: Int = 0
+    private var humRumbleFilterEnabled: Boolean = false
     private var currentState: RecorderState = RecorderState.INITIAL
 
     @Volatile private var filteredFos: FileOutputStream? = null
@@ -52,7 +59,15 @@ class TaalRecorder(private val context: Context) {
         }
 
         audioCapture.onCaptureCompleted = { isFirstSinceConnect ->
-            if (maxFilteredPeakSeen < SILENT_RECORDING_PEAK_THRESHOLD) {
+            // FIX 2026-09-02: report the filtered/pre-amplified peak — the level the user
+            // actually sees on the waveform — alongside the silence verdict. Comparing this
+            // against the raw sessionPeak/sessionRms in the capture summary shows exactly
+            // how much the DSP chain contributed.
+            val silent = maxFilteredPeakSeen < SILENT_RECORDING_PEAK_THRESHOLD
+            Log.i(TAG, "FILTERED PATH RESULT — maxFilteredPeak=$maxFilteredPeakSeen " +
+                "silentThreshold=$SILENT_RECORDING_PEAK_THRESHOLD silentVerdict=$silent " +
+                "isFirstSinceConnect=$isFirstSinceConnect")
+            if (silent) {
                 onInfoListener?.onSilentRecordingDetected(isFirstSinceConnect)
             }
         }
@@ -130,6 +145,14 @@ class TaalRecorder(private val context: Context) {
         filterEngine.setCustomBandpass(lowCut, highCut)
     }
 
+    /** Opt-in 50/100/150Hz hum + 25Hz rumble filter stage — see AudioFilterEngine doc.
+     *  Default false. Fixed per session, like [setPreFilter]/[setCustomBandpass]. */
+    fun setHumRumbleFilterEnabled(enabled: Boolean) {
+        checkNotRecording("setHumRumbleFilterEnabled")
+        humRumbleFilterEnabled = enabled
+        filterEngine.setHumRumbleFilterEnabled(enabled)
+    }
+
     fun setPreAmplification(db: Int) {
         preAmplificationDb = db.coerceIn(0, 30)
         filterEngine.setPreAmplification(preAmplificationDb.toFloat())
@@ -154,6 +177,14 @@ class TaalRecorder(private val context: Context) {
         }
 
         maxFilteredPeakSeen = 0f
+
+        // FIX 2026-09-02: DSP configuration provenance. The raw capture log is pre-DSP, so
+        // these settings explain any difference between the raw session numbers and what
+        // the user saw/heard — and pre-amp in particular must be known when comparing
+        // levels across phones or across recordings.
+        Log.i(TAG, "DSP CONFIG — preFilter=$preFilter preAmpDb=$preAmplificationDb " +
+            "humRumbleFilter=$humRumbleFilterEnabled recordingTimeSec=$recordingTime " +
+            "filteredFile=${filteredAudioFilePath?.substringAfterLast('/') ?: "none"}")
 
         // Open filtered output file if path is set
         filteredAudioFilePath?.let { path ->
@@ -185,6 +216,8 @@ class TaalRecorder(private val context: Context) {
         playbackEnabled = false
         preFilter = PreFilter.HEART
         preAmplificationDb = 0
+        humRumbleFilterEnabled = false
+        filterEngine.setHumRumbleFilterEnabled(false)
     }
 
     fun getState(): RecorderState = currentState
