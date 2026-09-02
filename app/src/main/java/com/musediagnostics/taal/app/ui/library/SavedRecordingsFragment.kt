@@ -16,6 +16,11 @@ import java.io.File
 
 class SavedRecordingsFragment : Fragment() {
 
+    companion object {
+        // FIX 2026-09-02: shared tag — see SaveRecordingFragment / taal-core.
+        private const val TAG = "TAAL_AUDIO_DEBUG"
+    }
+
     private var _binding: FragmentSavedRecordingsBinding? = null
     private val binding get() = _binding!!
 
@@ -48,6 +53,17 @@ class SavedRecordingsFragment : Fragment() {
             ?.sortedByDescending { it.lastModified() }
             ?: emptyList()
 
+        // FIX 2026-09-02: state what the library actually found. Only "_filtered.wav" files
+        // are listed, so a recording whose filtered file failed to move looks like it
+        // vanished even when the raw half saved fine — this makes that visible.
+        val allFiles = savedDir.listFiles()?.toList() ?: emptyList()
+        android.util.Log.i(TAG, "════════ LIBRARY LOAD ════════ dir=${savedDir.absolutePath} " +
+            "exists=${savedDir.exists()} totalFiles=${allFiles.size} listedRecordings=${files.size}")
+        allFiles.sortedByDescending { it.lastModified() }.forEach { f ->
+            android.util.Log.d(TAG, "  saved: ${f.name} (${f.length()} bytes" +
+                "${if (f.name.endsWith("_filtered.wav")) ", LISTED" else ", not listed"})")
+        }
+
         if (files.isEmpty()) {
             binding.emptyState.visibility = View.VISIBLE
             binding.recordingsList.visibility = View.GONE
@@ -58,6 +74,8 @@ class SavedRecordingsFragment : Fragment() {
                 files,
                 onPlay = { file ->
                     val filterName = extractFilterName(file.nameWithoutExtension)
+                    android.util.Log.i(TAG, "LIBRARY onPlay — opening review screen for " +
+                        "${file.name} (${file.length()} bytes) filter=$filterName")
                     // Reviewing goes through the PcgScale review screen (same time-true grid
                     // and RMS-scaled trace as the PcgScale recorder that produces every
                     // recording now) rather than the older production PlayerFragment.

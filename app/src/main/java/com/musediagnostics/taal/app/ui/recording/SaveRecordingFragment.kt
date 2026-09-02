@@ -28,6 +28,12 @@ import java.util.Locale
 
 class SaveRecordingFragment : Fragment() {
 
+    companion object {
+        // FIX 2026-09-02: same tag as taal-core's capture/playback logging, so one
+        // `adb logcat -s TAAL_AUDIO_DEBUG` covers record -> save -> library -> playback.
+        private const val TAG = "TAAL_AUDIO_DEBUG"
+    }
+
     private var _binding: FragmentSaveRecordingBinding? = null
     private val binding get() = _binding!!
 
@@ -176,11 +182,26 @@ class SaveRecordingFragment : Fragment() {
         return try {
             val savedDir = File(ctx.filesDir, "saved").also { it.mkdirs() }
 
+            // FIX 2026-09-02: log the save hand-off. This is the step that turns temp
+            // recordings into library files, and a silent failure here is why a recording
+            // can vanish between the player and Saved Recordings.
+            android.util.Log.i(TAG, "════════ SAVE START ════════ name=$fullSaveName " +
+                "savedDir=${savedDir.absolutePath} " +
+                "srcFiltered=$filteredTempPath (${File(filteredTempPath).length()} bytes, exists=${File(filteredTempPath).exists()}) " +
+                "srcRaw=$rawTempPath (${File(rawTempPath).length()} bytes, exists=${File(rawTempPath).exists()})")
+
             moveFile(File(filteredTempPath), File(savedDir, "${fullSaveName}_filtered.wav"))
             moveFile(File(rawTempPath),      File(savedDir, "${fullSaveName}_raw.wav"))
 
-            File(savedDir, "${fullSaveName}_filtered.wav").exists()
+            val dstFiltered = File(savedDir, "${fullSaveName}_filtered.wav")
+            val dstRaw = File(savedDir, "${fullSaveName}_raw.wav")
+            val ok = dstFiltered.exists()
+            android.util.Log.i(TAG, "════════ SAVE RESULT ════════ ok=$ok " +
+                "dstFiltered=${dstFiltered.name} (${dstFiltered.length()} bytes, exists=${dstFiltered.exists()}) " +
+                "dstRaw=${dstRaw.name} (${dstRaw.length()} bytes, exists=${dstRaw.exists()})")
+            ok
         } catch (e: Exception) {
+            android.util.Log.e(TAG, "SAVE FAILED — ${e.javaClass.simpleName}: ${e.message}", e)
             e.printStackTrace()
             false
         }
@@ -190,10 +211,20 @@ class SaveRecordingFragment : Fragment() {
     // different mount points on some Android devices. Fall back to copy + delete so the
     // file always ends up in the right place.
     private fun moveFile(src: File, dst: File) {
-        if (!src.exists()) return
+        if (!src.exists()) {
+            // FIX 2026-09-02: a missing source is the quiet failure mode this function was
+            // already written to tolerate — now it says so instead of returning silently.
+            android.util.Log.w(TAG, "moveFile — SOURCE MISSING, nothing moved: ${src.absolutePath}")
+            return
+        }
+        val bytes = src.length()
         if (!src.renameTo(dst)) {
+            android.util.Log.w(TAG, "moveFile — renameTo() failed (likely cross-mount), " +
+                "falling back to copy+delete: ${src.name} -> ${dst.name} ($bytes bytes)")
             src.copyTo(dst, overwrite = true)
             src.delete()
+        } else {
+            android.util.Log.d(TAG, "moveFile — renamed ${src.name} -> ${dst.name} ($bytes bytes)")
         }
     }
 

@@ -4,12 +4,20 @@ import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
+import android.util.Log
 import com.musediagnostics.taal.dsp.AudioFilterEngine
 import kotlinx.coroutines.*
 import java.io.File
 import java.io.FileInputStream
 
 class TaalPlayer(private val context: Context) {
+
+    companion object {
+        // FIX 2026-09-02: same tag as TaalAudioCapture/TaalRecorder so ONE
+        // `adb logcat -s TAAL_AUDIO_DEBUG` follows a recording all the way from capture
+        // through save to playback of the saved file.
+        private const val TAG = "TAAL_AUDIO_DEBUG"
+    }
 
     private var audioTrack: AudioTrack? = null
     private var playbackJob: Job? = null
@@ -42,6 +50,16 @@ class TaalPlayer(private val context: Context) {
         // the correct sample rate. A 44100 Hz filter applied to 8000 Hz audio would
         // have a completely wrong frequency response.
         filterEngine = AudioFilterEngine(wavSampleRate)
+        // FIX 2026-09-02: playback-side provenance — which file, how big, what the WAV
+        // header claims, and the duration those two imply (16-bit mono assumed, matching
+        // everything this SDK writes). Lets a played-back file be tied to the capture
+        // session that produced it.
+        val f = audioFile!!
+        val pcmBytes = (f.length() - 44).coerceAtLeast(0)
+        val durationSec = pcmBytes / 2.0 / wavSampleRate
+        Log.i(TAG, "════════ PLAYBACK setDataSource ════════ file=${f.name} " +
+            "bytes=${f.length()} pcmBytes=$pcmBytes headerSampleRate=${wavSampleRate}Hz " +
+            "impliedDurationSec=${"%.2f".format(durationSec)} path=${f.parent}")
     }
 
     /**
@@ -108,6 +126,11 @@ class TaalPlayer(private val context: Context) {
             .setBufferSizeInBytes(bufferSize)
             .setTransferMode(AudioTrack.MODE_STREAM)
             .build()
+        // FIX 2026-09-02: confirm the output track really initialised at the rate we asked
+        // for — a mismatch here plays the recording at the wrong speed.
+        Log.d(TAG, "PLAYBACK prepare() — requestedRate=${wavSampleRate}Hz " +
+            "trackSampleRate=${audioTrack?.sampleRate}Hz minBufferBytes=$bufferSize " +
+            "state=${audioTrack?.state}")
     }
 
     fun start() {
@@ -139,6 +162,18 @@ class TaalPlayer(private val context: Context) {
                     val buffer = ByteArray(4096)
                     val floatBuffer = FloatArray(2048)
                     val startTime = System.currentTimeMillis()
+
+                    // FIX 2026-09-02: mirror the capture-side window/session statistics on
+                    // the playback path, measured on the POST-filter samples actually sent
+                    // to AudioTrack. Directly comparable to the capture summary, so a level
+                    // change between recording and playback is visible instead of inferred.
+                    var lastLogTime = startTime
+                    var windowPeak = 0f
+                    var windowSumSquares = 0.0
+                    var windowSampleCount = 0L
+                    var sessionPeak = 0f
+                    var sessionSumSquares = 0.0
+                    var sessionSampleCount = 0L
 
                     while (isPlaying) {
                         val bytesRead = fis.read(buffer)
@@ -177,10 +212,48 @@ class TaalPlayer(private val context: Context) {
                             delay(minCallbackIntervalMs - audioFrameDurationMs)
                         }
 
+                        // FIX 2026-09-02: accumulate post-filter playback levels.
+                        for (s in filtered) {
+                            val abs = kotlin.math.abs(s)
+                            if (abs > windowPeak) windowPeak = abs
+                            windowSumSquares += s.toDouble() * s.toDouble()
+                        }
+                        windowSampleCount += filtered.size
+                        val nowMs = System.currentTimeMillis()
+                        val windowElapsedMs = nowMs - lastLogTime
+                        if (windowElapsedMs >= 1000) {
+                            lastLogTime = nowMs
+                            val windowRms = if (windowSampleCount > 0) {
+                                kotlin.math.sqrt(windowSumSquares / windowSampleCount)
+                            } else 0.0
+                            Log.d(TAG, "PLAYBACK — t=${nowMs - startTime}ms " +
+                                "windowPeak=$windowPeak windowRms=$windowRms " +
+                                "windowSamples=$windowSampleCount windowMs=$windowElapsedMs")
+                            if (windowPeak > sessionPeak) sessionPeak = windowPeak
+                            sessionSumSquares += windowSumSquares
+                            sessionSampleCount += windowSampleCount
+                            windowPeak = 0f
+                            windowSumSquares = 0.0
+                            windowSampleCount = 0L
+                        }
+
                         // Callback with progress
                         val timestamp = (System.currentTimeMillis() - startTime) / 1000.0
                         onPlaybackProgress?.invoke(timestamp, filtered)
                     }
+
+                    // FIX 2026-09-02: fold the open window in and state playback totals.
+                    if (windowPeak > sessionPeak) sessionPeak = windowPeak
+                    sessionSumSquares += windowSumSquares
+                    sessionSampleCount += windowSampleCount
+                    val playedMs = System.currentTimeMillis() - startTime
+                    val sessionRms = if (sessionSampleCount > 0) {
+                        kotlin.math.sqrt(sessionSumSquares / sessionSampleCount)
+                    } else 0.0
+                    Log.i(TAG, "════════ PLAYBACK PASS SUMMARY ════════ file=${file.name} " +
+                        "playedMs=$playedMs samples=$sessionSampleCount " +
+                        "playbackPeak=$sessionPeak playbackRms=$sessionRms " +
+                        "(post-filter, post-preamp — compare against the CAPTURE SESSION SUMMARY)")
                 }
             } while (isLooping && isPlaying)
         } catch (_: Exception) {
@@ -204,6 +277,8 @@ class TaalPlayer(private val context: Context) {
     var onPlaybackComplete: (() -> Unit)? = null
 
     fun stop() {
+        // FIX 2026-09-02: distinguish a user-initiated stop from playback ending naturally.
+        Log.d(TAG, "PLAYBACK stop() — requested by caller (wasPlaying=$isPlaying)")
         isPlaying = false
         playbackJob?.cancel()
         try {

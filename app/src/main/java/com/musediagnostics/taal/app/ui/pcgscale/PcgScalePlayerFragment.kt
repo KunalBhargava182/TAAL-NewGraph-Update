@@ -78,6 +78,9 @@ class PcgScalePlayerFragment : Fragment() {
         private const val FOLLOW_SMOOTHING = 0.15f
         // Halved from the Calibrated player's 3.0 (explicit user request — ledger Fix 4, re-applied).
         private const val TRACE_LINE_WIDTH_DP = 1.5f
+
+        // FIX 2026-09-02: shared tag — see taal-core's capture/playback logging.
+        private const val TAG = "TAAL_AUDIO_DEBUG"
     }
 
     override fun onCreateView(
@@ -96,6 +99,12 @@ class PcgScalePlayerFragment : Fragment() {
         // The dB the recorder actually used for this file, if known (0 = not passed / unknown,
         // meaning no compensation is applied) — same contract as the Calibrated fork.
         val recordedPreAmpDb = arguments?.getInt("preAmpDb", 0) ?: 0
+
+        // FIX 2026-09-02: the hand-off from the recorder — which files this screen was handed,
+        // and whether it's treating them as a brand-new recording (Save/Discard shown).
+        android.util.Log.i(TAG, "════════ PLAYER SCREEN OPENED ════════ isNewRecording=$isNewRecording " +
+            "filter=$filterName recordedPreAmpDb=$recordedPreAmpDb " +
+            "filtered=$filePath raw=${arguments?.getString("rawFilePath") ?: "(none)"}")
 
         binding.saveDiscardBar.visibility = if (isNewRecording) View.VISIBLE else View.GONE
 
@@ -136,6 +145,8 @@ class PcgScalePlayerFragment : Fragment() {
         // SavedRecordingsFragment lists), an existing recording goes straight to the
         // save/discard dialog → Add Patient. Ledger Fix 2, re-applied.
         binding.saveButton.setOnClickListener {
+            android.util.Log.i(TAG, "PLAYER Save tapped — isNewRecording=$isNewRecording " +
+                "-> ${if (isNewRecording) "SaveRecordingFragment" else "save/discard dialog"}")
             if (isNewRecording) {
                 val rawFilePath = arguments?.getString("rawFilePath") ?: ""
                 val bundle = Bundle().apply {
@@ -151,6 +162,7 @@ class PcgScalePlayerFragment : Fragment() {
         }
 
         binding.discardButton.setOnClickListener {
+            android.util.Log.i(TAG, "PLAYER Discard tapped — isNewRecording=$isNewRecording")
             if (isNewRecording) {
                 showDiscardConfirmation(filePath)
             } else {
@@ -229,7 +241,13 @@ class PcgScalePlayerFragment : Fragment() {
     private fun loadFullWaveform(filePath: String, pixelsPerSecond: Float, recordedPreAmpDb: Int) {
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
             val file = File(filePath)
-            if (!file.exists()) return@launch
+            if (!file.exists()) {
+                // FIX 2026-09-02: silent return -> empty graph with no explanation.
+                android.util.Log.e(TAG, "════════ PLAYER LOAD FAILED ════════ file does not exist: $filePath")
+                return@launch
+            }
+            android.util.Log.i(TAG, "════════ PLAYER LOAD ════════ file=${file.name} " +
+                "bytes=${file.length()} recordedPreAmpDb=$recordedPreAmpDb")
             val bytes = file.readBytes()
 
             val fileSampleRate: Float = if (bytes.size >= 28) {
@@ -285,6 +303,24 @@ class PcgScalePlayerFragment : Fragment() {
                 idx.toFloat() / fileSampleRate
             }
 
+            // FIX 2026-09-02: the full decode + axis derivation in one line. isClampedAtMin
+            // is the key one — it says the MIN_FULL_SCALE floor, not the measured signal, set
+            // the Y axis, which is exactly the quiet-capture regime under investigation.
+            var pk = 0f
+            var sumSq = 0.0
+            for (s in samples) {
+                val a = kotlin.math.abs(s)
+                if (a > pk) pk = a
+                sumSq += s.toDouble() * s.toDouble()
+            }
+            val rms = if (samples.isNotEmpty()) kotlin.math.sqrt(sumSq / samples.size) else 0.0
+            android.util.Log.i(TAG, "PLAYER decoded — headerRate=${fileSampleRate.toInt()}Hz " +
+                "totalSamples=$totalSamples durationSecs=$durationSecs " +
+                "dataPeak=$pk dataRms=$rms (after preAmp undo of ${recordedPreAmpDb}dB) " +
+                "fullScale=$fullScale minClamped=${fileScale.isClampedAtMin()} " +
+                "peakFillOfAxis=${"%.1f".format(if (fullScale > 0f) 100.0 * pk / fullScale else 0.0)}% " +
+                "bucketSize=$bucketSize entries=${entries.size}")
+
             withContext(Dispatchers.Main) {
                 if (_binding == null) return@withContext
                 val chart = binding.pcgScaleWaveformView.chart
@@ -332,7 +368,13 @@ class PcgScalePlayerFragment : Fragment() {
             player = TaalPlayer(requireContext()).apply {
                 setDataSource(filePath)
                 val fileName = File(filePath).name
-                if (!fileName.contains("_filtered") && !fileName.contains("_8k_downsampling")) {
+                // FIX 2026-09-02: whether playback re-applies the preset filter. A file
+                // already written filtered must NOT be filtered again — this line says which
+                // branch was taken, so double-filtering is visible instead of inferred.
+                val skipFilter = fileName.contains("_filtered") || fileName.contains("_8k_downsampling")
+                android.util.Log.i(TAG, "PLAYER setupPlayer — file=$fileName " +
+                    "preFilterOnPlayback=${if (skipFilter) "SKIPPED (already-filtered file)" else filterName}")
+                if (!skipFilter) {
                     val preFilter = try { PreFilter.valueOf(filterName) } catch (_: Exception) { PreFilter.HEART }
                     setPreFilter(preFilter)
                 }
@@ -381,6 +423,7 @@ class PcgScalePlayerFragment : Fragment() {
     }
 
     private fun togglePlayback(filePath: String) {
+        android.util.Log.i(TAG, "PLAYER play button — ${if (isPlaying) "STOPPING" else "STARTING"} playback")
         if (isPlaying) {
             player?.stop()
             isPlaying = false
