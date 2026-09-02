@@ -81,3 +81,8 @@ default screen — PcgScale is additive, not a replacement, per explicit decisio
 and 14s auto-stop, matching `RecordingFragment.kt`'s existing customizations, instead
 of `app`'s original 5-preset filter row. `:stemz-app:assembleDebug` verified green
 after the port.
+
+**~02:45 — PcgScale made stemz-app's default screen** (reversing the "keep current
+default" decision from the port above, per follow-up request): `nav_graph.xml`'s
+`startDestination` changed from `recordingFragment` to `pcgScaleRecordingFragment`,
+matching `app`'s current start destination. `:stemz-app:assembleDebug` verified green.

@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/nav_graph"
-    app:startDestination="@id/recordingFragment"><!-- Flipped back from fullTimeOnRecordingFragment at explicit user request, to test the segmentation feature. Was TEMP for dev testing on the fullTimeOn work — restore that if needed. -->
+    app:startDestination="@id/pcgScaleRecordingFragment"><!-- Set to PcgScale recorder at explicit user request (2026-09-03), matching app's current start destination. Was recordingFragment before that (see git history if reverting). -->
 
     <!-- Splash Screen -->
     <fragment
