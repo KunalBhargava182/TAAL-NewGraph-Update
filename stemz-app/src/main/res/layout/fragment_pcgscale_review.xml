@@ -34,7 +34,7 @@
             android:id="@+id/screenTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="PCG Scale Review"
+            android:text="Review Recording"
             android:textColor="@color/text_primary"
             android:textSize="14sp"
             android:textStyle="bold"

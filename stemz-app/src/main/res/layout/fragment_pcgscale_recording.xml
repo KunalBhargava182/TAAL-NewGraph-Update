@@ -40,7 +40,7 @@
             android:id="@+id/screenTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="PCG Scale Recorder"
+            android:text="TAAL Recorder"
             android:textColor="@color/text_primary"
             android:textSize="14sp"
             android:textStyle="bold"
