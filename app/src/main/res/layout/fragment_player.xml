@@ -59,12 +59,12 @@
              overlap the circular play button below. -->
         <ImageButton
             android:id="@+id/analyzeButton"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
+            android:layout_width="52dp"
+            android:layout_height="52dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="Analyze Heart Sounds"
-            android:padding="6dp"
-            android:src="@drawable/ic_heart"
+            android:padding="8dp"
+            android:src="@drawable/fragment_player"
             android:tint="#128CB2"
             android:visibility="gone"
             app:layout_constraintBottom_toBottomOf="parent"

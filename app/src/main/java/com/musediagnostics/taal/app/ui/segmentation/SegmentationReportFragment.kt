@@ -14,6 +14,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
@@ -58,6 +59,15 @@ class SegmentationReportFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+
+        binding.backButton.setOnClickListener { goToSavedRecordings() }
+
+        // The device/gesture back action must land in the same place as the on-screen
+        // back button (Saved Recordings, not Player) — without this callback it would
+        // fall through to the default navigateUp() behavior instead.
+        requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() = goToSavedRecordings()
+        })
 
         val rawFilePath = arguments?.getString("rawFilePath") ?: ""
         val rawFile = File(rawFilePath)
@@ -128,7 +138,8 @@ class SegmentationReportFragment : Fragment() {
 
             // Nothing to plot for NoHeartSounds/Unavailable, so the PDF (which is the chart plus
             // this same data) is only offered when there's an actual result.
-            binding.downloadButton.visibility = View.VISIBLE
+            // Hidden per request (2026-09-02) — kept wired (listener still set), not removed.
+            binding.downloadButton.visibility = View.GONE
             binding.downloadButton.setOnClickListener { savePdfToDownloads() }
         }
     }
@@ -172,6 +183,10 @@ class SegmentationReportFragment : Fragment() {
                 binding.resultStatusHeadline.text = "Trustworthy segmentation"
                 binding.resultStatusHeadline.setTextColor(ContextCompat.getColor(ctx, R.color.text_primary))
                 binding.resultStatusSubtext.visibility = View.GONE
+                // Hidden per request (2026-09-02) — success-state row only; the Low
+                // confidence / No heart sounds / Unavailable rows below stay visible
+                // since those carry actionable info. Kept wired, not removed.
+                binding.resultStatusRow.visibility = View.GONE
             }
             is SegmentationOutcome.TooWeak -> {
                 binding.resultStatusIcon.setImageResource(R.drawable.ic_info)
@@ -261,6 +276,18 @@ class SegmentationReportFragment : Fragment() {
     private fun toast(message: String) {
         if (!isAdded) return
         Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
+    }
+
+    // Always lands on Saved Recordings, not just "up" — this screen is only ever reached
+    // via PlayerFragment (see this file's header comment), so a plain navigateUp() would
+    // land back on Player instead. Falls back to a direct navigate() if Saved Recordings
+    // isn't on the back stack for some reason. Shared by the on-screen back button and the
+    // device/gesture back callback so both behave identically.
+    private fun goToSavedRecordings() {
+        val nav = findNavController()
+        if (!nav.popBackStack(R.id.savedRecordingsFragment, false)) {
+            nav.navigate(R.id.savedRecordingsFragment)
+        }
     }
 
     override fun onDestroyView() {

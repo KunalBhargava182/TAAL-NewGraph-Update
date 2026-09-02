@@ -75,6 +75,7 @@
         android:src="@drawable/ic_close"
         app:tint="#FFFFFF" />
 
+    <!-- Hidden per request (2026-09-02) — kept in layout, not removed. -->
     <TextView
         android:id="@+id/disclaimerText"
         android:layout_width="wrap_content"
@@ -83,6 +84,7 @@
         android:layout_margin="6dp"
         android:text="Research/test output only — not a medical device."
         android:textColor="#99FFFFFF"
-        android:textSize="9sp" />
+        android:textSize="9sp"
+        android:visibility="gone" />
 
 </FrameLayout>

@@ -54,13 +54,22 @@ class PlayerFragment : Fragment() {
 
         binding.saveDiscardBar.visibility = if (isNewRecording) View.VISIBLE else View.GONE
 
-        // Only offered for a file actually inside filesDir/saved/ — checked by directory, not
-        // the isNewRecording flag: some existing callers (e.g. RecordingFragment's
-        // playPauseButton) navigate here without setting isNewRecording, which would otherwise
-        // make an in-progress temp recording look identical to a saved one.
+        // Checked by directory, not the isNewRecording flag: some existing callers (e.g.
+        // RecordingFragment's playPauseButton) navigate here without setting isNewRecording,
+        // which would otherwise make an in-progress temp recording look identical to a saved
+        // one. Shared by the title below and the "Analyze Heart Sounds" gate further down.
+        val savedDir = File(requireContext().filesDir, "saved")
+        val isInSavedDir = File(filePath).parentFile?.absolutePath == savedDir.absolutePath
+
+        // Title shows the actual saved-recording name once there is one — a brand-new,
+        // not-yet-saved take is still a system temp filename, so it keeps the generic
+        // "Review Recording" title set in the layout.
+        if (isInSavedDir && filePath.isNotEmpty()) {
+            binding.screenTitle.text = savedRecordingDisplayName(File(filePath))
+        }
+
+        // Only offered for a file actually inside filesDir/saved/.
         if (SegmentationFeature.ENABLED) {
-            val savedDir = File(requireContext().filesDir, "saved")
-            val isInSavedDir = File(filePath).parentFile?.absolutePath == savedDir.absolutePath
             if (isInSavedDir && filePath.contains("_filtered.wav")) {
                 val savedRawPath = filePath.replace("_filtered.wav", "_raw.wav")
                 if (File(savedRawPath).exists()) {
@@ -374,6 +383,18 @@ class PlayerFragment : Fragment() {
                 }
             }
         }.show(parentFragmentManager, "save_discard")
+    }
+
+    /**
+     * Filename format: "{FILTER}_{userInput}_filtered.wav" — same convention (including
+     * HEART_HARD, checked before HEART) as SavedRecordingAdapter's list screen, so the title
+     * matches what the user tapped there.
+     */
+    private fun savedRecordingDisplayName(file: File): String {
+        val baseName = file.nameWithoutExtension.removeSuffix("_filtered")
+        val known = listOf("FULL_BODY", "PREGNANCY", "CUSTOM", "LUNGS", "BOWEL", "HEART_HARD", "HEART")
+        val filterPrefix = known.firstOrNull { baseName.startsWith("${it}_") }
+        return filterPrefix?.let { baseName.removePrefix("${it}_") } ?: baseName
     }
 
     override fun onDestroyView() {
