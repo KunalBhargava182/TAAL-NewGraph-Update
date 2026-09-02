@@ -160,7 +160,7 @@ class PcgScaleReviewFragment : Fragment() {
     private fun updateScaleCaption() {
         if (_binding == null) return
         binding.scaleCaption.text =
-            "1 large box = 1 s · 1 small box = 0.2 s · Y: auto (60% fill, RMS) · scroll to browse"
+            "1 large box = 1 s · 1 small box = 0.2 s · Y: auto (50% fill, RMS) · scroll to browse"
     }
 
     private data class RenderPayload(val fullScale: Float, val entries: ArrayList<Entry>)
