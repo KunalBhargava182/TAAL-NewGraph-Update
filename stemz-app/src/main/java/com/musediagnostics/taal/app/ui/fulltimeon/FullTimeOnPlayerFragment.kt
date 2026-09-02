@@ -149,11 +149,6 @@ class FullTimeOnPlayerFragment : Fragment() {
             findNavController().navigateUp()
         }
 
-        binding.eqButton.setOnClickListener {
-            val bundle = Bundle().apply { putString("filePath", filePath) }
-            findNavController().navigate(R.id.action_fullTimeOnPlayer_to_equalizer, bundle)
-        }
-
         binding.playButton.setOnClickListener {
             if (filePath.isEmpty()) {
                 Toast.makeText(requireContext(), "No recording to play", Toast.LENGTH_SHORT).show()

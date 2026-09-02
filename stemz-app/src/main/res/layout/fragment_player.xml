@@ -40,18 +40,6 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
-        <ImageButton
-            android:id="@+id/eqButton"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Equalizer"
-            android:src="@drawable/ic_equalizer"
-            android:visibility="gone"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
-
         <!-- Shown only for an already-saved recording, since that's when a saved _raw.wav
              companion is guaranteed to exist on disk to analyse. Gated in code by
              SegmentationFeature.ENABLED — flip that one flag to hide this whole feature.
