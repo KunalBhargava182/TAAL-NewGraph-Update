@@ -66,12 +66,17 @@ class PcgAmplitudeScale(
         // see class doc stage 2. K=3 tolerates up to two transient-elevated hops per window.
         const val OUTLIER_REJECTION_K = 3
 
-        // Same floor as production RecordingFragment's MIN_PEAK — below this the input is
-        // treated as noise/silence and the axis refuses to shrink further (prevents blowing
-        // pure noise up to 60%). If a study device shows "(MIN-CLAMPED)" with real heart
-        // sounds on the chest, lowering this — or raising that device's input gain — is a
-        // deliberate policy decision, not a bug fix.
-        const val MIN_FULL_SCALE = 0.02f
+        // Below this the input is treated as noise/silence and the axis refuses to shrink
+        // further (prevents blowing pure noise up to 60%). Lowered from 0.02 to 0.005
+        // (2026-08-28) after the study Samsung unit reported a still-small trace on rev 3:
+        // its natural peak/TARGET_FILL_FRACTION target was landing BELOW the old 0.02 floor,
+        // so the floor itself — not the measurement — was forcing an oversized axis (e.g. a
+        // real peak of 0.008 naturally targets 0.0133, but the old floor clamped the axis up
+        // to 0.02, drawing only 0.008/0.02 = 40% instead of the intended 60%). If a device
+        // still shows "(MIN-CLAMPED)" with real heart sounds on the chest at this new floor,
+        // lowering it further — or raising that device's input gain — is a deliberate policy
+        // decision, not a bug fix.
+        const val MIN_FULL_SCALE = 0.005f
         const val MAX_FULL_SCALE = 1.0f
 
         // Fraction of the remaining gap to the target closed per smoothedFullScale() call

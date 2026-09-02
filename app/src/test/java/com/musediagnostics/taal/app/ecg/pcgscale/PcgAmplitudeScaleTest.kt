@@ -142,7 +142,7 @@ class PcgAmplitudeScaleTest {
     @Test
     fun `min-clamp is reported so a too-quiet device is diagnosable on screen`() {
         val quiet = PcgAmplitudeScale(rate)
-        quiet.addSamples(sine(0.008f, 6f)) // peak 0.008 → /0.6 ≈ 0.013 < 0.02
+        quiet.addSamples(sine(0.002f, 6f)) // peak 0.002 → /0.6 ≈ 0.0033 < MIN_FULL_SCALE (0.005)
         assertTrue(quiet.isClampedAtMin())
         assertEquals(PcgAmplitudeScale.MIN_FULL_SCALE, quiet.targetFullScale(), 1e-6f)
 
