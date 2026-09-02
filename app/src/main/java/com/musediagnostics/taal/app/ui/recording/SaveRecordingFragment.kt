@@ -59,7 +59,7 @@ class SaveRecordingFragment : Fragment() {
      * already completed successfully. We are here only to decide whether the
      * device-storage copy can happen.
      *
-     * Grant  → copy the already-saved files to Music/Taal Saved Audios, then navigate.
+     * Grant  → copy the already-saved files to Music/Taal Saved Recordings, then navigate.
      * Deny   → skip device copy, show message, then navigate.
      *          Internal files are safe regardless.
      */
@@ -153,7 +153,7 @@ class SaveRecordingFragment : Fragment() {
                     return@withContext
                 }
 
-                // Step 2: Copy to device storage (Music/Taal Saved Audios)
+                // Step 2: Copy to device storage (Music/Taal Saved Recordings)
                 val needsPermission = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
                     ContextCompat.checkSelfPermission(ctx, Manifest.permission.WRITE_EXTERNAL_STORAGE) !=
                         PackageManager.PERMISSION_GRANTED
@@ -244,16 +244,16 @@ class SaveRecordingFragment : Fragment() {
     }
 
     /**
-     * Copy a single file into Music/Taal Saved Audios on the device.
+     * Copy a single file into Music/Taal Saved Recordings on the device.
      *
      * API 29+ — MediaStore:
      *   No WRITE_EXTERNAL_STORAGE needed.
      *   IS_PENDING=1 reserves the slot; IS_PENDING=0 makes it visible to all apps.
-     *   RELATIVE_PATH places it at Music/Taal Saved Audios/.
+     *   RELATIVE_PATH places it at Music/Taal Saved Recordings/.
      *
      * API 24–28 — Direct file write:
      *   Requires WRITE_EXTERNAL_STORAGE (declared in manifest, granted at runtime).
-     *   Writes to Environment.DIRECTORY_MUSIC/Taal Saved Audios/.
+     *   Writes to Environment.DIRECTORY_MUSIC/Taal Saved Recordings/.
      */
     private fun copyOneFile(ctx: android.content.Context, sourcePath: String) {
         val source = File(sourcePath)
@@ -265,7 +265,7 @@ class SaveRecordingFragment : Fragment() {
                 val values = ContentValues().apply {
                     put(MediaStore.Audio.Media.DISPLAY_NAME, fileName)
                     put(MediaStore.Audio.Media.MIME_TYPE, "audio/wav")
-                    put(MediaStore.Audio.Media.RELATIVE_PATH, "Music/Taal Saved Audios")
+                    put(MediaStore.Audio.Media.RELATIVE_PATH, "Music/Taal Saved Recordings")
                     put(MediaStore.Audio.Media.IS_PENDING, 1)
                 }
                 val resolver = ctx.contentResolver
@@ -281,7 +281,7 @@ class SaveRecordingFragment : Fragment() {
             } else {
                 val folder = File(
                     Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC),
-                    "Taal Saved Audios"
+                    "Taal Saved Recordings"
                 )
                 folder.mkdirs()
                 source.copyTo(File(folder, fileName), overwrite = true)
