@@ -20,6 +20,7 @@ import com.musediagnostics.taal.app.R
 import com.musediagnostics.taal.app.databinding.FragmentPcgscaleReviewBinding
 import com.musediagnostics.taal.app.ecg.pcgscale.PcgAmplitudeScale
 import com.musediagnostics.taal.app.ecg.pcgscale.PcgScaleWaveformView
+import com.musediagnostics.taal.app.ui.segmentation.SegmentationFeature
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -80,6 +81,20 @@ class PcgScaleReviewFragment : Fragment() {
 
         val filePath = arguments?.getString("filePath") ?: ""
         val filterName = arguments?.getString("filterName") ?: "HEART"
+
+        // Same gate as production PlayerFragment's "Analyze Heart Sounds" button: this screen
+        // is only ever reached from Saved Recordings, so filePath is always inside
+        // filesDir/saved/ already — just confirm the saved _raw.wav companion actually exists.
+        if (SegmentationFeature.ENABLED && filePath.contains("_filtered.wav")) {
+            val savedRawPath = filePath.replace("_filtered.wav", "_raw.wav")
+            if (File(savedRawPath).exists()) {
+                binding.analyzeButton.visibility = View.VISIBLE
+                binding.analyzeButton.setOnClickListener {
+                    val bundle = Bundle().apply { putString("rawFilePath", savedRawPath) }
+                    findNavController().navigate(R.id.action_pcgScaleReview_to_segmentationReport, bundle)
+                }
+            }
+        }
 
         setupWaveformChart()
         setupAmpSlider()

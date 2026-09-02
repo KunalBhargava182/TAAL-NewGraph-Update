@@ -631,6 +631,9 @@
         <action
             android:id="@+id/action_pcgScalePlayer_to_saveRecording"
             app:destination="@id/saveRecordingFragment" />
+        <action
+            android:id="@+id/action_pcgScalePlayer_to_segmentationReport"
+            app:destination="@id/segmentationReportFragment" />
     </fragment>
 
     <!-- PcgScale Review — reviewing an already-saved recording (from SavedRecordingsFragment).
@@ -651,6 +654,9 @@
         <action
             android:id="@+id/action_pcgScaleReview_to_equalizer"
             app:destination="@id/equalizerFragment" />
+        <action
+            android:id="@+id/action_pcgScaleReview_to_segmentationReport"
+            app:destination="@id/segmentationReportFragment" />
     </fragment>
 
 </navigation>

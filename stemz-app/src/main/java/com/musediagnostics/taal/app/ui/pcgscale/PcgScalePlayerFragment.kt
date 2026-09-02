@@ -21,6 +21,7 @@ import com.musediagnostics.taal.app.databinding.FragmentPcgscalePlayerBinding
 import com.musediagnostics.taal.app.ecg.pcgscale.PcgAmplitudeScale
 import com.musediagnostics.taal.app.ecg.pcgscale.PcgScaleWaveformView
 import com.musediagnostics.taal.app.ui.player.PlayerSaveDiscardDialog
+import com.musediagnostics.taal.app.ui.segmentation.SegmentationFeature
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -107,6 +108,23 @@ class PcgScalePlayerFragment : Fragment() {
             "filtered=$filePath raw=${arguments?.getString("rawFilePath") ?: "(none)"}")
 
         binding.saveDiscardBar.visibility = if (isNewRecording) View.VISIBLE else View.GONE
+
+        // Same gate as production PlayerFragment's "Analyze Heart Sounds" button: only offered
+        // once the file is inside filesDir/saved/ with a saved _raw.wav companion on disk — a
+        // brand-new, not-yet-saved recording (the normal way this screen is reached) naturally
+        // fails this and keeps the button hidden.
+        if (SegmentationFeature.ENABLED) {
+            val rawFilePath = arguments?.getString("rawFilePath") ?: ""
+            val savedDir = File(requireContext().filesDir, "saved")
+            val isInSavedDir = File(filePath).parentFile?.absolutePath == savedDir.absolutePath
+            if (isInSavedDir && rawFilePath.isNotEmpty() && File(rawFilePath).exists()) {
+                binding.analyzeButton.visibility = View.VISIBLE
+                binding.analyzeButton.setOnClickListener {
+                    val bundle = Bundle().apply { putString("rawFilePath", rawFilePath) }
+                    findNavController().navigate(R.id.action_pcgScalePlayer_to_segmentationReport, bundle)
+                }
+            }
+        }
 
         setupWaveformChart()
         setupAmpSlider()

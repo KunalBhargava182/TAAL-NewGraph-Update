@@ -43,6 +43,23 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
+        <!-- Shown only when a saved _raw.wav companion exists on disk to analyse — see
+             PcgScaleReviewFragment.kt's isInSavedDir check. Gated in code by
+             SegmentationFeature.ENABLED. -->
+        <ImageButton
+            android:id="@+id/analyzeButton"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Analyze Heart Sounds"
+            android:padding="5dp"
+            android:src="@drawable/fragment_player"
+            android:tint="#128CB2"
+            android:visibility="gone"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
     </androidx.constraintlayout.widget.ConstraintLayout>
 
     <TextView
