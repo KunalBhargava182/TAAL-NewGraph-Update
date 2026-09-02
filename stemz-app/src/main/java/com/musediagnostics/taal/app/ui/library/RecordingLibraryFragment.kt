@@ -307,11 +307,17 @@ class RecordingLibraryFragment : Fragment() {
             }
             val uri = FileProvider.getUriForFile(
                 requireContext(),
-                "${requireContext().packageName}.provider",
+                "${requireContext().packageName}.fileprovider",
                 file
             )
             val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                type = "audio/*"
+                // Generic type, not "audio/*" — several apps (WhatsApp included) treat an
+                // "audio/*" share as a voice-note/media attachment and transcode it (e.g.
+                // to AAC) instead of passing the original bytes through. A generic type
+                // routes it through their "send as document/file" path instead, which
+                // doesn't recompress. The ".wav" in the filename still tells the
+                // receiving app what it is.
+                type = "application/octet-stream"
                 putExtra(Intent.EXTRA_STREAM, uri)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
