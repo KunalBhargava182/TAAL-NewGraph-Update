@@ -475,9 +475,6 @@ class PcgScaleRecordingFragment : Fragment() {
         } else if (viewModel.currentFilter.value == "CUSTOM") {
             binding.customRangePanel.visibility = View.VISIBLE
         }
-        // Feature A: hum filter state is fixed per session, same as the preset filter buttons.
-        binding.humFilterSwitch.isEnabled = enabled
-        binding.humFilterSwitch.alpha = alpha
     }
 
     private fun observeState() {
@@ -587,9 +584,6 @@ class PcgScaleRecordingFragment : Fragment() {
                 setRecordingTime(30)
                 setPlayback(false)
                 setPreAmplification(viewModel.preAmpDb.value ?: 5)
-                // Feature A: opt-in hum/rumble filter, default off. Not yet persisted across
-                // sessions — read fresh from the switch every recording.
-                setHumRumbleFilterEnabled(binding.humFilterSwitch.isChecked)
                 when (filterName) {
                     "CUSTOM" -> setCustomBandpass(
                         viewModel.customLowCut!!.toDouble(),

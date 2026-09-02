@@ -20,7 +20,6 @@ import com.musediagnostics.taal.app.R
 import com.musediagnostics.taal.app.databinding.FragmentPcgscaleReviewBinding
 import com.musediagnostics.taal.app.ecg.pcgscale.PcgAmplitudeScale
 import com.musediagnostics.taal.app.ecg.pcgscale.PcgScaleWaveformView
-import com.musediagnostics.taal.app.ecg.pcgscale.PcgSpectralGate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -54,17 +53,7 @@ class PcgScaleReviewFragment : Fragment() {
     // wherever the chart snaps back to its start-centered framing.
     private var displayedPlaybackTime = 0f
 
-    // Feature B: Denoise toggle state. Both the as-decoded and (once computed) the
-    // spectral-gated sample arrays are kept in memory so toggling back is instant — only the
-    // FIRST enable pays the PcgSpectralGate.process() cost. Playback always plays the
-    // ORIGINAL file (see setupPlayer/togglePlayback, untouched) — the gate affects the
-    // display trace only.
-    private var originalSamples: FloatArray? = null
-    private var gatedSamples: FloatArray? = null
-    private var fileSampleRateForGate: Float = INPUT_SAMPLE_RATE
     private var pixelsPerSecondForRender: Float = -1f
-    private var recordingDurationSecs: Int = 0
-    private var denoiseEnabled = false
 
     companion object {
         private const val INPUT_SAMPLE_RATE = 44100f
@@ -94,7 +83,6 @@ class PcgScaleReviewFragment : Fragment() {
 
         setupWaveformChart()
         setupAmpSlider()
-        setupDenoiseSwitch()
         updateScaleCaption()
 
         if (filePath.isNotEmpty()) {
@@ -126,15 +114,6 @@ class PcgScaleReviewFragment : Fragment() {
             val db = value.toInt()
             binding.ampLabel.text = "$db dB"
             player?.setPreAmplification(db.toFloat())
-        }
-    }
-
-    /** Feature B: display-only spectral-gate denoise toggle — see field docs above. Disabled
-     *  until the file finishes decoding (there is nothing to gate yet). */
-    private fun setupDenoiseSwitch() {
-        binding.denoiseSwitch.isEnabled = false
-        binding.denoiseSwitch.setOnCheckedChangeListener { _, checked ->
-            onDenoiseToggled(checked)
         }
     }
 
@@ -185,15 +164,14 @@ class PcgScaleReviewFragment : Fragment() {
 
     private fun updateScaleCaption() {
         if (_binding == null) return
-        val suffix = if (denoiseEnabled) " · denoised" else ""
         binding.scaleCaption.text =
-            "1 large box = 1 s · 1 small box = 0.2 s · Y: auto (60% fill, RMS) · scroll to browse$suffix"
+            "1 large box = 1 s · 1 small box = 0.2 s · Y: auto (60% fill, RMS) · scroll to browse"
     }
 
     private data class RenderPayload(val fullScale: Float, val entries: ArrayList<Entry>)
 
-    /** Whole-file 60%-fill axis scale + downsample bucket, shared by the initial load and every
-     *  Denoise toggle re-render (same math PcgScalePlayerFragment.loadFullWaveform uses). */
+    /** Whole-file 60%-fill axis scale + downsample bucket (same math
+     *  PcgScalePlayerFragment.loadFullWaveform uses). */
     private fun computeRenderPayload(samples: FloatArray, sampleRate: Float): RenderPayload {
         val fullScale = PcgAmplitudeScale.computeFullScaleForFile(samples, sampleRate)
         val totalSamples = samples.size
@@ -222,7 +200,7 @@ class PcgScaleReviewFragment : Fragment() {
             "rate=${sampleRate.toInt()}Hz dataPeak=$pk dataRms=$rms " +
             "fullScale=$fullScale peakFillOfAxis=${"%.1f".format(fillPct)}% " +
             "bucketSize=$bucketSize (derived=$derivedBucket ceiling=$ceilingBucket) " +
-            "entries=${entries.size} denoise=$denoiseEnabled")
+            "entries=${entries.size}")
         return RenderPayload(fullScale, ArrayList(entries))
     }
 
@@ -236,8 +214,7 @@ class PcgScaleReviewFragment : Fragment() {
     }
 
     /** Decode/scale/bucket pipeline, same as PcgScalePlayerFragment.loadFullWaveform minus the
-     *  pre-amp undo step (a saved file has no known recorder gain to undo). Also caches the
-     *  decoded samples for the Denoise toggle (see field docs). */
+     *  pre-amp undo step (a saved file has no known recorder gain to undo). */
     private fun loadFullWaveform(filePath: String, pixelsPerSecond: Float) {
         pixelsPerSecondForRender = pixelsPerSecond
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
@@ -284,56 +261,6 @@ class PcgScaleReviewFragment : Fragment() {
 
             withContext(Dispatchers.Main) {
                 if (_binding == null) return@withContext
-                originalSamples = samples
-                fileSampleRateForGate = fileSampleRate
-                recordingDurationSecs = durationSecs
-                binding.denoiseSwitch.isEnabled = true
-                applyRenderPayload(payload, durationSecs)
-            }
-        }
-    }
-
-    /**
-     * Denoise toggle: ON with no cached gated version yet runs [PcgSpectralGate] on the
-     * already-decoded original samples on Dispatchers.Default (CPU-bound FFT work), showing
-     * waveformLoadingIndicator for the few seconds a 300s file can take. Every other
-     * transition (ON with a cache hit, or OFF back to the original) is synchronous — both
-     * arrays are already in memory, so it's just a re-bucket + re-render, "instant" per spec.
-     * Playback is untouched either way — see the field doc on [originalSamples].
-     */
-    private fun onDenoiseToggled(enabled: Boolean) {
-        val original = originalSamples ?: return
-        denoiseEnabled = enabled
-        val durationSecs = recordingDurationSecs
-        // FIX 2026-09-02: which path the toggle took — cache hit/miss matters because a miss
-        // runs the FFT gate and can take seconds on a long file.
-        android.util.Log.i(TAG, "REVIEW denoise toggled -> $enabled " +
-            "(cached=${gatedSamples != null}, samples=${original.size})")
-
-        if (!enabled) {
-            applyRenderPayload(computeRenderPayload(original, fileSampleRateForGate), durationSecs)
-            return
-        }
-
-        val cached = gatedSamples
-        if (cached != null) {
-            applyRenderPayload(computeRenderPayload(cached, fileSampleRateForGate), durationSecs)
-            return
-        }
-
-        binding.waveformLoadingIndicator.visibility = View.VISIBLE
-        binding.denoiseSwitch.isEnabled = false
-        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Default) {
-            val gateStartMs = System.currentTimeMillis()
-            val gated = PcgSpectralGate().process(original, fileSampleRateForGate)
-            android.util.Log.i(TAG, "REVIEW spectral gate computed in " +
-                "${System.currentTimeMillis() - gateStartMs}ms (${original.size} samples)")
-            val payload = computeRenderPayload(gated, fileSampleRateForGate)
-            withContext(Dispatchers.Main) {
-                if (_binding == null) return@withContext
-                gatedSamples = gated
-                binding.waveformLoadingIndicator.visibility = View.GONE
-                binding.denoiseSwitch.isEnabled = true
                 applyRenderPayload(payload, durationSecs)
             }
         }
