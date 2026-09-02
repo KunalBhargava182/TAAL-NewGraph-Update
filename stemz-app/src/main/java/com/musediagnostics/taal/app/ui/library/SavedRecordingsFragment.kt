@@ -59,12 +59,14 @@ class SavedRecordingsFragment : Fragment() {
                 files,
                 onPlay = { file ->
                     val filterName = extractFilterName(file.nameWithoutExtension)
+                    // Reviewing goes through the PcgScale review screen (same time-true grid
+                    // and RMS-scaled trace as the PcgScale recorder, now available in
+                    // stemz-app too) rather than the older production PlayerFragment.
                     val bundle = Bundle().apply {
                         putString("filePath", file.absolutePath)
-                        putBoolean("isNewRecording", false)
                         putString("filterName", filterName)
                     }
-                    findNavController().navigate(R.id.action_savedRecordings_to_player, bundle)
+                    findNavController().navigate(R.id.action_savedRecordings_to_pcgScaleReview, bundle)
                 },
                 onShare = { file -> shareRecording(file) },
                 onDelete = { file -> confirmDelete(file) }

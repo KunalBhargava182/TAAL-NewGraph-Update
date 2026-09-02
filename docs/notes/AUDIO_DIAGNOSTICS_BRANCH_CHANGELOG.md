@@ -68,3 +68,16 @@ rather than trusting the declared Intent type. The two known reliable workaround
 (strip the `.wav` extension before sharing, or zip the file before sharing) both trade
 away "tap-to-play directly inside WhatsApp" for guaranteed original bytes/filename.
 Deferred pending a decision on which trade-off is acceptable.
+
+**~02:30 — PcgScale screens ported into `stemz-app`** (previously `app`-only): the
+whole PcgScale family — `PcgAmplitudeScale`, `PcgTimeScale`, `PcgSpectralGate`,
+`PcgScaleEcgPaperView`, `PcgScaleWaveformView`, and the Recording/Player/Review
+fragments + layouts — copied over and wired into `stemz-app`'s nav graph as new,
+reachable destinations (`stemzapp://pcgscale` deep link + Saved Recordings now opens
+files through the PcgScale review screen). `stemz-app`'s `recordingFragment` stays the
+default screen — PcgScale is additive, not a replacement, per explicit decision.
+`PcgScaleRecordingFragment` was adapted (not a verbatim copy) to carry over
+`stemz-app`'s own Basic/Hard heart filter toggle (Hard = `setCustomBandpass(20,200)`)
+and 14s auto-stop, matching `RecordingFragment.kt`'s existing customizations, instead
+of `app`'s original 5-preset filter row. `:stemz-app:assembleDebug` verified green
+after the port.
