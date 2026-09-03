@@ -22,6 +22,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import com.musediagnostics.taal.app.R
 import com.musediagnostics.taal.app.databinding.FragmentSegmentationReportBinding
+import com.musediagnostics.taal.app.ecg.pcgscale.PcgDisplayFilter
 import com.musediagnostics.taal.segmentation.SegmentationOutcome
 import com.musediagnostics.taal.segmentation.TaalCardiacSegmentation
 import com.musediagnostics.taal.segmentation.heartRateBpm
@@ -83,7 +84,16 @@ class SegmentationReportFragment : Fragment() {
             val (audio, sampleRate) = withContext(Dispatchers.Default) { readWavAsFloatArray(rawFile) }
             val outcome = segmenter?.segmentRawWav(rawFile, verboseLogging = true)
             if (_binding == null || outcome == null) return@launch
-            showResult(outcome, audio, sampleRate)
+            // 2026-09-03: the chart draws a DISPLAY-conditioned copy of the raw audio (click
+            // removal, zero-phase 20–500 Hz band + hum notches, transient-protected gate) —
+            // the raw file was unreadable under its rumble/hum floor. Segmentation itself
+            // still ran on the untouched raw file above; because the filter is zero-phase,
+            // every S1/S2 stays at its true time, so the overlay alignment is unaffected.
+            val displayAudio = withContext(Dispatchers.Default) {
+                PcgDisplayFilter.processOffline(audio, sampleRate.toFloat())
+            }
+            if (_binding == null) return@launch
+            showResult(outcome, displayAudio, sampleRate)
         }
     }
 
@@ -108,8 +118,9 @@ class SegmentationReportFragment : Fragment() {
             currentWindowSizeSec = resultDurationSec
             currentWindowStart = 0.0
 
-            // Pass the same audio that was fed to segmentation — the overlay is aligned by time,
-            // so a different array would misplace the bands while still looking plausible.
+            // The overlay is aligned by time, so the chart audio must be sample-aligned with
+            // what segmentation saw: it is — the display copy is a zero-phase filtering of the
+            // same array (see onViewCreated), same length, no shift.
             binding.pcgChart.setRecording(audio, sampleRate, result)
             binding.chartCard.visibility = View.VISIBLE
 

@@ -20,7 +20,7 @@ import com.musediagnostics.taal.app.R
 import com.musediagnostics.taal.app.databinding.FragmentPcgscaleReviewBinding
 import com.musediagnostics.taal.app.ecg.pcgscale.PcgAmplitudeScale
 import com.musediagnostics.taal.app.ecg.pcgscale.PcgScaleWaveformView
-import com.musediagnostics.taal.app.ecg.pcgscale.PcgSpectralGate
+import com.musediagnostics.taal.app.ecg.pcgscale.PcgDisplayFilter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -325,8 +325,11 @@ class PcgScaleReviewFragment : Fragment() {
         binding.denoiseSwitch.isEnabled = false
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Default) {
             val gateStartMs = System.currentTimeMillis()
-            val gated = PcgSpectralGate().process(original, fileSampleRateForGate)
-            android.util.Log.i(TAG, "REVIEW spectral gate computed in " +
+            // Rev 2 of the toggle (2026-09-03): the full display chain — click removal,
+            // zero-phase 20–500 Hz band + 50/100/150 Hz notches, then the gate with transient
+            // protection — instead of the bare gate, which was visibly shaving S1/S2.
+            val gated = PcgDisplayFilter.processOffline(original, fileSampleRateForGate)
+            android.util.Log.i(TAG, "REVIEW display filter (despike + zero-phase band + gate) computed in " +
                 "${System.currentTimeMillis() - gateStartMs}ms (${original.size} samples)")
             val payload = computeRenderPayload(gated, fileSampleRateForGate)
             withContext(Dispatchers.Main) {

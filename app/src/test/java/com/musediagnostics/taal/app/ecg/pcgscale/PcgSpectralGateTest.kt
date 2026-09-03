@@ -123,4 +123,49 @@ class PcgSpectralGateTest {
             assertEquals("mismatch for size=$size", size, output.size)
         }
     }
+
+    @Test
+    fun `DISPLAY preset - transient protection leaves the beats untouched while still gating the gaps`() {
+        // Same pulsed-tone shape as the SNR test above. With transient protection every
+        // burst frame sits far above the noise floor and must pass through with gain 1, so
+        // the burst RMS is unchanged (the original preset shaved ~1 dB off it); the gaps
+        // must still be gated hard.
+        val sampleRate = 44100f
+        val burstSamples = 13230
+        val gapSamples = 22050
+        val cycles = 6
+        val cycleLen = burstSamples + gapSamples
+        val n = cycleLen * cycles
+        val random = Random(7)
+        val combined = FloatArray(n) { i ->
+            val phase = i % cycleLen
+            val tone = if (phase < burstSamples) (0.2 * sin(2.0 * PI * 80.0 * i / sampleRate)).toFloat() else 0f
+            tone + (random.nextGaussian() * 0.01).toFloat()
+        }
+
+        val output = PcgSpectralGate(PcgSpectralGate.Params.DISPLAY).process(combined, sampleRate)
+
+        // Skip the first/last 10% of each burst so frames straddling the on/off edge (partly
+        // gap, partly tone) don't dominate a measurement about the beat body.
+        val burstIndices = (0 until n).filter { val p = it % cycleLen; p in (burstSamples / 10) until (burstSamples * 9 / 10) }
+        val gapIndices = (0 until n).filter { (it % cycleLen) >= burstSamples + (gapSamples * 0.4).toInt() }
+
+        val burstBefore = rms(FloatArray(burstIndices.size) { combined[burstIndices[it]] })
+        val burstAfter = rms(FloatArray(burstIndices.size) { output[burstIndices[it]] })
+        val gapBefore = rms(FloatArray(gapIndices.size) { combined[gapIndices[it]] })
+        val gapAfter = rms(FloatArray(gapIndices.size) { output[gapIndices[it]] })
+
+        val burstDeltaDb = toDb(burstAfter / burstBefore)
+        assertTrue("beat body changed by $burstDeltaDb dB (must be within 0.3 dB)", abs(burstDeltaDb) <= 0.3)
+        val gapReductionDb = toDb(gapBefore / gapAfter)
+        assertTrue("gap noise only reduced by $gapReductionDb dB (need >= 8)", gapReductionDb >= 8.0)
+    }
+
+    @Test
+    fun `DEFAULT params still reproduce the original behaviour`() {
+        val input = FloatArray(30000) { i -> (0.1 * sin(2.0 * PI * 120.0 * i / 8000f)).toFloat() + ((i * 7919) % 101 - 50) / 5000f }
+        val a = PcgSpectralGate().process(input, 8000f)
+        val b = PcgSpectralGate(PcgSpectralGate.Params.DEFAULT).process(input, 8000f)
+        for (i in a.indices) assertEquals(a[i], b[i], 0f)
+    }
 }
