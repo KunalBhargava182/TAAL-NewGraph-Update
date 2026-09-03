@@ -82,6 +82,13 @@ class PcgScaleReviewFragment : Fragment() {
         val filePath = arguments?.getString("filePath") ?: ""
         val filterName = arguments?.getString("filterName") ?: "HEART"
 
+        // This screen is only ever reached from Saved Recordings, so filePath always points
+        // at an already-saved file — show the name the user actually typed when saving,
+        // same as production PlayerFragment does for a saved recording.
+        if (filePath.isNotEmpty()) {
+            binding.screenTitle.text = savedRecordingDisplayName(File(filePath))
+        }
+
         // Same gate as production PlayerFragment's "Analyze Heart Sounds" button: this screen
         // is only ever reached from Saved Recordings, so filePath is always inside
         // filesDir/saved/ already — just confirm the saved _raw.wav companion actually exists.
@@ -387,6 +394,18 @@ class PcgScaleReviewFragment : Fragment() {
                 Toast.makeText(requireContext(), "Playback error: ${e.message}", Toast.LENGTH_LONG).show()
             }
         }
+    }
+
+    /**
+     * Filename format: "{FILTER}_{userInput}_filtered.wav" — same convention (including
+     * HEART_HARD, checked before HEART) as SavedRecordingAdapter's list screen, so the title
+     * matches what the user tapped there.
+     */
+    private fun savedRecordingDisplayName(file: File): String {
+        val baseName = file.nameWithoutExtension.removeSuffix("_filtered")
+        val known = listOf("FULL_BODY", "PREGNANCY", "CUSTOM", "LUNGS", "BOWEL", "HEART_HARD", "HEART")
+        val filterPrefix = known.firstOrNull { baseName.startsWith("${it}_") }
+        return filterPrefix?.let { baseName.removePrefix("${it}_") } ?: baseName
     }
 
     override fun onDestroyView() {
