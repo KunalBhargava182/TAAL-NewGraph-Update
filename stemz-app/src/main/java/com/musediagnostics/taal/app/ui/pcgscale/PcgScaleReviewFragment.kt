@@ -19,6 +19,7 @@ import com.musediagnostics.taal.TaalPlayer
 import com.musediagnostics.taal.app.R
 import com.musediagnostics.taal.app.databinding.FragmentPcgscaleReviewBinding
 import com.musediagnostics.taal.app.ecg.pcgscale.PcgAmplitudeScale
+import com.musediagnostics.taal.app.ecg.pcgscale.PcgDisplayFilter
 import com.musediagnostics.taal.app.ecg.pcgscale.PcgScaleWaveformView
 import com.musediagnostics.taal.app.ui.segmentation.SegmentationFeature
 import kotlinx.coroutines.Dispatchers
@@ -273,7 +274,11 @@ class PcgScaleReviewFragment : Fragment() {
             android.util.Log.i(TAG, "REVIEW decoded — headerRate=${fileSampleRate.toInt()}Hz " +
                 "dataBytes=$dataSize totalSamples=$totalSamples durationSecs=$durationSecs")
 
-            val payload = computeRenderPayload(samples, fileSampleRate)
+            // 2026-09-03: cleaned view ALWAYS ON in stemz (this app has no denoise toggle by
+            // design): click/USB-glitch removal, zero-phase 20–500 Hz band + hum notches, and
+            // the transient-protected gate — display only, the file and playback are untouched.
+            val displaySamples = PcgDisplayFilter.processOffline(samples, fileSampleRate)
+            val payload = computeRenderPayload(displaySamples, fileSampleRate)
 
             withContext(Dispatchers.Main) {
                 if (_binding == null) return@withContext

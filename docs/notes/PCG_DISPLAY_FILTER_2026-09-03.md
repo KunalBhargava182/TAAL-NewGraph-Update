@@ -78,9 +78,11 @@ that filter's shallow skirt. Offline keeps the 20 Hz zero-phase spec.
 
 Also this rev: the chain is ported into **`stemz-app`** (copied `PcgDisplayFilter.kt` +
 `PcgSpectralGate.kt`; live filter in its recorder; cleaned background in its segmentation
-report/full-screen chart — the study build's murmur view). stemz's Player/Review keep no
-denoise toggle (Kunal removed it deliberately per `PCGSCALE_WORK_REFERENCE.md`) — apply
-the offline chain there always-on if wanted; one-line change each.
+report/full-screen chart — the study build's murmur view). stemz's Player and Review have
+no denoise toggle (Kunal removed it deliberately per `PCGSCALE_WORK_REFERENCE.md`), so
+there the offline chain is applied **always-on** to the decoded samples (user decision,
+2026-09-03): axis, bucketing and the decode diagnostics all run on the cleaned copy;
+playback still plays the file on disk. `app`'s Player/Review keep the toggle.
 
 ## Not changed (deliberately)
 

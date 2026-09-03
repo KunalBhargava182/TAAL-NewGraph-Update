@@ -19,6 +19,7 @@ import com.musediagnostics.taal.TaalPlayer
 import com.musediagnostics.taal.app.R
 import com.musediagnostics.taal.app.databinding.FragmentPcgscalePlayerBinding
 import com.musediagnostics.taal.app.ecg.pcgscale.PcgAmplitudeScale
+import com.musediagnostics.taal.app.ecg.pcgscale.PcgDisplayFilter
 import com.musediagnostics.taal.app.ecg.pcgscale.PcgScaleWaveformView
 import com.musediagnostics.taal.app.ui.player.PlayerSaveDiscardDialog
 import com.musediagnostics.taal.app.ui.segmentation.SegmentationFeature
@@ -295,11 +296,18 @@ class PcgScalePlayerFragment : Fragment() {
                 }
             }
 
+            // 2026-09-03: cleaned view ALWAYS ON in stemz (this app has no denoise toggle by
+            // design): click/USB-glitch removal, zero-phase 20–500 Hz band + hum notches, and
+            // the transient-protected gate — display only, the file and playback are untouched.
+            // Axis, bucketing and diagnostics all run on the cleaned copy so what is measured
+            // is what is drawn.
+            val displaySamples = PcgDisplayFilter.processOffline(samples, fileSampleRate)
+
             // Whole-file 60%-fill axis scale — "sampled mean peaks across the whole recording".
             // Streamed through an instance (rather than computeFullScaleForFile) so the
             // diagnostics below can also read typicalPeakAmplitude/isClampedAtMin for the caption.
             val fileScale = PcgAmplitudeScale(fileSampleRate)
-            fileScale.addSamples(samples)
+            fileScale.addSamples(displaySamples)
             fileScale.flushPartialWindow()
             val fullScale = fileScale.targetFullScale()
 
@@ -312,16 +320,17 @@ class PcgScalePlayerFragment : Fragment() {
             } else -1
             val ceilingBucket = maxOf(1, totalSamples / (MAX_TOTAL_POINTS / 2))
             val bucketSize = if (derivedBucket > 0) maxOf(derivedBucket, ceilingBucket) else ceilingBucket
-            val entries = PcgScaleWaveformView.downsampleMinMax(samples, bucketSize) { idx ->
+            val entries = PcgScaleWaveformView.downsampleMinMax(displaySamples, bucketSize) { idx ->
                 idx.toFloat() / fileSampleRate
             }
 
             // FIX 2026-09-02: the full decode + axis derivation in one line. isClampedAtMin
             // is the key one — it says the MIN_FULL_SCALE floor, not the measured signal, set
             // the Y axis, which is exactly the quiet-capture regime under investigation.
+            // (Measured on the cleaned display copy since 2026-09-03.)
             var pk = 0f
             var sumSq = 0.0
-            for (s in samples) {
+            for (s in displaySamples) {
                 val a = kotlin.math.abs(s)
                 if (a > pk) pk = a
                 sumSq += s.toDouble() * s.toDouble()
