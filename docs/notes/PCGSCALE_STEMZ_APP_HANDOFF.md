@@ -1,326 +1,298 @@
-# PcgScale Graph — stemz-app Handoff
+# PCG Scaling — What Was Done
 
-**Audience:** written for a fresh AI session (or developer) with zero prior context on
-this specific thread of work — verify claims against live source before acting on them,
-same as every other doc in this repo.
+This is a technical record of the PCG-scaling (PcgScale graph) work itself — the
+algorithm, the reasoning behind every change, and what differs between the apps in this
+monorepo. It assumes the reader (or their Claude) can already read the branches and
+source directly — it exists to point out *what was done and why*, not to explain how to
+navigate git.
 
-**Branch:** `StemzAppBranch` (forked from `audio-diagnostics-2026-09`, itself built on
-top of `pcgscale-rev3`). Pushed to `github.com/KunalBhargava182/TAAL-NewGraph-Update`.
-As of writing, `StemzAppBranch` is 2 commits ahead of what's on GitHub (icon + app-name
-renames) — push before relying on the remote copy matching this doc.
-
-**Scope of this doc:** everything touching the PcgScale waveform/graph screens — the
-time-true-grid, RMS-auto-scale recorder/player/review family. A couple of adjacent
-stemz-app changes from the same session are noted briefly at the end for context, but
-aren't the focus (they're covered in `AUDIO_DIAGNOSTICS_BRANCH_CHANGELOG.md`).
+Relevant branches: `pcgscale-rev3` (the original baseline), `audio-diagnostics-2026-09`
+(rev3 + follow-on fixes/features, `app`-only), `StemzAppBranch` (built on top of that,
+adds the `stemz-app` port and everything below).
 
 ---
 
 ## 1. What PcgScale is
 
-A screen family — **Recorder → Player (new recording) → Review (saved recording)** —
-built as a fork of the "Calibrated" ECG-paper screens, with two deliberate differences:
+A waveform screen family — **Recorder → Player (new recording) → Review (saved
+recording)** — built as a fork of the older "Calibrated" ECG-paper screens, with two
+deliberate differences from that design:
 
 1. **Time-true grid**: 1 large grid box = exactly 1 second, 1 small box = exactly 0.2s,
-   always. No mm/DPI calibration, no paper speed, no zoom — the window is range-locked
-   so horizontal scale can never distort.
-2. **RMS auto-scaled Y-axis**: instead of a fixed axis (Calibrated screens) or the old
-   adaptive warmup/peak lock (production screens), the axis is sized per-recording so
-   the signal's typical peak fills a target fraction of the graph height.
+   always. No mm/DPI calibration, no paper speed, no zoom — the visible window is
+   range-locked so horizontal scale can never distort, at any scroll position.
+2. **RMS auto-scaled Y-axis**: the axis is sized per-recording so the signal's typical
+   peak fills a target fraction of the graph height, instead of a fixed axis
+   (Calibrated screens) or the old adaptive warmup/peak lock (original production
+   screens).
 
-Lives at:
-- `ecg/pcgscale/` — pure-logic support classes (no Android UI): `PcgAmplitudeScale`,
-  `PcgTimeScale`, `PcgScaleEcgPaperView`, `PcgScaleWaveformView`, `PcgSpectralGate`
-  (app only — removed from stemz-app, see §3).
-- `ui/pcgscale/` — the three fragments: `PcgScaleRecordingFragment`,
-  `PcgScalePlayerFragment`, `PcgScaleReviewFragment`, `PcgScaleRecordingViewModel`.
-
-Originally **`app`-only**. Ported into **`stemz-app`** this session (§2) — that's most
-of what this doc covers.
+Code: `ecg/pcgscale/` (pure logic, no Android UI — `PcgAmplitudeScale`, `PcgTimeScale`,
+`PcgScaleEcgPaperView`, `PcgScaleWaveformView`, and `PcgSpectralGate` where present) and
+`ui/pcgscale/` (`PcgScaleRecordingFragment`, `PcgScalePlayerFragment`,
+`PcgScaleReviewFragment`, `PcgScaleRecordingViewModel`).
 
 ---
 
-## 2. The Y-axis auto-scale — how it works and what changed
+## 2. Which apps have it, and how each differs
 
-### The formula (unchanged since `pcgscale-rev3`, in both `app` and `stemz-app`)
+Four app modules exist in this monorepo (`taal-core`/`taal-ui-kit`/`taal-segmentation*`
+are libraries, not apps). Only two have PcgScale at all:
+
+| | `app` | `stemz-app` | `lungs-app` | `visualizertaal-app` |
+|---|---|---|---|---|
+| **Has PcgScale?** | Yes — original | Yes — ported from `app` this branch | No | No |
+| **Default screen** | `pcgScaleRecordingFragment` | `pcgScaleRecordingFragment` | Own `LungsRecordingFragment` | Own `RecordingFragment` |
+| **Y-axis algorithm** | `PcgAmplitudeScale` — median of 3rd-largest-by-RMS hop per 5s window, outlier-robust (§3) | Same algorithm, same file, tuned differently (§3) | Simple peak-track: `axisMinimum = -peakAmplitude` per buffer, no outlier rejection, no windowing | Same simple peak-track as `lungs-app` |
+| **`TARGET_FILL_FRACTION`** | `0.60f` | `0.50f` | n/a | n/a |
+| **`MIN_FULL_SCALE`** | `0.005f` | `0.005f` (inherited) | n/a | n/a |
+| **Heart filter UI** | 5-preset row (Heart/Lungs/Bowel/Pregnancy/Full-body) + Custom | 2-button **Basic/Hard** toggle (Basic=`HEART` preset, Hard=custom bandpass 20–200Hz) + Custom | Lungs-specific filter set | Guided point-by-point Heart/Lungs flow (via `taal-ui-kit`) |
+| **Auto-stop** | None (300s ceiling only) | **14s hard auto-stop**, routed through real `stopRecording()` | Session-based, no fixed auto-stop | No fixed auto-stop |
+| **Hum/rumble filter (opt-in)** | Yes — "Feature A" switch on recorder | **Removed** this branch | n/a | n/a |
+| **Denoise toggle (opt-in)** | Yes — "Feature B" switch on review, uses `PcgSpectralGate` | **Removed** this branch, `PcgSpectralGate.kt` deleted from `stemz-app` | n/a | n/a |
+| **Equalizer button** | Present on Player screens | **Removed** from every Player/Review screen (not just PcgScale) | Not applicable | Not applicable |
+| **Segmentation ("Analyze Heart Sounds")** | Reachable from production `PlayerFragment` only | Now also reachable from **`PcgScalePlayerFragment`** and **`PcgScaleReviewFragment`** (§5) | Not present | Not present |
+| **Default pre-amp** | 5dB | **10dB** (PcgScale recorder only) | 5dB (unaffected) | Unaffected |
+| **Grid caption text** | Shows Y-axis fill %, "scroll to browse", live diagnostics while recording | **Simplified** to always read `"1 large box = 1 s · 1 small box = 0.2 s"`, nothing else | n/a | n/a |
+| **Saved-recording title** | Static "Review Recording" always | Shows the **actual saved filename** the user typed (Review screen only) | Own naming scheme | Own naming scheme |
+| **App icon / name** | "TAAL" branding | Icon letter changed T→S, app name → **"StemzApp"** | "Lungs Auscultation" branding | Own branding |
+
+`lungs-app` and `visualizertaal-app` are included here only to make clear they are
+**unaffected by any of this work** — neither has PcgScale, neither shares any of the
+files touched.
+
+---
+
+## 3. The Y-axis auto-scale — the algorithm and every constant
+
+### Formula (identical logic in `app` and `stemz-app`, values differ — see table below)
 
 ```
 fullScale = medianWindowPeak / TARGET_FILL_FRACTION,  clamped to [MIN_FULL_SCALE, MAX_FULL_SCALE]
 ```
 
-Where `medianWindowPeak` is: per 5-second window, take the hop (50ms slice) that's
-**3rd-largest by RMS energy** (not the loudest — this rejects up to 2 transient-elevated
-hops per window, e.g. contact thuds), use *that hop's peak amplitude*, then take the
-**median** of these values across all closed windows (not the mean — rejects a whole
-poisoned window like a cough or repositioning bump outright).
+`medianWindowPeak`: per 5-second window, take the hop (50ms slice) that's **3rd-largest
+by RMS energy** — not the loudest, so up to 2 transient-elevated hops per window (e.g. a
+contact thud) can't dominate — use *that hop's peak amplitude*, then take the **median**
+of these values across all closed windows (not the mean, so one whole poisoned window —
+a cough, a repositioning bump — gets rejected outright rather than averaged in).
 
-This lives in `ecg/pcgscale/PcgAmplitudeScale.kt`, in both `app` and `stemz-app`.
+Lives in `ecg/pcgscale/PcgAmplitudeScale.kt`.
 
-### Every constant, and what changed since `pcgscale-rev3`
+### Every constant, `pcgscale-rev3` vs current
 
 | Constant | `pcgscale-rev3` | `app` (current) | `stemz-app` (current) | What it does |
 |---|---|---|---|---|
-| `TARGET_FILL_FRACTION` | `0.60f` | `0.60f` | **`0.50f`** | Typical peak fills this fraction of the graph's half-height. Lower = smaller trace, more headroom. |
-| `MIN_FULL_SCALE` | `0.02f` | `0.005f` | `0.005f` | Floor on the axis half-range — see explanation below. |
+| `TARGET_FILL_FRACTION` | `0.60f` | `0.60f` | **`0.50f`** | Typical peak fills this fraction of the graph's half-height. Lower = smaller trace, more headroom above/below. |
+| `MIN_FULL_SCALE` | `0.02f` | `0.005f` | `0.005f` | Floor on the axis half-range — explained below. |
 | `MAX_FULL_SCALE` | `1.0f` | `1.0f` | `1.0f` | Ceiling on the axis half-range. |
 | `RMS_HOP_SECONDS` | `0.05f` | `0.05f` | `0.05f` | Length of each measurement hop (50ms). |
 | `PEAK_WINDOW_SECONDS` | `5f` | `5f` | `5f` | Window size (5s) the calibrating hop is picked from. |
 | `OUTLIER_REJECTION_K` | `3` | `3` | `3` | Uses the 3rd-loudest hop per window as the calibrator. |
-| `SMOOTHING_PER_UPDATE` | `0.15f` | `0.15f` | `0.15f` | Live-recorder easing rate toward a new axis target. |
+| `SMOOTHING_PER_UPDATE` | `0.15f` | `0.15f` | `0.15f` | Live-recorder easing rate toward a new axis target per UI update. |
 | `DEFAULT_INITIAL_FULL_SCALE` | `0.10f` | `0.10f` | `0.10f` | Neutral starting axis before the first 5s window closes. |
 
-### `MIN_FULL_SCALE`: why 0.02 → 0.005
+### `MIN_FULL_SCALE`: why `0.02f` → `0.005f`
 
 `MIN_FULL_SCALE` is a safety floor — it stops the axis from shrinking toward zero on
 pure silence/noise (which would otherwise blow tiny noise up to fill the whole graph).
 
 The problem with `0.02f`: on a quiet-capture device (measured on a study Samsung unit),
 a real peak of `0.008` naturally wants an axis of `0.008 / 0.6 ≈ 0.0133`. But
-`0.0133 < 0.02`, so the floor forced the axis up to `0.02` anyway — **the floor itself**,
-not the measurement, was setting the axis, so the trace only filled `0.008/0.02 = 40%`
-instead of the intended 60%. Lowering the floor to `0.005` lets the axis land at its
-correctly-computed target for quiet devices instead of being artificially inflated.
+`0.0133 < 0.02`, so the floor forced the axis up to `0.02` anyway — **the floor itself,
+not the measurement, was setting the axis**, so the trace only filled
+`0.008 / 0.02 = 40%` of the height instead of the intended 60%. Lowering the floor to
+`0.005` lets the axis land at the correctly-computed target for quiet devices instead of
+being artificially inflated.
 
-The on-screen `(MIN-CLAMPED)` caption note (when present) means *the floor, not the
-signal, is currently setting the axis* — useful for diagnosing this exact class of bug
-on a new device.
-
-### Note on `stemz-app`'s current caption
-
-As of this session, **the on-screen caption no longer shows any of this** — see §4.6.
-It always reads `"1 large box = 1 s · 1 small box = 0.2 s"` now, on all three screens,
-in every state. The diagnostic values above are still logged (`TAAL_AUDIO_DEBUG` tag),
-just not displayed.
+The `(MIN-CLAMPED)` caption note that used to appear (see §4.6 — since removed from the
+visible caption in `stemz-app`, but still logged) meant *the floor, not the signal, is
+currently setting the axis* — the diagnostic for exactly this class of bug on a new
+device.
 
 ---
 
-## 3. Porting PcgScale into stemz-app
+## 4. Everything changed for PcgScale, in order
 
-Commit `d47c236` — **"Port PcgScale screens into stemz-app, keep current recorder as
-default"**.
+### 4.1 — Port into `stemz-app`
 
-`stemz-app` had zero PcgScale files before this. Ported from `app`'s current state
-(i.e. rev3 + the `MIN_FULL_SCALE` fix + the denoise feature + diagnostic logging — all
-already present in `app` by the time of the port):
+`stemz-app` had zero PcgScale files before this. Ported from `app`'s state at the time
+(rev3 + the `MIN_FULL_SCALE` fix + the denoise feature + diagnostic logging — all
+already present in `app` by then):
 
-**Copied verbatim** (no `stemz-app`-specific behavior needed):
-`PcgTimeScale.kt`, `PcgScaleEcgPaperView.kt`, `PcgScaleWaveformView.kt`,
-`PcgScaleRecordingViewModel.kt`, `PcgScalePlayerFragment.kt` (later modified, see §5),
-`fragment_pcgscale_player.xml`, `fragment_pcgscale_review.xml`.
+**Copied verbatim:** `PcgTimeScale.kt`, `PcgScaleEcgPaperView.kt`,
+`PcgScaleWaveformView.kt`, `PcgScaleRecordingViewModel.kt`, `PcgScalePlayerFragment.kt`
+(modified afterward, see 4.5), `fragment_pcgscale_player.xml`,
+`fragment_pcgscale_review.xml`.
 
 **Adapted, not verbatim:**
-- `PcgAmplitudeScale.kt` — copied, then `TARGET_FILL_FRACTION` changed 0.60→0.50 in a
-  later commit (`904c1d6`).
-- `PcgScaleRecordingFragment.kt` — copied, then its filter UI was swapped from `app`'s
-  original 5-preset row (Heart/Lungs/Bowel/Pregnancy/Full-body) to `stemz-app`'s own
-  **Basic/Hard heart filter toggle** (Basic = `PreFilter.HEART`, Hard = a local
-  `"HEART_HARD"` name via `setCustomBandpass(20.0, 200.0)`, not a real taal-core
-  preset) — matching `stemz-app`'s production `RecordingFragment.kt`. Also carries that
-  same file's **14-second hard auto-stop** (`autoStopJob`, routed through the real
-  `stopRecording()` so the filtered WAV header finalizes correctly — not
-  `TaalRecorder.setRecordingTime`, which bypasses that).
+- `PcgAmplitudeScale.kt` — copied, `TARGET_FILL_FRACTION` later changed 0.60→0.50 (4.4).
+- `PcgScaleRecordingFragment.kt` — copied, then its filter UI swapped from `app`'s
+  original 5-preset row to `stemz-app`'s own **Basic/Hard heart filter toggle** (Basic =
+  `PreFilter.HEART`, Hard = a local `"HEART_HARD"` name via
+  `setCustomBandpass(20.0, 200.0)`, not a real taal-core preset) — matching
+  `stemz-app`'s production `RecordingFragment.kt`. Also carries that same file's
+  **14-second hard auto-stop**, routed through the real `stopRecording()` (not
+  `TaalRecorder.setRecordingTime`, which bypasses filtered-WAV header finalization).
 - `fragment_pcgscale_recording.xml` — same filter-row swap applied to the layout.
 
-**Not ported at all** (removed later, see next section):
-- `PcgSpectralGate.kt` (the denoise engine) — ported initially, then deleted.
+**Not carried over:** `PcgSpectralGate.kt` (denoise engine) — ported initially, deleted
+in 4.2.
 
-### Wiring
+**Wiring:** nav graph destinations added for all three screens; `startDestination`
+changed to `pcgScaleRecordingFragment` (`app`'s current default too); new
+`stemzapp://pcgscale` deep link (mirrors the existing `stemzapp://calibrated` pattern);
+Saved Recordings' tap-to-open now routes through `PcgScaleReviewFragment` instead of the
+old plain `PlayerFragment`.
 
-- **Nav graph** (`stemz-app/src/main/res/navigation/nav_graph.xml`): added
-  `pcgScaleRecordingFragment`, `pcgScalePlayerFragment`, `pcgScaleReviewFragment` as new
-  destinations. `startDestination` initially **stayed** `recordingFragment` (first
-  request), then changed to `pcgScaleRecordingFragment` in a follow-up commit (`66269aa`
-  — **"Make PcgScale stemz-app's default screen"**) — matches `app`'s current default.
-- **Deep link**: `stemzapp://pcgscale` added to `AndroidManifest.xml`, mirroring the
-  existing `stemzapp://calibrated` pattern (same intent-filter, two `<data>` tags).
-- **Saved Recordings → tap a file**: `SavedRecordingsFragment.kt`'s `onPlay` now routes
-  through `action_savedRecordings_to_pcgScaleReview` → `PcgScaleReviewFragment`, instead
-  of the old `action_savedRecordings_to_player` → plain `PlayerFragment`.
+### 4.2 — Remove Hum filter and Denoise (`stemz-app` only)
 
----
+Both are optional extras `app` added to PcgScale *after* rev3 — feature additions, not
+scale tuning, so not in §3's table.
 
-## 4. Every stemz-app-specific PcgScale change made this session
+- **Hum filter** ("Feature A": opt-in 50/100/150Hz hum + 25Hz rumble biquad, default
+  off): UI switch and `setHumRumbleFilterEnabled()` call both removed from `stemz-app`.
+  `taal-core` defaults this off when never called, so recording behavior is unchanged —
+  same as every other consumer (`lungs-app`, `visualizertaal-app`) that never touches
+  the flag.
+- **Denoise** ("Feature B": post-processing spectral-gate toggle on the review screen,
+  display-only — playback audio untouched either way): switch UI, toggle logic, and
+  cached-sample state removed. `stemz-app`'s copy of `PcgSpectralGate.kt` deleted
+  outright — nothing references it anymore.
 
-In commit order. All verified with `./gradlew :stemz-app:assembleDebug` (BUILD
-SUCCESSFUL) before committing, none pushed further than noted in §"Branch" above at
-time of writing.
+`app` keeps both features unchanged.
 
-### 4.1 — Remove Hum filter and Denoise (`9ea66a7`)
+### 4.3 — Rename screen titles (`stemz-app` only)
 
-Both were optional extras added to `app`'s PcgScale screens *after* `pcgscale-rev3`
-(§2's constants table doesn't cover these — they're feature additions, not scale
-tuning). Removed from `stemz-app` only; `app` keeps both.
+Visible titles only, no file/class renames: `"PCG Scale Recorder"` → `"TAAL Recorder"`;
+`"PCG Scale Review"` (used by both Player and Review) → `"Review Recording"`. Matches
+`stemz-app`'s existing production Recorder/Player titles.
 
-- **Hum filter** ("Feature A", opt-in 50/100/150Hz hum + 25Hz rumble biquad, default
-  off): dropped the `humFilterSwitch` UI from `fragment_pcgscale_recording.xml` and the
-  `setHumRumbleFilterEnabled()` call from `PcgScaleRecordingFragment.kt`. `taal-core`
-  defaults this off when never called, so recording behavior is unchanged — same as
-  every other consumer (`lungs-app`, `visualizertaal-app`) that never touches the flag.
-- **Denoise** ("Feature B", post-processing spectral-gate toggle on the review screen,
-  display-only — playback audio untouched either way): dropped the `denoiseSwitch`/
-  `denoiseRow` UI and `waveformLoadingIndicator` from `fragment_pcgscale_review.xml`,
-  and `onDenoiseToggled()` + the cached-sample fields it needed from
-  `PcgScaleReviewFragment.kt`. **Deleted** `stemz-app`'s copy of `PcgSpectralGate.kt`
-  entirely — nothing references it anymore.
+### 4.4 — Remove Equalizer button (`stemz-app`, all Player/Review screens)
 
-### 4.2 — Rename screen titles (`08be43b`)
+Not PcgScale-specific — swept across every screen with an `eqButton` in `stemz-app`:
+production `PlayerFragment`, `CalibratedPlayerFragment`, `FullTimeOnPlayerFragment`,
+`PcgScalePlayerFragment`, `PcgScaleReviewFragment`. The `equalizerFragment` nav
+destination and `EqualizerFragment.kt` are left in place, just unreferenced.
 
-Visible on-screen titles only — no file/class renames.
-- `PcgScaleRecordingFragment`: `"PCG Scale Recorder"` → **`"TAAL Recorder"`**
-- `PcgScalePlayerFragment` and `PcgScaleReviewFragment`: `"PCG Scale Review"` →
-  **`"Review Recording"`**
+### 4.5 — `TARGET_FILL_FRACTION` 60% → 50% (`stemz-app` only)
 
-Matches `stemz-app`'s existing production Recorder/Player screen titles.
+Covered in §3. `app` stays at 60%.
 
-### 4.3 — Remove Equalizer button everywhere (`070f116`)
+### 4.6 — Wire up "Analyze Heart Sounds" on the PcgScale screens (`stemz-app`)
 
-Dropped the `eqButton` (top-bar icon) and its click listener from **every** screen that
-had one in `stemz-app`: `PlayerFragment`, `CalibratedPlayerFragment`,
-`FullTimeOnPlayerFragment`, `PcgScalePlayerFragment`, `PcgScaleReviewFragment`. Not just
-PcgScale — a full sweep. The `equalizerFragment` nav destination and
-`EqualizerFragment.kt` itself are left in place, just unreferenced, in case wanted back.
+Segmentation only existed on production `PlayerFragment` — unreachable once PcgScale
+became the default flow. Added the same button + gating to:
 
-### 4.4 — Lower `TARGET_FILL_FRACTION` 60% → 50% (`904c1d6`)
+- **`PcgScalePlayerFragment`**: uses its own `rawFilePath` nav argument, gated on the
+  file being inside `filesDir/saved/`. In the live flow this screen is always a
+  brand-new, not-yet-saved recording, so **this button never actually shows yet** — see
+  §6.
+- **`PcgScaleReviewFragment`**: always reached from Saved Recordings, computes the saved
+  `_raw.wav` path via `filePath.replace("_filtered.wav", "_raw.wav")`, same as
+  production `PlayerFragment`.
 
-Covered in §2's table. Applied to `stemz-app`'s `PcgAmplitudeScale.kt` only — `app`
-stays at 60%. Updated the three on-screen scale captions to say "50% fill" at the time
-(later removed entirely, see §4.6).
+Both route to the existing `SegmentationReportFragment` via two new nav actions.
 
-### 4.5 — Wire up "Analyze Heart Sounds" segmentation button (`7779545`)
+**Traced end-to-end and confirmed: segmentation always analyzes the raw file, never the
+filtered one.** `SegmentationReportFragment` reads its `rawFilePath` argument and passes
+it straight to `TaalCardiacSegmentation.segmentRawWav(rawFile, ...)`.
 
-Since PcgScale is now the default flow, the segmentation feature (which only existed on
-the plain `PlayerFragment`) was unreachable. Added the same button + gating to both
-PcgScale review-type screens:
+The report screen's back button (on-screen and hardware/gesture, both landing on Saved
+Recordings) predates this and needed no changes — it's shared logic that doesn't care
+which screen navigated in.
 
-- **`PcgScalePlayerFragment`**: uses its own `rawFilePath` nav argument (passed
-  directly from the recorder), gated on the file being inside `filesDir/saved/` — so a
-  brand-new, not-yet-saved recording keeps the button hidden (matches production; in
-  practice this screen is always a fresh recording, so the button never actually shows
-  here yet — see the note in §7).
-- **`PcgScaleReviewFragment`**: always reached from Saved Recordings, so computes the
-  saved `_raw.wav` companion path via `filePath.replace("_filtered.wav", "_raw.wav")`,
-  same as production `PlayerFragment` does.
+### 4.7 — Fix a stale back stack after saving (`stemz-app`)
 
-Both navigate to the existing `segmentationReportFragment` via two new nav actions
-(`action_pcgScalePlayer_to_segmentationReport`,
-`action_pcgScaleReview_to_segmentationReport`). Reuses the `fragment_player.xml` icon
-drawable and `SegmentationFeature.ENABLED` gate.
-
-**Confirmed (separately, by tracing the code): segmentation always analyzes the RAW
-file, never the filtered one.** `SegmentationReportFragment` reads `rawFilePath` and
-passes it straight into `TaalCardiacSegmentation.segmentRawWav(rawFile, ...)` —
-intentional, since the algorithm expects pre-filter audio.
-
-The segmentation report screen's back button (on-screen and hardware/gesture) already
-always lands on Saved Recordings — that logic (`goToSavedRecordings()` in
-`SegmentationReportFragment.kt`) predates this port and needed no changes; it's shared
-by every entry point regardless of which screen navigated in.
-
-### 4.6 — Fix stale back stack after saving (`aae428e`)
-
-**Real bug**, surfaced by making PcgScale the default screen (§3's `66269aa`).
-
+Real bug, surfaced by 4.1's `startDestination` change.
 `SaveRecordingFragment.navigateAfterSave()` hardcoded
-`setPopUpTo(R.id.recordingFragment, false)`. Once `pcgScaleRecordingFragment` became
-the actual `startDestination`, `recordingFragment` was never on the back stack for that
-flow, so the pop-up-to silently found nothing to remove — Saved Recordings got pushed
-**on top of** the entire stale stack (`pcgScaleRecordingFragment → pcgScalePlayerFragment
-→ saveRecordingFragment`) instead of replacing it. Symptom: pressing back a second time
-from Saved Recordings landed on the "name your recording" screen instead of the
+`setPopUpTo(R.id.recordingFragment, false)`. Once `pcgScaleRecordingFragment` became the
+actual start destination, `recordingFragment` was never on the back stack for that flow,
+so the pop-up-to silently found nothing to remove — Saved Recordings got pushed **on top
+of** the entire stale stack instead of replacing it. Symptom: pressing back a second
+time from Saved Recordings landed on the "name your recording" screen instead of the
 recorder.
 
-Fix: `PcgScalePlayerFragment` was already sending the correct target
+`PcgScalePlayerFragment` was already sending the correct target
 (`R.id.pcgScaleRecordingFragment`) as a `popUpToDestination` bundle extra when
 navigating to Save — it was just never read. Added the same `popUpToDestinationId`
-mechanism `app` already has to `SaveRecordingFragment.kt`: read the argument, default
-`recordingFragment` (so every other caller — production `PlayerFragment`, Calibrated,
-FullTimeOn — is unaffected), use it in the `popUpTo` call.
+mechanism `app` already has: read the argument, default `recordingFragment` (so every
+other caller — production `PlayerFragment`, Calibrated, FullTimeOn — is unaffected).
 
-### 4.7 — Pre-amp default 5dB → 10dB (`dede9f5`)
+### 4.8 — Pre-amp default 5dB → 10dB (`stemz-app`, PcgScale recorder only)
 
-`stemz-app`'s PcgScale recorder only. Changed everywhere the default lived:
-`PcgScaleRecordingViewModel`'s initial `LiveData` value, every `?: 5` fallback read in
-`PcgScaleRecordingFragment` (slider init, `TaalRecorder.setPreAmplification`, display
-compensation, bundle hand-off to the player), the `onResume()` reset-to-default block
-(previously snapped back to 5dB every time you returned to the screen), and the
-layout's design-time slider/label defaults. Slider range (0–30dB) and clamp unchanged —
-only the default/starting value moved.
+Changed everywhere the default lived: the ViewModel's initial value, every fallback read
+(slider init, `setPreAmplification`, display compensation, hand-off to the player), the
+`onResume()` reset block (previously snapped back to 5dB every time you returned to the
+screen), and the layout's design-time defaults. Slider range (0–30dB) unchanged.
 
-### 4.8 — Saved-recording name in Review screen title (`fce4005`)
+### 4.9 — Saved-recording name in the Review title (`stemz-app`)
 
-`PcgScaleReviewFragment`'s title was hardcoded to "Review Recording" for every file.
-Now shows the name the user actually typed when saving (filter prefix / `_filtered`
-suffix stripped) — same convention and `HEART_HARD`-aware logic already used by
-`SavedRecordingAdapter` and the equivalent feature on production `PlayerFragment`. No
-`isInSavedDir` gate needed — this screen is only ever reached from Saved Recordings, so
-`filePath` is always an already-saved file.
+`PcgScaleReviewFragment`'s title was static "Review Recording" for every file. Now shows
+the name the user actually typed when saving (filter prefix / `_filtered` suffix
+stripped) — same convention and `HEART_HARD`-aware logic as `SavedRecordingAdapter` and
+production `PlayerFragment`'s equivalent feature.
 
-### 4.9 — Simplify the grid caption (`930f944`)
+### 4.10 — Simplify the grid caption (`stemz-app`, all three screens)
 
-All three screens' `scaleCaption` — both idle and while actively recording — now
-**always** reads exactly:
+`scaleCaption` — idle and while actively recording — now always reads exactly:
 
 ```
 1 large box = 1 s · 1 small box = 0.2 s
 ```
 
-Dropped: the Y-axis fill/scale info ("Y: auto (50% fill, RMS)"), "scroll to browse",
-and (on the recorder specifically) the live diagnostic string that used to show while
-recording (`sr=%d Hz · peak=%.4f · Y=±%.3f%s` with the MIN-CLAMPED note). Applied to the
-Kotlin caption assignments in all three fragments *and* the layouts' design-time
-defaults. **Diagnostic logging (`TAAL_AUDIO_DEBUG`) is untouched** — only what's
-displayed on screen changed; the same numbers are still in logcat.
+Dropped: Y-axis fill %/scale info, "scroll to browse", and (recorder only) the live
+diagnostic string that used to show while recording (`sr=%d Hz · peak=%.4f · Y=±%.3f%s`
+with the MIN-CLAMPED note). Diagnostic logging (`TAAL_AUDIO_DEBUG` tag) is untouched —
+only what's displayed on screen changed.
 
 ---
 
-## 5. Open investigation — not yet fixed, no action taken
+## 5. Open investigation — not fixed, no code changed
 
-**Two large (near-full-height) spikes observed in a 14-second PcgScale review recording**,
-at roughly the 12s and 13s marks, with no correspondingly loud audible sound reported by
-the user. Investigated (code-review only, no device access) — **not a rendering bug**
-as far as could be determined:
+**Two large (near-full-height) spikes observed in a 14-second PcgScale review
+recording**, at roughly the 12s and 13s marks, with no correspondingly loud audible
+sound reported. Investigated by code review only (no device access) — current best read
+is **not a rendering bug**:
 
-- `docs/notes/PCGSCALE_LOCAL_FIXES_LEDGER.md` documents this exact phenomenon by name —
-  a **"stethoscope thud"**: a short transient from the sensor making/losing contact.
-  The axis-scale outlier-rejection (§2's `OUTLIER_REJECTION_K`/median design) is
-  specifically built to stay stable against exactly this — and it did (other heart-sound
-  spikes on the same trace are still clearly readable, not squashed). The **trace**
-  still faithfully draws the real transient, though — that's deliberate, not a bug.
-- Timing is suggestive: both spikes fall in the last ~2 seconds of a 14-second recording
-  — i.e. right around when the 14s auto-stop (§3, carried from `RecordingFragment.kt`)
-  would fire, consistent with someone starting to lift/reposition the device as it
-  approaches.
+- The project's own `PCGSCALE_LOCAL_FIXES_LEDGER.md` documents this exact phenomenon by
+  name — a **"stethoscope thud"**: a short transient from the sensor making/losing
+  contact. §3's outlier-rejection design is specifically built to keep the *axis scale*
+  stable against exactly this, and it did (other heart-sound spikes on the same trace
+  are still clearly readable, not squashed) — the **trace** still faithfully draws the
+  real transient, which is deliberate, not a bug.
+- Timing is suggestive: both spikes fall in the last ~2 seconds of a 14-second
+  recording — right around when the 14s auto-stop (§4.1) fires, consistent with someone
+  starting to lift/reposition the device as it approaches.
 - Checked `PcgScaleReviewFragment.loadFullWaveform`'s decode/downsample path directly
-  (this screen just decodes+plots the saved file, no live-recording ring-buffer or
-  resize logic involved) — nothing indicating an indexing/rendering bug that would
+  (this screen just decodes and plots the saved file — no live-recording ring-buffer or
+  resize logic involved). Nothing found indicating an indexing/rendering bug that would
   fabricate a spike from normal data.
-- **Not confirmed:** whether Basic or Hard filter was used (Hard's narrow 20-200Hz
+- **Not confirmed:** whether Basic or Hard filter was active (Hard's narrow 20–200Hz
   custom bandpass can *ring* on a sharp transient, amplifying a real bump further), or
   whether playback around 12–13s reveals an audible thud/handling sound.
 
-**Next step, if picked up:** have the user play back that section, or check which
-filter was active, before deciding whether any code change is warranted at all — current
-best read is this is genuine captured data, not a bug.
+Next step if picked up: play back that section, or check which filter was active,
+before deciding any code change is warranted.
 
 ---
 
-## 6. Quick reference — file locations (`stemz-app`)
+## 6. File reference (`stemz-app`)
 
 ```
 stemz-app/src/main/java/com/musediagnostics/taal/app/
   ecg/pcgscale/
-    PcgAmplitudeScale.kt        — Y-axis scale math (§2)
+    PcgAmplitudeScale.kt        — Y-axis scale math (§3)
     PcgTimeScale.kt             — X-axis grid math (unmodified since rev3)
     PcgScaleEcgPaperView.kt     — grid drawing (unmodified since rev3)
     PcgScaleWaveformView.kt     — chart+grid stack, gesture sync (unmodified since rev3)
-    (PcgSpectralGate.kt deleted — was denoise engine, §4.1)
+    (PcgSpectralGate.kt deleted — was denoise engine, §4.2)
   ui/pcgscale/
-    PcgScaleRecordingFragment.kt   — recorder (Basic/Hard toggle, 14s auto-stop, §3)
+    PcgScaleRecordingFragment.kt   — recorder (Basic/Hard toggle, 14s auto-stop, §4.1)
     PcgScaleRecordingViewModel.kt  — recorder state (unmodified since rev3)
     PcgScalePlayerFragment.kt      — post-recording review/save screen
     PcgScaleReviewFragment.kt      — saved-recording review screen (from Saved Recordings)
   ui/segmentation/
-    SegmentationReportFragment.kt — shared by all entry points (§4.5)
+    SegmentationReportFragment.kt — shared by all entry points (§4.6)
 
 stemz-app/src/main/res/layout/
   fragment_pcgscale_recording.xml
@@ -331,20 +303,17 @@ stemz-app/src/main/res/navigation/nav_graph.xml   — all pcgScale* destinations
 stemz-app/src/main/AndroidManifest.xml            — stemzapp://pcgscale deep link
 ```
 
+Same relative paths under `app/` for the unmodified/original versions.
+
 ---
 
-## 7. Known loose ends (as of this doc)
+## 7. Known loose ends
 
 - `PcgScalePlayerFragment`'s Analyze button is wired but, per its current gating, only
   ever shows for an already-saved file — and in the live flow this screen is always
   reached with a brand-new, not-yet-saved recording. In practice, right now, only
-  `PcgScaleReviewFragment`'s Analyze button is ever actually visible to a user. Not a
-  bug, just worth knowing before assuming both buttons get exercised.
-- §5's spike investigation is unresolved — genuinely open, not a "should probably be
-  fine" close.
+  `PcgScaleReviewFragment`'s Analyze button is ever actually visible to a user.
+- §5's spike investigation is genuinely open, not a "probably fine" close.
 - Sharing a `.wav` to WhatsApp still transcodes to AAC and drops the filename even after
-  the MIME-type fix applied earlier this branch (see
-  `AUDIO_DIAGNOSTICS_BRANCH_CHANGELOG.md`) — unrelated to the graph, noted here only so
-  it isn't mistaken for graph-related if seen in the same testing session.
-- Icon (T→S) and app-name ("StemzApp") changes are on `StemzAppBranch` locally but not
-  yet pushed to GitHub as of this doc being written.
+  a MIME-type fix applied earlier on this branch — unrelated to the graph, noted here
+  only so it isn't mistaken for graph-related if seen in the same testing session.
