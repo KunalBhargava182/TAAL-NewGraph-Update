@@ -248,8 +248,8 @@ class PcgScaleRecordingFragment : Fragment() {
     }
 
     private fun setupPreAmpSlider() {
-        binding.ampSlider.value = (viewModel.preAmpDb.value ?: 5).toFloat()
-        binding.ampLabel.text = "${viewModel.preAmpDb.value ?: 5} dB"
+        binding.ampSlider.value = (viewModel.preAmpDb.value ?: 10).toFloat()
+        binding.ampLabel.text = "${viewModel.preAmpDb.value ?: 10} dB"
 
         binding.ampSlider.addOnChangeListener { _, value, _ ->
             val db = value.toInt()
@@ -424,7 +424,7 @@ class PcgScaleRecordingFragment : Fragment() {
                     putString("filePath", filteredPath)
                     putString("rawFilePath", rawPath)
                     putString("filterName", filterName)
-                    putInt("preAmpDb", viewModel.preAmpDb.value ?: 5)
+                    putInt("preAmpDb", viewModel.preAmpDb.value ?: 10)
                 }
                 findNavController().navigate(R.id.action_pcgScaleRecording_to_pcgScalePlayer, bundle)
             }
@@ -583,7 +583,7 @@ class PcgScaleRecordingFragment : Fragment() {
                 // finalizes the filtered file (see AUTO_STOP_SECONDS' comment).
                 setRecordingTime(30)
                 setPlayback(false)
-                setPreAmplification(viewModel.preAmpDb.value ?: 5)
+                setPreAmplification(viewModel.preAmpDb.value ?: 10)
                 when (filterName) {
                     "CUSTOM" -> setCustomBandpass(
                         viewModel.customLowCut!!.toDouble(),
@@ -667,7 +667,7 @@ class PcgScaleRecordingFragment : Fragment() {
                         // data the trace draws, or the fill fraction would depend on the
                         // slider position. Same tradeoff note as the Calibrated fork's
                         // COMPENSATE_PREAMP_IN_DISPLAY doc.
-                        val preAmpDb = viewModel.preAmpDb.value ?: 5
+                        val preAmpDb = viewModel.preAmpDb.value ?: 10
                         val preAmpGain = Math.pow(10.0, preAmpDb / 20.0).toFloat()
                         val displayData = if (COMPENSATE_PREAMP_IN_DISPLAY && preAmpGain > 1.001f) {
                             FloatArray(data.size) { i -> data[i] / preAmpGain }
@@ -759,7 +759,7 @@ class PcgScaleRecordingFragment : Fragment() {
                 putString("filterName", filterName)
                 // So the Player can undo this recording's actual pre-amp gain and both draw
                 // and RMS-measure the same true-acoustic-level trace the recorder showed live.
-                putInt("preAmpDb", viewModel.preAmpDb.value ?: 5)
+                putInt("preAmpDb", viewModel.preAmpDb.value ?: 10)
             }
             findNavController().navigate(R.id.action_pcgScaleRecording_to_pcgScalePlayer, bundle)
         }
@@ -864,9 +864,9 @@ class PcgScaleRecordingFragment : Fragment() {
         if (taalRecorder == null) {
             resetToIdle()
         }
-        viewModel.setPreAmp(5)
-        binding.ampSlider.value = 5f
-        binding.ampLabel.text = "5 dB"
+        viewModel.setPreAmp(10)
+        binding.ampSlider.value = 10f
+        binding.ampLabel.text = "10 dB"
 
         binding.pcgScaleWaveformView.recomputeVisibleSeconds()
         binding.pcgScaleWaveformView.chart.invalidate()

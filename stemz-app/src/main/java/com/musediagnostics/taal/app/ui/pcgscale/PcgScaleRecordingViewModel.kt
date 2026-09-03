@@ -38,7 +38,7 @@ class PcgScaleRecordingViewModel(application: Application) : AndroidViewModel(ap
     private val _bpm = MutableLiveData(0)
     val bpm: LiveData<Int> = _bpm
 
-    private val _preAmpDb = MutableLiveData(5)
+    private val _preAmpDb = MutableLiveData(10)
     val preAmpDb: LiveData<Int> = _preAmpDb
 
     var currentRecordingPath: String = ""
