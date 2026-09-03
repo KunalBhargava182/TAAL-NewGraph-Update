@@ -239,7 +239,7 @@ class PcgScalePlayerFragment : Fragment() {
 
     private fun updateScaleCaption() {
         if (_binding == null) return
-        binding.scaleCaption.text = "1 large box = 1 s · 1 small box = 0.2 s · Y: auto (50% fill, RMS) · scroll to browse"
+        binding.scaleCaption.text = "1 large box = 1 s · 1 small box = 0.2 s"
     }
 
     /**
@@ -339,16 +339,7 @@ class PcgScalePlayerFragment : Fragment() {
                 val chart = binding.pcgScaleWaveformView.chart
                 chart.axisLeft.axisMinimum = -fullScale
                 chart.axisLeft.axisMaximum = fullScale
-                // Same on-device diagnostics idea as the recorder's live caption: the file's
-                // real sample rate (from the WAV header) and the applied scale, with an
-                // explicit marker when the clamp floor — not the measurement — set the axis
-                // (i.e. a very quiet recording that CANNOT reach 60% fill; seen on a study
-                // Samsung unit's input path).
-                val clampNote = if (fileScale.isClampedAtMin()) " (MIN-CLAMPED: file very quiet)" else ""
-                binding.scaleCaption.text = String.format(
-                    "1 large box = 1 s · sr=%d Hz · Y=±%.3f%s · scroll to browse",
-                    fileSampleRate.toInt(), fullScale, clampNote
-                )
+                binding.scaleCaption.text = "1 large box = 1 s · 1 small box = 0.2 s"
                 renderWaveformEntries(ArrayList(entries), durationSecs)
             }
         }

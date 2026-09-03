@@ -225,26 +225,9 @@ class PcgScaleRecordingFragment : Fragment() {
         binding.pcgScaleWaveformView.chart.invalidate()
     }
 
-    /**
-     * Idle: the static scale legend. Recording: live diagnostics instead — the reported
-     * sample rate, the measured mean peak RMS, and the applied axis scale, with an explicit
-     * "min-clamped" marker when the clamp floor (not the measurement) is setting the axis.
-     * Added after a study Samsung unit showed "scaling doesn't work" with no way to tell
-     * from the screen whether time (wrong sample rate) or height (quiet input hitting
-     * MIN_FULL_SCALE) was at fault — this caption answers that at a glance on-device.
-     */
     private fun updateScaleCaption() {
         if (_binding == null) return
-        binding.scaleCaption.text =
-            if (viewModel.uiState.value == PcgScaleRecordingUiState.RECORDING) {
-                val clampNote = if (amplitudeScale.isClampedAtMin()) " (MIN-CLAMPED: input very quiet)" else ""
-                String.format(
-                    "sr=%d Hz · peak=%.4f · Y=±%.3f%s",
-                    actualSampleRate.toInt(), amplitudeScale.typicalPeakAmplitude(), appliedFullScale, clampNote
-                )
-            } else {
-                "1 large box = 1 s · 1 small box = 0.2 s · Y: auto (50% fill, RMS)"
-            }
+        binding.scaleCaption.text = "1 large box = 1 s · 1 small box = 0.2 s"
     }
 
     private fun setupPreAmpSlider() {
