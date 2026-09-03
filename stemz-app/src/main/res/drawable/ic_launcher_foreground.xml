@@ -10,8 +10,8 @@
         android:fillColor="#2ABFBF"
         android:pathData="M54,54m-40,0a40,40 0,1 1,80 0a40,40 0,1 1,-80 0" />
 
-    <!-- Letter T for TAAL -->
+    <!-- Letter S for Stemz -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M34,35 L74,35 L74,42 L58,42 L58,73 L50,73 L50,42 L34,42 Z" />
+        android:pathData="M34,35 L74,35 L74,42 L41,42 L41,50 L74,50 L74,73 L34,73 L34,66 L67,66 L67,57 L34,57 Z" />
 </vector>

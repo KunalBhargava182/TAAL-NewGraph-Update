@@ -47,12 +47,18 @@
             <!-- Debug entry point for the calibrated ECG-paper screens (not reachable from
                  any always-visible production button — see nav_graph.xml's calibratedRecordingFragment
                  deep link). Reach it with:
-                 adb shell am start -a android.intent.action.VIEW -d "stemzapp://calibrated" <applicationId> -->
+                 adb shell am start -a android.intent.action.VIEW -d "stemzapp://calibrated" <applicationId>
+
+                 Also handles the PcgScale screens (same pattern, see nav_graph.xml's
+                 pcgScaleRecordingFragment deep link) — reachable via Saved Recordings (which
+                 opens files through the PcgScale review screen), or directly for debugging:
+                 adb shell am start -a android.intent.action.VIEW -d "stemzapp://pcgscale" <applicationId> -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="stemzapp" android:host="calibrated" />
+                <data android:scheme="stemzapp" android:host="pcgscale" />
             </intent-filter>
         </activity>
 

@@ -37,6 +37,18 @@ class SaveRecordingFragment : Fragment() {
     private var filterName = "HEART"
     // private var extraAiTempPaths: List<String> = emptyList()  // AI downsampling disabled
 
+    // Which recorder screen's back-stack entry to pop up to after saving — lets every
+    // recorder family (production, PcgScale, Calibrated, FullTimeOn, ...) share this one
+    // screen while still landing on its OWN recorder afterward instead of a stale, unrelated
+    // screen left underneath. Defaults to production's recordingFragment for callers that
+    // don't pass one (e.g. PlayerFragment); PcgScalePlayerFragment passes
+    // R.id.pcgScaleRecordingFragment. Bug this fixes: with the hardcoded recordingFragment
+    // target, popUpTo silently failed for the PcgScale flow (recordingFragment was never on
+    // that back stack), leaving pcgScaleRecordingFragment/pcgScalePlayerFragment/this screen
+    // all still underneath Saved Recordings — so a second "back" from there landed back on
+    // this Save/name screen instead of the recorder.
+    private var popUpToDestinationId = R.id.recordingFragment
+
     // Holds the safe file name between the internal save and the permission callback.
     // Only populated on API 24–28 when WRITE_EXTERNAL_STORAGE has not been granted yet.
     private var pendingSafeName: String? = null
@@ -93,6 +105,7 @@ class SaveRecordingFragment : Fragment() {
         rawTempPath      = arguments?.getString("rawFilePath") ?: ""
         // aiTestingTempPath = arguments?.getString("aiTestingFilePath") ?: ""  // AI downsampling disabled
         filterName       = arguments?.getString("filterName") ?: "HEART"
+        popUpToDestinationId = arguments?.getInt("popUpToDestination", R.id.recordingFragment) ?: R.id.recordingFragment
         // extraAiTempPaths = arguments?.getStringArrayList("extraAiFilePaths")?.toList() ?: emptyList()  // AI downsampling disabled
 
         binding.filterChip.visibility = View.GONE
@@ -263,7 +276,7 @@ class SaveRecordingFragment : Fragment() {
             R.id.action_saveRecording_to_savedRecordings,
             null,
             androidx.navigation.NavOptions.Builder()
-                .setPopUpTo(R.id.recordingFragment, false).build()
+                .setPopUpTo(popUpToDestinationId, false).build()
         )
     }
 
