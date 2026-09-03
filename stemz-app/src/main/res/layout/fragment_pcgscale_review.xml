@@ -147,6 +147,41 @@
 
     </com.google.android.material.card.MaterialCardView>
 
+    <!-- Denoise toggle: PcgDisplayFilter.processOffline() display chain (click/USB-glitch
+         removal, zero-phase 20-500 Hz band + hum notches, transient-protected gate). Runs on
+         the already-decoded in-memory samples; playback audio and the file itself are
+         unaffected — display only. Hum filter intentionally NOT re-added here. -->
+    <LinearLayout
+        android:id="@+id/denoiseRow"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="4dp"
+        android:layout_marginEnd="16dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/ampSliderContainer">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Denoise"
+            android:textColor="#333333"
+            android:textSize="12sp" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/denoiseSwitch"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:checked="false"
+            app:thumbTint="#128CB2"
+            app:trackTint="#C8E6F5" />
+
+    </LinearLayout>
+
     <TextView
         android:id="@+id/scaleCaption"
         android:layout_width="0dp"
@@ -160,7 +195,7 @@
         android:textSize="9sp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/ampSliderContainer" />
+        app:layout_constraintTop_toBottomOf="@id/denoiseRow" />
 
     <com.musediagnostics.taal.app.ecg.pcgscale.PcgScaleWaveformView
         android:id="@+id/pcgScaleWaveformView"
@@ -172,6 +207,17 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/scaleCaption" />
+
+    <ProgressBar
+        android:id="@+id/waveformLoadingIndicator"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:indeterminateTint="#128CB2"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="@id/pcgScaleWaveformView"
+        app:layout_constraintEnd_toEndOf="@id/pcgScaleWaveformView"
+        app:layout_constraintStart_toStartOf="@id/pcgScaleWaveformView"
+        app:layout_constraintTop_toTopOf="@id/pcgScaleWaveformView" />
 
     <TextView
         android:id="@+id/actionText"
