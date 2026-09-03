@@ -177,12 +177,23 @@ class PcgDisplayFilterTest {
         val ref = rms(heart, 0, bufferLen)
         assertTrue("120 Hz altered live: ${db(rms(last) / ref)} dB", abs(db(rms(last) / ref)) <= 1.0)
 
+        // The live high-pass is deliberately gentle (2nd order at 10 Hz — see Params.LIVE),
+        // so probe well below its corner: 2.5 Hz sits two octaves down (~ -24 dB).
         val live2 = PcgLiveDisplayFilter(sr)
-        val rumble = tone(10.0, 0.2f, 3f)
+        val rumble = tone(2.5, 0.2f, 4f)
         pos = 0
         while (pos + bufferLen <= rumble.size) {
             last = live2.process(rumble.copyOfRange(pos, pos + bufferLen)); pos += bufferLen
         }
-        assertTrue("10 Hz not rejected live: ${db(rms(last) / ref)} dB", db(rms(last) / ref) <= -20.0)
+        assertTrue("2.5 Hz not rejected live: ${db(rms(last) / ref)} dB", db(rms(last) / ref) <= -18.0)
+
+        // And the live corner must NOT smear S1's low end: 40 Hz within 1 dB.
+        val live3 = PcgLiveDisplayFilter(sr)
+        val lowS1 = tone(40.0, 0.2f, 3f)
+        pos = 0
+        while (pos + bufferLen <= lowS1.size) {
+            last = live3.process(lowS1.copyOfRange(pos, pos + bufferLen)); pos += bufferLen
+        }
+        assertTrue("40 Hz altered live: ${db(rms(last) / ref)} dB", abs(db(rms(last) / ref)) <= 1.0)
     }
 }

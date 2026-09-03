@@ -30,6 +30,7 @@ import com.musediagnostics.taal.app.R
 import com.musediagnostics.taal.app.databinding.FragmentPcgscaleRecordingBinding
 import com.musediagnostics.taal.app.dsp.HeartBpmCalculator
 import com.musediagnostics.taal.app.ecg.pcgscale.PcgAmplitudeScale
+import com.musediagnostics.taal.app.ecg.pcgscale.PcgLiveDisplayFilter
 import com.musediagnostics.taal.app.ecg.pcgscale.PcgScaleWaveformView
 import com.musediagnostics.taal.utils.TaalConnectionBroadcastReceiver
 import kotlinx.coroutines.CoroutineScope
@@ -91,6 +92,13 @@ class PcgScaleRecordingFragment : Fragment() {
     // onSampleRateReported.
     private var amplitudeScale = PcgAmplitudeScale(ASSUMED_SAMPLE_RATE)
     private var appliedFullScale = PcgAmplitudeScale.DEFAULT_INITIAL_FULL_SCALE
+
+    // DISPLAY-ONLY conditioning of the live trace (2026-09-03, same as app/): per-buffer
+    // USB-glitch removal + gentle causal high-pass + 500 Hz low-pass + 50/100/150 Hz notches,
+    // so the graph shows the heart band instead of rumble/hum/dropout spikes. Never touches
+    // the recorded files or the audio monitor — only what is drawn and what the 60%-fill
+    // scaler measures. Fresh instance per session (filter state must not leak between recordings).
+    private var liveDisplayFilter = PcgLiveDisplayFilter(ASSUMED_SAMPLE_RATE)
 
     // The rate everything time-derived actually uses. Starts at the 44.1k assumption and is
     // corrected from onProgressUpdate's reported sampleRate on the FIRST buffer of a session.
@@ -675,6 +683,7 @@ class PcgScaleRecordingFragment : Fragment() {
             totalSamplesProcessed = 0L
             bpmCalculator.reset()
             amplitudeScale.reset()
+            liveDisplayFilter = PcgLiveDisplayFilter(actualSampleRate)
             appliedFullScale = PcgAmplitudeScale.DEFAULT_INITIAL_FULL_SCALE
             binding.pcgScaleWaveformView.chart.axisLeft.axisMinimum = -appliedFullScale
             binding.pcgScaleWaveformView.chart.axisLeft.axisMaximum = appliedFullScale
@@ -762,6 +771,7 @@ class PcgScaleRecordingFragment : Fragment() {
         if (rate == actualSampleRate) return
         actualSampleRate = rate
         amplitudeScale = PcgAmplitudeScale(rate)
+        liveDisplayFilter = PcgLiveDisplayFilter(rate)
         val plotWidthPx = binding.pcgScaleWaveformView.chart.width.toFloat()
         val derived = PcgScaleWaveformView.deriveBucketSizeForVisibleRange(
             currentWindowSeconds * rate, plotWidthPx
@@ -777,10 +787,14 @@ class PcgScaleRecordingFragment : Fragment() {
      *  - Y-axis is fed live: this buffer goes into [amplitudeScale], and the eased 60%-fill
      *    full-scale is applied whenever it has moved by more than a fraction of a percent.
      */
-    private fun updateWaveform(data: FloatArray) {
+    private fun updateWaveform(rawDisplayData: FloatArray) {
         if (_binding == null || !isAdded) return
         val waveformView = binding.pcgScaleWaveformView
         val chart = waveformView.chart
+
+        // Display-only conditioning (see liveDisplayFilter): the scaler and the trace both
+        // see the cleaned signal, so the fill target is measured on what is actually drawn.
+        val data = liveDisplayFilter.process(rawDisplayData)
 
         // Feed the RMS scaler and glide the axis toward the measured 60%-fill scale.
         amplitudeScale.addSamples(data)

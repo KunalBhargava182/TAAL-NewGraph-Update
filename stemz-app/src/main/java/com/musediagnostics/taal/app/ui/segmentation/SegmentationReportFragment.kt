@@ -22,6 +22,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import com.musediagnostics.taal.app.R
 import com.musediagnostics.taal.app.databinding.FragmentSegmentationReportBinding
+import com.musediagnostics.taal.app.ecg.pcgscale.PcgDisplayFilter
 import com.musediagnostics.taal.segmentation.SegmentationOutcome
 import com.musediagnostics.taal.segmentation.TaalCardiacSegmentation
 import com.musediagnostics.taal.segmentation.heartRateBpm
@@ -83,7 +84,17 @@ class SegmentationReportFragment : Fragment() {
             val (audio, sampleRate) = withContext(Dispatchers.Default) { readWavAsFloatArray(rawFile) }
             val outcome = segmenter?.segmentRawWav(rawFile, verboseLogging = true)
             if (_binding == null || outcome == null) return@launch
-            showResult(outcome, audio, sampleRate)
+            // 2026-09-03: the chart draws a DISPLAY-conditioned copy of the raw audio (click
+            // removal, zero-phase 20–500 Hz band + hum notches, transient-protected gate) so
+            // the background PCG under the S1/S2 bands is readable and murmurs stand out from
+            // the floor. Segmentation itself still ran on the untouched raw file above;
+            // because the filter is zero-phase, every beat stays at its true time, so the
+            // overlay alignment is unaffected. Same change as app/'s copy of this fragment.
+            val displayAudio = withContext(Dispatchers.Default) {
+                PcgDisplayFilter.processOffline(audio, sampleRate.toFloat())
+            }
+            if (_binding == null) return@launch
+            showResult(outcome, displayAudio, sampleRate)
         }
     }
 

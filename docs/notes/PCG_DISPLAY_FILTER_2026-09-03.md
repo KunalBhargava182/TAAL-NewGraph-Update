@@ -44,9 +44,43 @@ thread, which is separate and unchanged here.
 | `ui/segmentation/SegmentationReportFragment.kt` | Chart (report + full-screen, via the shared ViewModel) draws `PcgDisplayFilter.processOffline(rawAudio)`; segmentation still runs on the untouched raw file. `stemz-app`'s copy of this fragment is NOT updated (it has no `ecg/pcgscale` package to import from) — port when `stemz` next syncs. |
 | `PcgDisplayFilterTest.kt` (new, 8 tests), `PcgSpectralGateTest.kt` (+2) | Zero-phase timing, band edges, notch, click removal (glitch removed / beat and clipped beat untouched), full-chain beat preservation within 1 dB with ≥ 12 dB gap reduction, degenerate lengths, live-filter passband; DISPLAY-preset beat preservation within 0.3 dB; DEFAULT-preset identity. |
 
-Parameters (all in code, all display-only): HP 20 Hz, LP 500 Hz, notches 50/100/150 Hz
-Q=30, gate k=1.5 / floor −18 dB / release 0.6 / quietest 30 % frames / transient
-protection 8 dB. The 500 Hz upper edge is the user's "450–600 Hz" murmur-retention choice.
+Parameters (all in code, all display-only): offline zero-phase HP 20 Hz, LP 500 Hz,
+notches 50/100/150 Hz Q=30, gate k=1.5 / floor −18 dB / release 0.6 / quietest 30 % frames
+/ transient protection 8 dB. The 500 Hz upper edge is the user's "450–600 Hz"
+murmur-retention choice. **Live path is gentler on purpose**: HP 10 Hz, 2nd order (see
+next section).
+
+## Rev 2 same day — "the denoise shrank S1/S2", measured stage by stage
+
+Per-stage effect on the 95th-percentile 50 ms hop peak (the S1/S2 height), paired study
+recordings, zero-phase unless stated:
+
+| Stage | OnePlus peak | OnePlus noise | Samsung peak | Samsung noise |
+|---|---|---|---|---|
+| HP 20 Hz only | −1.8 dB | −6.7 dB | −0.1 dB | −0.2 dB |
+| LP 500 Hz only | 0.0 | 0.0 | −0.1 | −0.1 |
+| Notches only | 0.0 | 0.0 | **−0.8** | +0.2 |
+| Full band (offline, current) | −2.2 | −6.3 | −1.0 | −0.1 |
+| Live causal 4th-order HP 20 (old live) | −1.4 | −4.6 | **−2.0** | +0.5 |
+| Live causal 2nd-order HP 10 (new live) | −0.2 | −1.2 | −1.0 | +0.5 |
+
+Reading: the OnePlus "shrink" is the high-pass removing sub-25 Hz rumble that was riding
+on top of the beats (it takes 6.7 dB off the noise for the same reason) — the beat's own
+energy is untouched. The Samsung "shrink" is the notches removing 50/60 Hz hum that was
+riding on the beats. Neither is S1 being eaten; both are correct. In the app the axis
+re-derives from the cleaned peaks, so on screen the beats stay at the target fill; the
+fixed-axis comparison figure exaggerated the effect. What WAS a genuine skew: the live
+causal 4th-order 20 Hz corner's group-delay dispersion smeared S1 onsets (Samsung −2.0 dB
+vs −1.0 zero-phase). Fixed by making the live high-pass 2nd order at 10 Hz
+(`PcgDisplayFilter.Params.LIVE`) — taal-core's own 20 Hz HEART band-pass already shapes
+the stream the recorder draws, so the live stage only needs to catch what leaks through
+that filter's shallow skirt. Offline keeps the 20 Hz zero-phase spec.
+
+Also this rev: the chain is ported into **`stemz-app`** (copied `PcgDisplayFilter.kt` +
+`PcgSpectralGate.kt`; live filter in its recorder; cleaned background in its segmentation
+report/full-screen chart — the study build's murmur view). stemz's Player/Review keep no
+denoise toggle (Kunal removed it deliberately per `PCGSCALE_WORK_REFERENCE.md`) — apply
+the offline chain there always-on if wanted; one-line change each.
 
 ## Not changed (deliberately)
 
