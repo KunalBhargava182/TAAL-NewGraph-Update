@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Stemz</string>
-    <string name="app_display_name">Stemz</string>
+    <string name="app_name">StemzApp</string>
+    <string name="app_display_name">StemzApp</string>
 
     <!-- Sign In -->
     <string name="sign_in">Sign In</string>
