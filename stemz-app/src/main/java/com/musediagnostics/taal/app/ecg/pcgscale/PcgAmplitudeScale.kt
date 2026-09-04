@@ -6,7 +6,7 @@ import kotlin.math.sqrt
 
 /**
  * Amplitude-derived Y-axis full-scale for the PcgScale screens: the axis is sized so the
- * heart sounds' typical DRAWN maxima fill ~[TARGET_FILL_FRACTION] (50%) of the graph's half
+ * heart sounds' typical DRAWN maxima fill ~[TARGET_FILL_FRACTION] (60%) of the graph's half
  * height — excluding noise. Pure Kotlin, no Android dependency, plain-JVM unit-testable.
  *
  * REV 3 (2026-08-28) — calibrate on the drawn quantity, not on RMS, and merge the ledger's
@@ -58,7 +58,7 @@ class PcgAmplitudeScale(
 ) {
 
     companion object {
-        const val TARGET_FILL_FRACTION = 0.50f
+        const val TARGET_FILL_FRACTION = 0.60f
         const val RMS_HOP_SECONDS = 0.05f
         const val PEAK_WINDOW_SECONDS = 5f
 
