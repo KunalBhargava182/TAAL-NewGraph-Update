@@ -393,6 +393,19 @@ class PcgScalePlayerFragment : Fragment() {
         binding.denoiseSwitch.setOnCheckedChangeListener { _, checked -> onDenoiseToggled(checked) }
     }
 
+    /** Explicit ON/OFF pill next to the switch — the switch alone (thumb position + a
+     *  color shift) is easy to misread at a glance, so the state is also spelled out in text. */
+    private fun updateDenoiseBadge(enabled: Boolean) {
+        if (_binding == null) return
+        binding.denoiseOnBadge.text = if (enabled) "ON" else "OFF"
+        binding.denoiseOnBadge.setBackgroundResource(
+            if (enabled) R.drawable.bg_status_pill_on else R.drawable.bg_status_pill_off
+        )
+        binding.denoiseOnBadge.setTextColor(
+            if (enabled) Color.WHITE else Color.parseColor("#757575")
+        )
+    }
+
     /**
      * Same contract as PcgScaleReviewFragment.onDenoiseToggled: the first ON runs
      * [PcgDisplayFilter] on the decoded samples off the main thread (spinner shown); every
@@ -402,8 +415,9 @@ class PcgScalePlayerFragment : Fragment() {
      * always plays the original file on disk regardless of the switch.
      */
     private fun onDenoiseToggled(enabled: Boolean) {
-        val original = originalSamples ?: return
         denoiseEnabled = enabled
+        updateDenoiseBadge(enabled)
+        val original = originalSamples ?: return
         val durationSecs = recordingDurationSecs
         val rate = fileSampleRateForRender
         android.util.Log.i(TAG, "PLAYER denoise toggled -> $enabled " +
