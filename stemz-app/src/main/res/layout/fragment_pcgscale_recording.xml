@@ -389,10 +389,13 @@
 
             <!-- Feature A: opt-in 50/100/150Hz hum + 25Hz rumble biquad filter. Default OFF;
                  disabled while recording (state fixed per session, like the filter buttons).
-                 Re-added per request (2026-09-04) — was removed 2026-09-03. -->
+                 Re-added per request (2026-09-04) — was removed 2026-09-03.
+                 Hidden per request (2026-09-04) — kept in layout, not removed; switch stays
+                 unchecked (default) while hidden, so recording behavior is unaffected. -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:visibility="gone"
                 android:gravity="center_vertical"
                 android:orientation="horizontal"
                 android:paddingStart="10dp"
