@@ -204,8 +204,7 @@ class PcgScaleReviewFragment : Fragment() {
 
     private fun updateScaleCaption() {
         if (_binding == null) return
-        val suffix = if (denoiseEnabled) " · denoised" else ""
-        binding.scaleCaption.text = "1 large box = 1 s · 1 small box = 0.2 s$suffix"
+        binding.scaleCaption.text = "1 large box = 1 s · 1 small box = 0.2 s"
     }
 
     private data class RenderPayload(val fullScale: Float, val entries: ArrayList<Entry>)
