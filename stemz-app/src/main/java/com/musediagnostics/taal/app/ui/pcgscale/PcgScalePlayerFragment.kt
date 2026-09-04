@@ -64,6 +64,17 @@ class PcgScalePlayerFragment : Fragment() {
     // wherever the chart snaps back to its start-centered framing.
     private var displayedPlaybackTime = 0f
 
+    // Denoise toggle (parity with PcgScaleReviewFragment, re-added 2026-09-04 for full
+    // feature parity with app): both sample-array versions are cached so toggling is
+    // instant after the first compute. Display only — playback always plays the file on
+    // disk regardless of the switch.
+    private var originalSamples: FloatArray? = null
+    private var denoisedSamples: FloatArray? = null
+    private var fileSampleRateForRender: Float = INPUT_SAMPLE_RATE
+    private var pixelsPerSecondForRender: Float = -1f
+    private var recordingDurationSecs: Int = 0
+    private var denoiseEnabled = false
+
     companion object {
         private const val INPUT_SAMPLE_RATE = 44100f
 
@@ -129,6 +140,7 @@ class PcgScalePlayerFragment : Fragment() {
 
         setupWaveformChart()
         setupAmpSlider()
+        setupDenoiseSwitch()
         updateScaleCaption()
 
         if (filePath.isNotEmpty()) {
@@ -251,8 +263,10 @@ class PcgScalePlayerFragment : Fragment() {
      *    samples and applied once, before the trace is shown;
      *  - the min/max bucket comes from the fixed pixels-per-second density (no Fix-D
      *    re-bucketing exists or is needed — the window never changes).
+     * Also caches the decoded samples for the Denoise toggle (see field docs).
      */
     private fun loadFullWaveform(filePath: String, pixelsPerSecond: Float, recordedPreAmpDb: Int) {
+        pixelsPerSecondForRender = pixelsPerSecond
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
             val file = File(filePath)
             if (!file.exists()) {
@@ -296,41 +310,14 @@ class PcgScalePlayerFragment : Fragment() {
                 }
             }
 
-            // 2026-09-03: cleaned view ALWAYS ON in stemz (this app has no denoise toggle by
-            // design): click/USB-glitch removal, zero-phase 20–500 Hz band + hum notches, and
-            // the transient-protected gate — display only, the file and playback are untouched.
-            // Axis, bucketing and diagnostics all run on the cleaned copy so what is measured
-            // is what is drawn.
-            val displaySamples = PcgDisplayFilter.processOffline(samples, fileSampleRate)
+            val payload = computeRenderPayload(samples, fileSampleRate)
 
-            // Whole-file 60%-fill axis scale — "sampled mean peaks across the whole recording".
-            // Streamed through an instance (rather than computeFullScaleForFile) so the
-            // diagnostics below can also read typicalPeakAmplitude/isClampedAtMin for the caption.
-            val fileScale = PcgAmplitudeScale(fileSampleRate)
-            fileScale.addSamples(displaySamples)
-            fileScale.flushPartialWindow()
-            val fullScale = fileScale.targetFullScale()
-
-            // Fixed-density bucket: sampleRate / (pixelsPerSecond * 2) puts ~one min/max pair
-            // per horizontal pixel of the fixed window (algebraically identical to
-            // deriveBucketSizeForVisibleRange for this window). The MAX_TOTAL_POINTS ceiling
-            // bounds memory on long files — see that constant's doc.
-            val derivedBucket = if (pixelsPerSecond > 0f) {
-                maxOf(1, (fileSampleRate / (pixelsPerSecond * 2f)).roundToInt())
-            } else -1
-            val ceilingBucket = maxOf(1, totalSamples / (MAX_TOTAL_POINTS / 2))
-            val bucketSize = if (derivedBucket > 0) maxOf(derivedBucket, ceilingBucket) else ceilingBucket
-            val entries = PcgScaleWaveformView.downsampleMinMax(displaySamples, bucketSize) { idx ->
-                idx.toFloat() / fileSampleRate
-            }
-
-            // FIX 2026-09-02: the full decode + axis derivation in one line. isClampedAtMin
-            // is the key one — it says the MIN_FULL_SCALE floor, not the measured signal, set
+            // FIX 2026-09-02: the full decode + axis derivation in one line. minClamped is
+            // the key one — it says the MIN_FULL_SCALE floor, not the measured signal, set
             // the Y axis, which is exactly the quiet-capture regime under investigation.
-            // (Measured on the cleaned display copy since 2026-09-03.)
             var pk = 0f
             var sumSq = 0.0
-            for (s in displaySamples) {
+            for (s in samples) {
                 val a = kotlin.math.abs(s)
                 if (a > pk) pk = a
                 sumSq += s.toDouble() * s.toDouble()
@@ -339,17 +326,110 @@ class PcgScalePlayerFragment : Fragment() {
             android.util.Log.i(TAG, "PLAYER decoded — headerRate=${fileSampleRate.toInt()}Hz " +
                 "totalSamples=$totalSamples durationSecs=$durationSecs " +
                 "dataPeak=$pk dataRms=$rms (after preAmp undo of ${recordedPreAmpDb}dB) " +
-                "fullScale=$fullScale minClamped=${fileScale.isClampedAtMin()} " +
-                "peakFillOfAxis=${"%.1f".format(if (fullScale > 0f) 100.0 * pk / fullScale else 0.0)}% " +
-                "bucketSize=$bucketSize entries=${entries.size}")
+                "fullScale=${payload.fullScale} minClamped=${payload.minClamped} " +
+                "peakFillOfAxis=${"%.1f".format(if (payload.fullScale > 0f) 100.0 * pk / payload.fullScale else 0.0)}% " +
+                "bucketSize=${payload.bucketSize} entries=${payload.entries.size}")
 
             withContext(Dispatchers.Main) {
                 if (_binding == null) return@withContext
-                val chart = binding.pcgScaleWaveformView.chart
-                chart.axisLeft.axisMinimum = -fullScale
-                chart.axisLeft.axisMaximum = fullScale
-                binding.scaleCaption.text = "1 large box = 1 s · 1 small box = 0.2 s"
-                renderWaveformEntries(ArrayList(entries), durationSecs)
+                originalSamples = samples
+                fileSampleRateForRender = fileSampleRate
+                recordingDurationSecs = durationSecs
+                binding.denoiseSwitch.isEnabled = true
+                applyRenderPayload(payload, durationSecs)
+            }
+        }
+    }
+
+    /** Everything the chart needs for one version (original or denoised) of the samples. */
+    private class RenderPayload(
+        val fullScale: Float,
+        val minClamped: Boolean,
+        val entries: ArrayList<Entry>,
+        val bucketSize: Int
+    )
+
+    private fun computeRenderPayload(samples: FloatArray, sampleRate: Float): RenderPayload {
+        // Whole-file 60%-fill axis scale — "sampled mean peaks across the whole recording".
+        // Streamed through an instance (rather than computeFullScaleForFile) so the caption
+        // can also read isClampedAtMin.
+        val fileScale = PcgAmplitudeScale(sampleRate)
+        fileScale.addSamples(samples)
+        fileScale.flushPartialWindow()
+        val fullScale = fileScale.targetFullScale()
+
+        // Fixed-density bucket: sampleRate / (pixelsPerSecond * 2) puts ~one min/max pair
+        // per horizontal pixel of the fixed window (algebraically identical to
+        // deriveBucketSizeForVisibleRange for this window). The MAX_TOTAL_POINTS ceiling
+        // bounds memory on long files — see that constant's doc.
+        val derivedBucket = if (pixelsPerSecondForRender > 0f) {
+            maxOf(1, (sampleRate / (pixelsPerSecondForRender * 2f)).roundToInt())
+        } else -1
+        val ceilingBucket = maxOf(1, samples.size / (MAX_TOTAL_POINTS / 2))
+        val bucketSize = if (derivedBucket > 0) maxOf(derivedBucket, ceilingBucket) else ceilingBucket
+        val entries = PcgScaleWaveformView.downsampleMinMax(samples, bucketSize) { idx ->
+            idx.toFloat() / sampleRate
+        }
+        return RenderPayload(fullScale, fileScale.isClampedAtMin(), ArrayList(entries), bucketSize)
+    }
+
+    private fun applyRenderPayload(payload: RenderPayload, durationSecs: Int) {
+        if (_binding == null) return
+        val chart = binding.pcgScaleWaveformView.chart
+        chart.axisLeft.axisMinimum = -payload.fullScale
+        chart.axisLeft.axisMaximum = payload.fullScale
+        updateScaleCaption()
+        renderWaveformEntries(payload.entries, durationSecs)
+    }
+
+    /** Display-only PcgDisplayFilter denoise toggle. Disabled until the file finishes
+     *  decoding (there is nothing to filter yet). */
+    private fun setupDenoiseSwitch() {
+        binding.denoiseSwitch.isEnabled = false
+        binding.denoiseSwitch.setOnCheckedChangeListener { _, checked -> onDenoiseToggled(checked) }
+    }
+
+    /**
+     * Same contract as PcgScaleReviewFragment.onDenoiseToggled: the first ON runs
+     * [PcgDisplayFilter] on the decoded samples off the main thread (spinner shown); every
+     * other transition is a synchronous re-bucket of an array already in memory. The axis is
+     * recomputed for whichever version is shown, so a cleaned trace gets a correctly
+     * smaller axis and therefore draws larger — never smaller — than the raw one. Playback
+     * always plays the original file on disk regardless of the switch.
+     */
+    private fun onDenoiseToggled(enabled: Boolean) {
+        val original = originalSamples ?: return
+        denoiseEnabled = enabled
+        val durationSecs = recordingDurationSecs
+        val rate = fileSampleRateForRender
+        android.util.Log.i(TAG, "PLAYER denoise toggled -> $enabled " +
+            "(cached=${denoisedSamples != null}, samples=${original.size})")
+
+        if (!enabled) {
+            applyRenderPayload(computeRenderPayload(original, rate), durationSecs)
+            return
+        }
+
+        val cached = denoisedSamples
+        if (cached != null) {
+            applyRenderPayload(computeRenderPayload(cached, rate), durationSecs)
+            return
+        }
+
+        binding.waveformLoadingIndicator.visibility = View.VISIBLE
+        binding.denoiseSwitch.isEnabled = false
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Default) {
+            val startMs = System.currentTimeMillis()
+            val cleaned = PcgDisplayFilter.processOffline(original, rate)
+            android.util.Log.i(TAG, "PLAYER display filter computed in " +
+                "${System.currentTimeMillis() - startMs}ms (${original.size} samples)")
+            val payload = computeRenderPayload(cleaned, rate)
+            withContext(Dispatchers.Main) {
+                if (_binding == null) return@withContext
+                denoisedSamples = cleaned
+                binding.waveformLoadingIndicator.visibility = View.GONE
+                binding.denoiseSwitch.isEnabled = true
+                applyRenderPayload(payload, durationSecs)
             }
         }
     }
