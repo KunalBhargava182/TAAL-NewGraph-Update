@@ -25,3 +25,9 @@ local.properties
 
 # Generated
 graphify-out/
+
+# Signing secrets — never commit a release keystore or its passwords
+*.keystore
+*.jks
+keystore.properties
+KEYSTORE_CREDENTIALS.md
