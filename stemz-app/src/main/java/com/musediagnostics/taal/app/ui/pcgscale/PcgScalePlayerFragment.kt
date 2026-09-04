@@ -336,7 +336,11 @@ class PcgScalePlayerFragment : Fragment() {
                 fileSampleRateForRender = fileSampleRate
                 recordingDurationSecs = durationSecs
                 binding.denoiseSwitch.isEnabled = true
-                applyRenderPayload(payload, durationSecs)
+                // Default ON (2026-09-04 request) — go straight through the same path a
+                // manual toggle takes (binding.denoiseSwitch.isChecked already starts true
+                // per the layout, but setting it wouldn't fire the listener since it's not
+                // actually changing) so the file opens already denoised.
+                onDenoiseToggled(true)
             }
         }
     }

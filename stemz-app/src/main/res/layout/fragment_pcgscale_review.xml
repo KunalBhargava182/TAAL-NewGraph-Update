@@ -176,7 +176,7 @@
             android:id="@+id/denoiseSwitch"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:checked="false"
+            android:checked="true"
             app:thumbTint="#128CB2"
             app:trackTint="#C8E6F5" />
 

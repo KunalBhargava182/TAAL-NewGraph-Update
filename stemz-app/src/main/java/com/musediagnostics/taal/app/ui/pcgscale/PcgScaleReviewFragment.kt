@@ -298,15 +298,17 @@ class PcgScaleReviewFragment : Fragment() {
             android.util.Log.i(TAG, "REVIEW decoded — headerRate=${fileSampleRate.toInt()}Hz " +
                 "dataBytes=$dataSize totalSamples=$totalSamples durationSecs=$durationSecs")
 
-            val payload = computeRenderPayload(samples, fileSampleRate)
-
             withContext(Dispatchers.Main) {
                 if (_binding == null) return@withContext
                 originalSamples = samples
                 fileSampleRateForGate = fileSampleRate
                 recordingDurationSecs = durationSecs
                 binding.denoiseSwitch.isEnabled = true
-                applyRenderPayload(payload, durationSecs)
+                // Default ON (2026-09-04 request) — go straight through the same path a
+                // manual toggle takes (binding.denoiseSwitch.isChecked already starts true
+                // per the layout, but setting it wouldn't fire the listener since it's not
+                // actually changing) so the file opens already denoised.
+                onDenoiseToggled(true)
             }
         }
     }
