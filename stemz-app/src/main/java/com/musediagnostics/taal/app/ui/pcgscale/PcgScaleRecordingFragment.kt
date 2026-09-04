@@ -139,14 +139,19 @@ class PcgScaleRecordingFragment : Fragment() {
         private const val AUTO_STOP_SECONDS = 14
     }
 
+    // Set only by checkPermissionAndRecord() — the proactive on-open request below launches
+    // the same permissionLauncher but must NOT auto-start a recording on grant.
+    private var startRecordingAfterPermission = false
+
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) {
-            startRecording()
-        } else {
+            if (startRecordingAfterPermission) startRecording()
+        } else if (startRecordingAfterPermission) {
             Toast.makeText(requireContext(), "Audio permission required", Toast.LENGTH_SHORT).show()
         }
+        startRecordingAfterPermission = false
     }
 
     override fun onCreateView(
@@ -166,6 +171,7 @@ class PcgScaleRecordingFragment : Fragment() {
         observeState()
         setupConnectionReceiver()
         updateScaleCaption()
+        requestAudioPermissionIfNeeded()
 
         requireActivity().onBackPressedDispatcher.addCallback(
             viewLifecycleOwner,
@@ -522,6 +528,20 @@ class PcgScaleRecordingFragment : Fragment() {
         ) {
             startRecording()
         } else {
+            startRecordingAfterPermission = true
+            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    /** Asks for RECORD_AUDIO as soon as this (startDestination) screen opens, rather than
+     *  waiting for the user to tap Start Recording. Does not auto-start a recording on grant —
+     *  see startRecordingAfterPermission. A no-op once already granted, and Android itself
+     *  won't re-show the system dialog if the user already denied it before. */
+    private fun requestAudioPermissionIfNeeded() {
+        if (ContextCompat.checkSelfPermission(
+                requireContext(), Manifest.permission.RECORD_AUDIO
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
             permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
         }
     }
