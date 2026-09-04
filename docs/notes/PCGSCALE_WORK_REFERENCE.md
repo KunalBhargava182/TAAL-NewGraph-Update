@@ -47,8 +47,9 @@ are libraries, not apps). Only two have PcgScale at all:
 | **`MIN_FULL_SCALE`** | `0.005f` | `0.005f` (inherited) | n/a | n/a |
 | **Heart filter UI** | 5-preset row (Heart/Lungs/Bowel/Pregnancy/Full-body) + Custom | 2-button **Basic/Hard** toggle (Basic=`HEART` preset, Hard=custom bandpass 20–200Hz) + Custom | Lungs-specific filter set | Guided point-by-point Heart/Lungs flow (via `taal-ui-kit`) |
 | **Auto-stop** | None (300s ceiling only) | **14s hard auto-stop**, routed through real `stopRecording()` | Session-based, no fixed auto-stop | No fixed auto-stop |
-| **Hum/rumble filter (opt-in)** | Yes — "Feature A" switch on recorder | **Removed** this branch | n/a | n/a |
-| **Denoise toggle (opt-in)** | Yes — "Feature B" switch on review, uses `PcgSpectralGate` | **Removed** this branch, `PcgSpectralGate.kt` deleted from `stemz-app` | n/a | n/a |
+| **Hum/rumble filter (opt-in)** | Yes — "Feature A" switch on recorder | Yes — same switch, same `setHumRumbleFilterEnabled()` (removed 2026-09-03, re-added 2026-09-04 for parity with `app`) | n/a | n/a |
+| **Denoise toggle (opt-in)** | Yes — "Feature B" switch on review, uses `PcgDisplayFilter.processOffline()` | Yes — same switch/mechanism (removed 2026-09-03 as `PcgSpectralGate`-based, re-added 2026-09-04 using `app`'s current `PcgDisplayFilter`-based version) | n/a | n/a |
+| **`PcgDisplayFilter`** (click/USB-glitch removal, zero-phase 20–500Hz band + hum notches — Arvind's addition on `pcgscale-rev3`) | Yes — powers the Denoise toggle and the segmentation report chart | Yes — same, pulled in via merging `pcgscale-rev3` | n/a | n/a |
 | **Equalizer button** | Present on Player screens | **Removed** from every Player/Review screen (not just PcgScale) | Not applicable | Not applicable |
 | **Segmentation ("Analyze Heart Sounds")** | Reachable from production `PlayerFragment` only | Now also reachable from **`PcgScalePlayerFragment`** and **`PcgScaleReviewFragment`** (§5) | Not present | Not present |
 | **Default pre-amp** | 5dB | **10dB** (PcgScale recorder only) | 5dB (unaffected) | Unaffected |
@@ -244,6 +245,40 @@ Dropped: Y-axis fill %/scale info, "scroll to browse", and (recorder only) the l
 diagnostic string that used to show while recording (`sr=%d Hz · peak=%.4f · Y=±%.3f%s`
 with the MIN-CLAMPED note). Diagnostic logging (`TAAL_AUDIO_DEBUG` tag) is untouched —
 only what's displayed on screen changed.
+
+### 4.11 — Merge in `pcgscale-rev3`, restore Hum filter + Denoise for parity
+
+Separately, on `pcgscale-rev3`, Arvind added **`PcgDisplayFilter.kt`** — a display-only
+conditioning chain (click/USB-glitch removal, zero-phase 20–500 Hz band + hum notches,
+transient-protected gate) — to both `app` and `stemz-app`, and wired it into
+`SegmentationReportFragment.kt`: the segmentation *chart* now renders a
+`PcgDisplayFilter.processOffline()`-conditioned copy of the audio, while segmentation
+itself still runs on the untouched raw file (the filter is zero-phase, so beat timing —
+and the overlay alignment — is unaffected). `app`'s existing Denoise toggle was also
+updated to use this new filter instead of the old bare `PcgSpectralGate`.
+
+`StemzAppBranch` merged `pcgscale-rev3` in (clean fast-forward, `StemzAppBranch`'s prior
+HEAD was the merge-base — no conflicts). That brought the new `PcgDisplayFilter` in, but
+initially landed it in `stemz-app` as **always-on** in `PcgScaleReviewFragment` (no user
+toggle), respecting 4.2's earlier removal.
+
+**Per explicit follow-up request, that removal was then reversed for full feature
+parity with `app`:**
+- **Denoise toggle** restored in `PcgScaleReviewFragment`/`fragment_pcgscale_review.xml`
+  — same `denoiseSwitch` UI and toggle mechanism as before, just using `app`'s current
+  `PcgDisplayFilter`-based implementation instead of the original `PcgSpectralGate`-based
+  one from 4.2.
+- **Hum filter** restored in `PcgScaleRecordingFragment`/`fragment_pcgscale_recording.xml`
+  — `humFilterSwitch` UI, enabled/disabled alongside the other filter controls, and
+  `setHumRumbleFilterEnabled(binding.humFilterSwitch.isChecked)` wired into
+  `startRecording()` — identical to `app`'s mechanism.
+
+`stemz-app` keeps everything else that made it different from `app` throughout this —
+its own `TARGET_FILL_FRACTION` (0.50f vs 0.60f), Basic/Hard filter toggle, 14s auto-stop,
+10dB pre-amp default, simplified caption, no EQ button, "TAAL Recorder"/"Review
+Recording" titles, and "StemzApp" branding. Only Hum filter and Denoise came back, per
+this specific request — §2's table reflects the current (post-4.11) state, not the
+mid-branch state described in 4.2.
 
 ---
 
