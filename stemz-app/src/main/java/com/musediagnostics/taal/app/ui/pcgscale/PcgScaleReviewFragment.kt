@@ -148,17 +148,22 @@ class PcgScaleReviewFragment : Fragment() {
         }
     }
 
-    /** Display-only PcgDisplayFilter denoise toggle — see field docs above. Disabled until
-     *  the file finishes decoding (there is nothing to filter yet). */
+    /** Display-only PcgDisplayFilter denoise toggle — see field docs above. A single
+     *  rectangular button that is itself the control (tap flips state) and its own indicator
+     *  (its text and fill read "ON"/"OFF" for whichever state is active). Disabled until the
+     *  file finishes decoding (there is nothing to filter yet). */
     private fun setupDenoiseSwitch() {
-        binding.denoiseSwitch.isEnabled = false
-        binding.denoiseSwitch.setOnCheckedChangeListener { _, checked ->
-            onDenoiseToggled(checked)
-        }
+        setDenoiseToggleEnabled(false)
+        binding.denoiseOnBadge.setOnClickListener { onDenoiseToggled(!denoiseEnabled) }
     }
 
-    /** Explicit ON/OFF pill next to the switch — the switch alone (thumb position + a
-     *  color shift) is easy to misread at a glance, so the state is also spelled out in text. */
+    private fun setDenoiseToggleEnabled(enabled: Boolean) {
+        binding.denoiseOnBadge.isEnabled = enabled
+        binding.denoiseOnBadge.alpha = if (enabled) 1f else 0.4f
+    }
+
+    /** Repaints the toggle button itself for the given state — text and fill both read
+     *  "ON"/"OFF" so the state never depends on reading a thumb position or color alone. */
     private fun updateDenoiseBadge(enabled: Boolean) {
         if (_binding == null) return
         binding.denoiseOnBadge.text = if (enabled) "ON" else "OFF"
@@ -315,11 +320,9 @@ class PcgScaleReviewFragment : Fragment() {
                 originalSamples = samples
                 fileSampleRateForGate = fileSampleRate
                 recordingDurationSecs = durationSecs
-                binding.denoiseSwitch.isEnabled = true
+                setDenoiseToggleEnabled(true)
                 // Default ON (2026-09-04 request) — go straight through the same path a
-                // manual toggle takes (binding.denoiseSwitch.isChecked already starts true
-                // per the layout, but setting it wouldn't fire the listener since it's not
-                // actually changing) so the file opens already denoised.
+                // manual tap takes so the file opens already denoised.
                 onDenoiseToggled(true)
             }
         }
@@ -354,7 +357,7 @@ class PcgScaleReviewFragment : Fragment() {
         }
 
         binding.waveformLoadingIndicator.visibility = View.VISIBLE
-        binding.denoiseSwitch.isEnabled = false
+        setDenoiseToggleEnabled(false)
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Default) {
             val gateStartMs = System.currentTimeMillis()
             val gated = PcgDisplayFilter.processOffline(original, fileSampleRateForGate)
@@ -365,7 +368,7 @@ class PcgScaleReviewFragment : Fragment() {
                 if (_binding == null) return@withContext
                 gatedSamples = gated
                 binding.waveformLoadingIndicator.visibility = View.GONE
-                binding.denoiseSwitch.isEnabled = true
+                setDenoiseToggleEnabled(true)
                 applyRenderPayload(payload, durationSecs)
             }
         }

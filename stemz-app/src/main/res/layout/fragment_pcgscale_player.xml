@@ -152,7 +152,8 @@
 
     <!-- Display-only denoise toggle (parity with the Review screen, re-added 2026-09-04):
          runs PcgDisplayFilter on the already-decoded in-memory samples; playback audio and
-         the file are unaffected. -->
+         the file are unaffected. denoiseOnBadge is a single rectangular tap-toggle (both the
+         control and its own ON/OFF indicator), not a switch + separate label. -->
     <LinearLayout
         android:id="@+id/denoiseRow"
         android:layout_width="0dp"
@@ -176,23 +177,16 @@
 
         <TextView
             android:id="@+id/denoiseOnBadge"
-            android:layout_width="34dp"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="8dp"
+            android:layout_width="60dp"
+            android:layout_height="30dp"
             android:background="@drawable/bg_status_pill_on"
+            android:clickable="true"
+            android:focusable="true"
             android:gravity="center"
             android:text="ON"
             android:textColor="@color/white"
-            android:textSize="9sp"
+            android:textSize="12sp"
             android:textStyle="bold" />
-
-        <com.google.android.material.switchmaterial.SwitchMaterial
-            android:id="@+id/denoiseSwitch"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:checked="true"
-            app:thumbTint="#128CB2"
-            app:trackTint="#C8E6F5" />
 
     </LinearLayout>
 
