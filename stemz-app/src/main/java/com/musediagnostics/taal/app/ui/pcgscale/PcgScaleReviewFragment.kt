@@ -297,7 +297,8 @@ class PcgScaleReviewFragment : Fragment() {
 
             val dataSize = bytes.size - 44
             val totalSamples = dataSize / 2
-            val durationSecs = (totalSamples / fileSampleRate).toInt()
+            // roundToInt, not toInt/truncate — see PcgScalePlayerFragment's matching comment.
+            val durationSecs = (totalSamples / fileSampleRate).roundToInt()
 
             val samples = FloatArray(totalSamples)
             var i = 0

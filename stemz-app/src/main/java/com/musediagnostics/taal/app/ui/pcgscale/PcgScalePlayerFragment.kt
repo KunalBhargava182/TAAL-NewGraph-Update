@@ -288,7 +288,11 @@ class PcgScalePlayerFragment : Fragment() {
 
             val dataSize = bytes.size - 44
             val totalSamples = dataSize / 2
-            val durationSecs = (totalSamples / fileSampleRate).toInt()
+            // roundToInt, not toInt/truncate: AudioRecord startup latency (varies by device/
+            // USB hardware) can shave a fraction of a second off the captured sample count
+            // relative to the auto-stop timer's wall-clock 15s, which would otherwise floor a
+            // 14.9xx-second capture down to a displayed "14".
+            val durationSecs = (totalSamples / fileSampleRate).roundToInt()
 
             val samples = FloatArray(totalSamples)
             var i = 0

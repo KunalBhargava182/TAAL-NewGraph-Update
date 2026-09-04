@@ -56,7 +56,7 @@ import kotlin.math.abs
  *    (20-250Hz), Hard = a local "HEART_HARD" name implemented via setCustomBandpass(20,200)
  *    (not a real taal-core preset, same as stemz's production recorder). Custom lives in its
  *    own top-bar icon.
- *  - 14s hard auto-stop, routed through the real stopRecording() (not
+ *  - 15s hard auto-stop, routed through the real stopRecording() (not
  *    TaalRecorder.setRecordingTime, which bypasses filtered-WAV header finalization) — see
  *    RecordingFragment.kt's AUTO_STOP_SECONDS doc for why.
  */
@@ -136,7 +136,7 @@ class PcgScaleRecordingFragment : Fragment() {
         // bypasses that entirely — setRecordingTime is kept below only as a generous
         // safety-net ceiling, not the primary mechanism. Matches
         // RecordingFragment.AUTO_STOP_SECONDS.
-        private const val AUTO_STOP_SECONDS = 14
+        private const val AUTO_STOP_SECONDS = 15
     }
 
     // Set only by checkPermissionAndRecord() — the proactive on-open request below launches
@@ -593,7 +593,7 @@ class PcgScaleRecordingFragment : Fragment() {
             taalRecorder = TaalRecorder(requireContext()).apply {
                 setRawAudioFilePath(rawFilePath)
                 setFilteredAudioFilePath(filteredFilePath)
-                // Generous safety-net ceiling only — the real 14s auto-stop is driven by
+                // Generous safety-net ceiling only — the real 15s auto-stop is driven by
                 // autoStopJob below, since that goes through stopRecording() and correctly
                 // finalizes the filtered file (see AUTO_STOP_SECONDS' comment).
                 setRecordingTime(30)

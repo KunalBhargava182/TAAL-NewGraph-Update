@@ -577,7 +577,7 @@
 
     <!-- PcgScale screens — time-true grid (large box = 1s, small box = 0.2s, labeled
          seconds, scroll-only) with RMS 60%-fill auto Y-scale. Ported from app's PcgScale
-         screens, with stemz-app's own Basic/Hard filter toggle + 14s auto-stop carried into
+         screens, with stemz-app's own Basic/Hard filter toggle + 15s auto-stop carried into
          the recorder (see PcgScaleRecordingFragment's class doc). New destinations only;
          startDestination stays recordingFragment — reach this family via
          `adb shell am start -a android.intent.action.VIEW -d "stemzapp://pcgscale" <applicationId>`

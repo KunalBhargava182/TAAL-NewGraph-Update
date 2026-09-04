@@ -13,6 +13,7 @@ import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
+import kotlin.math.roundToInt
 import com.musediagnostics.taal.InvalidFileNameException
 import com.musediagnostics.taal.PreFilter
 import com.musediagnostics.taal.TaalPlayer
@@ -193,7 +194,8 @@ class PlayerFragment : Fragment() {
             val dataSize = bytes.size - 44
             val totalSamples = dataSize / 2
             // Duration and waveform X-axis both depend on the correct sample rate.
-            val durationSecs = (totalSamples / fileSampleRate).toInt()
+            // roundToInt, not toInt/truncate — see PcgScalePlayerFragment's matching comment.
+            val durationSecs = (totalSamples / fileSampleRate).roundToInt()
             val maxPoints = 3000
             val step = maxOf(1, totalSamples / maxPoints)
             val entries = ArrayList<Entry>()

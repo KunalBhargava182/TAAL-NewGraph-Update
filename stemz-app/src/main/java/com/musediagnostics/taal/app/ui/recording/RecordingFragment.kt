@@ -101,7 +101,7 @@ class RecordingFragment : Fragment() {
         // bypasses TaalRecorder.stop()/finalizeFilteredFile() entirely, leaving the filtered
         // file's header unfinalized — setRecordingTime is kept below only as a generous
         // safety-net ceiling, not the primary mechanism.
-        private const val AUTO_STOP_SECONDS = 14
+        private const val AUTO_STOP_SECONDS = 15
     }
 
     private val permissionLauncher = registerForActivityResult(
@@ -597,7 +597,7 @@ class RecordingFragment : Fragment() {
             taalRecorder = TaalRecorder(requireContext()).apply {
                 setRawAudioFilePath(rawFilePath)
                 setFilteredAudioFilePath(filteredFilePath)
-                // Generous safety-net ceiling only — the real 14s auto-stop is driven by
+                // Generous safety-net ceiling only — the real 15s auto-stop is driven by
                 // autoStopJob below, since that goes through stopRecording() and correctly
                 // finalizes the filtered file (see AUTO_STOP_SECONDS' comment).
                 setRecordingTime(30)
