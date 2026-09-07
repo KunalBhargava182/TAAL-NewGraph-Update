@@ -95,6 +95,34 @@ class PcgScaleEcgPaperView @JvmOverloads constructor(
         textAlign = Paint.Align.CENTER
     }
 
+    /**
+     * Overrides the minor/major gridline opacity (0f..1f) on top of [MINOR_ALPHA]/[MAJOR_ALPHA].
+     * Never called by the on-screen Recorder/Player/Review screens, which keep exactly today's
+     * look — this exists solely for [com.musediagnostics.taal.app.ui.graphshare.PcgGraphStripRenderer],
+     * whose static PNG/PDF export wants a darker grid than the live in-app trace, per explicit
+     * request (this is deliberately a method, not a property with a custom setter, so there is
+     * no ambiguity about whether the on-screen default ever runs through it).
+     */
+    fun setGridAlpha(minorAlpha: Float, majorAlpha: Float) {
+        minorPaint.alpha = (minorAlpha * 255f).roundToInt()
+        majorPaint.alpha = (majorAlpha * 255f).roundToInt()
+        invalidate()
+    }
+
+    /**
+     * Overrides the minor/major gridline stroke width, in raw px (not dp — the export renders
+     * into a fixed-px offscreen canvas, not a device-density surface, so there's no density to
+     * scale from). Same export-only contract as [setGridAlpha]: on-screen screens never call
+     * this and keep [MINOR_STROKE_DP]/[MAJOR_STROKE_DP] exactly as before. A low-alpha 0.7px
+     * hairline (the on-screen default, live at typical device density) can read as effectively
+     * invisible on a large static PNG/PDF, which alpha alone doesn't fix — width has to move too.
+     */
+    fun setGridStrokeWidthPx(minorPx: Float, majorPx: Float) {
+        minorPaint.strokeWidth = minorPx
+        majorPaint.strokeWidth = majorPx
+        invalidate()
+    }
+
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         canvas.drawColor(paperColor)
