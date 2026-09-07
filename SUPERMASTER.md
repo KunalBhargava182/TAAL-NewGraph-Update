@@ -148,7 +148,16 @@ Gated behind a single flag: `app/.../ui/segmentation/SegmentationFeature.ENABLED
 
 ## 7. Where To Look (deeper docs)
 
-This file is the entry point; these are supplementary/deep-dive docs — check their own dates/headers for currency, as several are explicitly self-flagged as partially stale:
+**Per-module master references (added 2026-09-08):** every module now has (or is being given) a
+dedicated `docs/master/SUPERMASTER_<MODULE>.md` file — read the relevant one before touching that
+module's code, and update it (not just this file) after any change. See root `CLAUDE.md` for the
+full rule. Files: `SUPERMASTER_APP.md`, `SUPERMASTER_STEMZ_APP.md`, `SUPERMASTER_LUNGS_APP.md`,
+`SUPERMASTER_VISUALIZERTAAL_APP.md`, `SUPERMASTER_TAAL_CORE.md`, `SUPERMASTER_TAAL_UI_KIT.md`,
+`SUPERMASTER_TAAL_SEGMENTATION.md`, `SUPERMASTER_TAAL_SEGMENTATION_CORE.md`.
+
+This file remains the whole-monorepo entry point/index; the deeper docs below (and the
+per-module files above) are where module-specific detail actually lives — check their own
+dates/headers for currency, as several are explicitly self-flagged as partially stale:
 
 - `docs/notes/MASTER_HANDOFF.md` — huge (~7,200 line) zero-context handoff with **full embedded source** (not summaries) for all six waveform implementations, plus `taal-core`/`taal-ui-kit`/`app` architecture. Excludes `lungs-app`, `visualizertaal-app`, PCG segmentation, `stemz-app` by original scope decision.
 - `docs/notes/CALIBRATED_SCREENS_HANDOFF.md` — Calibrated/FullTimeOn screen family detail.
