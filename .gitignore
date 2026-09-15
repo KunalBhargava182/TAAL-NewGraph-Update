@@ -25,3 +25,20 @@ local.properties
 
 # Generated
 graphify-out/
+
+# IDE
+.idea/
+.vscode/
+
+# build
+.gradle/
+build/
+.dart_tool/
+
+# python
+__pycache__/
+*.py[cod]
+
+# local
+.env
+.claude/
