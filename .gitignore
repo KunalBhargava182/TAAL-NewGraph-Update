@@ -25,3 +25,8 @@ local.properties
 
 # Generated
 graphify-out/
+
+# Signing secrets (never commit)
+stemz-app/keystore/
+stemz-app/keystore.properties
+stemz-app/KEYSTORE_CREDENTIALS.md
