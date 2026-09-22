@@ -16,11 +16,11 @@ sealed class GraphShareResult {
 }
 
 /**
- * Orchestrates the new "share with graph" path end to end: read the saved `.wav` -> decode ->
+ * Orchestrates the "share with graph" path end to end: read the saved `.wav` -> decode ->
  * condition with [PcgDisplayFilter] (the Clean-Graph-ON state, matching PcgScaleReviewFragment's
  * default-ON behavior) -> compute the same whole-file Y-axis scale the Review screen shows ->
- * render the multi-row strip -> write wav+png+pdf into a share-only temp directory -> describe
- * the resulting [ShareRequest].
+ * render the multi-row strip -> write wav+pdf (no PNG — per explicit request) into a share-only
+ * temp directory -> describe the resulting [ShareRequest].
  *
  * Writes into `{savedDir}/.share_bundle_tmp/`, a DIFFERENT directory from the existing
  * `.share_tmp/` SavedRecordingsFragment.shareRecording() uses and wipes on every call — the two
@@ -64,7 +64,6 @@ object GraphShareBundler {
             shareDir.listFiles()?.forEach { it.delete() }
 
             val wavOut = File(shareDir, "$displayName.wav")
-            val pngOut = File(shareDir, "$displayName.png")
             val pdfOut = File(shareDir, "$displayName.pdf")
 
             try {
@@ -73,12 +72,6 @@ object GraphShareBundler {
                 val title = displayName
                 val subtitle = "${decoded.durationSecs.toInt()}s · Clean Graph ON"
 
-                pngOut.outputStream().use { out ->
-                    GraphShareExporter.writePng(
-                        context, cleanedSamples, decoded.sampleRate, fullScale,
-                        decoded.durationSecs, title, subtitle, out
-                    )
-                }
                 pdfOut.outputStream().use { out ->
                     GraphShareExporter.writePdf(
                         context, cleanedSamples, decoded.sampleRate, fullScale,
@@ -92,7 +85,6 @@ object GraphShareBundler {
             GraphShareResult.Success(
                 ShareRequest.audioWithGraph(
                     wavPath = wavOut.absolutePath,
-                    pngPath = pngOut.absolutePath,
                     pdfPath = pdfOut.absolutePath,
                     displayName = displayName
                 )

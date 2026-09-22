@@ -177,9 +177,11 @@ Even with the anti-transcode MIME trick, WhatsApp itself still re-transcodes sha
 
 ---
 
-## 9. "Share With Graph" Feature (added 2026-09-07/08, this session)
+## 9. Graph Share Feature (added 2026-09-07/08, merged into the primary share button 2026-09-22)
 
-A **second, separate** share action on `SavedRecordingsFragment`'s list rows — sends the `.wav` **plus a PNG and a PDF** of the whole recording rendered as a time-true, stacked-row graph strip in the Clean-Graph-ON state, alongside the completely untouched original audio-only share.
+**Current behavior (2026-09-22):** `SavedRecordingsFragment`'s single, primary share icon (`shareButton`) sends the `.wav` **plus a PDF** of the whole recording rendered as a time-true, stacked-row graph strip in the Clean-Graph-ON state. **No PNG** — that was dropped per explicit request; `GraphShareExporter.writePng()` was deleted outright since nothing called it anymore. There is no second, separate share icon any more — see §9.7.
+
+*(Sections 9.1-9.6 below describe the feature's original 2026-09-07/08 design — a genuinely separate second button, wav+png+pdf — kept as history since the rendering/DSP internals it describes are still accurate. §9.7 is the current wiring; read that first if you only need "how does the share button work right now.")*
 
 ### 9.1 Why this design (constraints that shaped it)
 
@@ -195,12 +197,12 @@ A **second, separate** share action on `SavedRecordingsFragment`'s list rows —
 | `PcgStripLayout.kt` | **Pure Kotlin**, no Android dep. Geometry: splits the recording into fixed-duration rows (default 5s/row), computes each row's absolute time range + pixel bounds, PDF page grouping (`paginate`). `firstRowIndex`/`rowCountOverride` params let one instance represent a single PDF page while keeping each row's `startSec` an absolute recording time (needed to clip the right sample slice) |
 | `PcgWavDecoder.kt` | **Pure Kotlin.** Same 44-byte-header/16-bit-LE-PCM decode the fragments inline — lifted out here as a 4th (new, isolated) copy rather than refactoring the two working fragments |
 | `RecordingDisplayName.kt` | **Pure Kotlin.** 3rd copy of the `{FILTER}_{name}_filtered` → `{name}` stripping logic (HEART_HARD before HEART — same prefix-match bug guarded in all 3 copies) |
-| `ShareRequest.kt` | **Pure Kotlin** descriptor (`ShareAction.SEND`/`SEND_MULTIPLE`, mime type, attachment paths) — no `Intent`/`Uri` dependency, so its shape is plain-JVM testable |
-| `PcgGraphStripRenderer.kt` | **Android.** Draws the full strip onto ANY `Canvas` (Bitmap for PNG, PDF page for PDF) — same renderer for both formats so they can never disagree. Reuses `PcgScaleEcgPaperView`/`PcgTimeScale` unmodified for the grid; hand-draws the trace polyline itself (on-screen that's MPAndroidChart's `LineChart`, which only renders its 4s window) |
-| `GraphShareExporter.kt` | **Android.** Two thin adapters over the one renderer: PNG (single tall `Bitmap`) and paginated PDF (`PdfDocument`, A4 landscape, same density-forcing trick as `SegmentationPdfExporter`) |
-| `GraphShareBundler.kt` | **Android.** Orchestrates: read file → `PcgWavDecoder.decode` → `PcgDisplayFilter.processOffline` (Clean-Graph-ON state, matching the Review screen's default) → `PcgAmplitudeScale.computeFullScaleForFile` → render → write `{name}.wav`/`.png`/`.pdf` → return a `ShareRequest` |
+| `ShareRequest.kt` | **Pure Kotlin** descriptor (`ShareAction.SEND`/`SEND_MULTIPLE`, mime type, attachment paths) — no `Intent`/`Uri` dependency, so its shape is plain-JVM testable. `audioWithGraph()` takes `(wavPath, pdfPath, displayName)` as of 2026-09-22 — the `pngPath` param was removed |
+| `PcgGraphStripRenderer.kt` | **Android.** Draws the full strip onto ANY `Canvas` — was used for both a Bitmap (PNG) and PDF pages, now only ever called for PDF pages (§9.7), but the renderer itself is still format-agnostic. Reuses `PcgScaleEcgPaperView`/`PcgTimeScale` unmodified for the grid; hand-draws the trace polyline itself (on-screen that's MPAndroidChart's `LineChart`, which only renders its 4s window) |
+| `GraphShareExporter.kt` | **Android.** As of 2026-09-22, PDF-only (`writePdf`, `PdfDocument`, A4 landscape, same density-forcing trick as `SegmentationPdfExporter`). `writePng()` and its `PNG_CANVAS_WIDTH_PX` constant were **deleted** — no other caller existed once `GraphShareBundler` stopped calling it |
+| `GraphShareBundler.kt` | **Android.** Orchestrates: read file → `PcgWavDecoder.decode` → `PcgDisplayFilter.processOffline` (Clean-Graph-ON state, matching the Review screen's default) → `PcgAmplitudeScale.computeFullScaleForFile` → render → write `{name}.wav`/`.pdf` (no `.png` as of 2026-09-22) → return a `ShareRequest` |
 
-### 9.3 UI wiring (surgical, additive only)
+### 9.3 UI wiring, as originally built 2026-09-07/08 (superseded — see §9.7 for current)
 
 - `res/layout/item_saved_recording.xml` — new `shareWithGraphButton` (`ic_share_graph.xml`), `android:visibility="gone"` by default.
 - `ui/library/SavedRecordingAdapter.kt` — new defaulted `onShareWithGraph: (File) -> Unit = {}` constructor param; button only ever set `VISIBLE` and its listener only ever registered inside `if (GraphShareFeature.ENABLED)`.
@@ -232,6 +234,38 @@ Also **backfilled** `PcgTimeScaleTest.kt` and `PcgAmplitudeScaleTest.kt` from `a
 
 Regression guard used at every step of this feature: `git diff HEAD` scoped to `ui/pcgscale/*` and the original `shareRecording()`/manifest/`file_paths.xml` — confirmed zero unintended changes at each commit.
 
+### 9.7 Current wiring (2026-09-22 — read this one)
+
+Per explicit request, the separate second button was folded into the primary share action and the PNG was dropped:
+
+- **`ui/library/SavedRecordingsFragment.kt`'s `onShare` callback** (in `loadRecordings()`) now reads:
+  ```kotlin
+  onShare = { file ->
+      if (GraphShareFeature.ENABLED) shareRecordingWithGraph(file) else shareRecording(file)
+  },
+  ```
+  i.e. the single, primary `shareButton` triggers the graph-bundle flow when the flag is on (the
+  default). **`GraphShareFeature.ENABLED` is kept specifically as the rollback switch** — flip it
+  to `false` and the same button reverts to exactly the original single-file `shareRecording()`
+  behavior (§8.1, still byte-for-byte unmodified), with zero other code changes, same convention
+  as `SegmentationFeature` elsewhere in this app.
+- **`ui/library/SavedRecordingAdapter.kt`** — the `onShareWithGraph` constructor param and the
+  `if (GraphShareFeature.ENABLED) { shareWithGraphButton.visibility = VISIBLE; ... }` block are
+  both **removed**. `shareWithGraphButton` is still declared in `item_saved_recording.xml`
+  (`android:visibility="gone"`) — nothing in code ever sets it visible any more, so it stays
+  permanently hidden. The XML element itself was deliberately left in place rather than deleted
+  (lower-risk, reversible) — it is dead UI, not dead code with live effects.
+- **`GraphShareBundler.buildShareRequest()`** no longer writes a `.png` file or calls (the now
+  deleted) `GraphShareExporter.writePng()` — only `{name}.wav` and `{name}.pdf` are written into
+  `.share_bundle_tmp/` and passed to `ShareRequest.audioWithGraph(wavPath, pdfPath, displayName)`.
+- Everything else about the feature — the offscreen renderer, the grid-visibility tuning (§9.5),
+  the two bug fixes (§9.4), the temp directory separation from the legacy share path, the test
+  suite (§9.6, with `ShareRequestTest` updated for the 2-file shape) — is unchanged.
+- Verified: `./gradlew :stemz-app:assembleDebug :stemz-app:testDebugUnitTest` green; `git diff`
+  scoped to exactly 6 files (`GraphShareBundler.kt`, `GraphShareExporter.kt`, `ShareRequest.kt`,
+  `SavedRecordingAdapter.kt`, `SavedRecordingsFragment.kt`, `ShareRequestTest.kt`) — no layout,
+  manifest, or other-module changes; confirmed working on-device.
+
 ---
 
 ## 10. UI Screen Inventory
@@ -259,7 +293,7 @@ Regression guard used at every step of this feature: `git diff HEAD` scoped to `
 - `RecordingLibraryFragment.shareRecording` (§8.1) silently fails for DB rows outside `filesDir/saved/` — pre-existing, unreachable in the live flow, not fixed.
 - Two large near-full-height spikes observed ~12-13s into a 14s (pre-bump) PcgScale recording — investigated, most likely a genuine "stethoscope thud" transient rather than a rendering bug, but **not conclusively closed** (see `docs/notes/PCGSCALE_WORK_REFERENCE.md` §5).
 - WhatsApp still transcodes shared `.wav` to AAC despite the anti-transcode MIME trick (§8.2) — a WhatsApp-side limitation, not a bug in this code.
-- Sharing a mixed wav+png+pdf bundle (§9) uses `*/*` as the MIME type since there's no single correct type for a heterogeneous bundle — expect the PNG to not preview inline in apps like WhatsApp as a result (untested trade-off, documented in the original plan).
+- Sharing the wav+pdf bundle (§9) uses `*/*` as the MIME type since there's no single correct type for a heterogeneous bundle (untested trade-off, documented in the original plan). **PNG dropped 2026-09-22** — the bundle is wav+pdf only now, so this is less of a concern than when it was wav+png+pdf.
 
 ---
 
@@ -267,6 +301,7 @@ Regression guard used at every step of this feature: `git diff HEAD` scoped to `
 
 | Date | Change | Notes |
 |---|---|---|
+| 2026-09-22 | Graph share merged into primary share button, PNG dropped (§9.7) | Per explicit request: single `shareButton` now does what the second `shareWithGraphButton` used to; that button retired (still in XML, never shown); bundle is wav+pdf only — `GraphShareExporter.writePng()` deleted, `ShareRequest.audioWithGraph()` signature shrunk to 2 files. `GraphShareFeature.ENABLED` kept as the rollback switch. Confirmed working on-device. |
 | 2026-09-08 | Initial `SUPERMASTER_STEMZ_APP.md` created | Full audit, written from a session that had just built §9 end to end |
 | 2026-09-07/08 | "Share with graph" feature added (§9) | New `ui/graphshare/` package, 2 rendering bugs found+fixed on device, grid visibility tuned twice per explicit feedback |
 | 2026-09-07 | Auto-stop 14s→15s, duration-floor bug fix | `1f069a4` |

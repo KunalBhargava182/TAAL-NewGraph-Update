@@ -30,9 +30,9 @@ data class ShareRequest(
         // exactly — see that function's own comment for why it's generic, not "audio/wav".
         const val LEGACY_SINGLE_MIME_TYPE = "application/octet-stream"
 
-        // A mixed wav+png+pdf bundle has no single correct MIME type; "*/*" routes receiving
+        // A mixed wav+pdf bundle has no single correct MIME type; "*/*" routes receiving
         // apps down their generic "send as document" path, same anti-transcode reasoning as
-        // the existing single-file share (see the plan's "known trade-off" note).
+        // the plain single-file share's application/octet-stream choice.
         const val BUNDLE_MIME_TYPE = "*/*"
 
         fun audioOnly(wavPath: String, displayName: String): ShareRequest = ShareRequest(
@@ -44,15 +44,15 @@ data class ShareRequest(
             chooserTitle = displayName
         )
 
+        // No PNG — per explicit request, the graph share bundle is wav + pdf only.
         fun audioWithGraph(
             wavPath: String,
-            pngPath: String,
             pdfPath: String,
             displayName: String
         ): ShareRequest = ShareRequest(
             action = ShareAction.SEND_MULTIPLE,
             mimeType = BUNDLE_MIME_TYPE,
-            attachmentPaths = listOf(wavPath, pngPath, pdfPath),
+            attachmentPaths = listOf(wavPath, pdfPath),
             subject = displayName,
             title = displayName,
             chooserTitle = displayName

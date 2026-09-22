@@ -1,12 +1,10 @@
 package com.musediagnostics.taal.app.ui.library
 
 import android.view.LayoutInflater
-import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.musediagnostics.taal.app.R
 import com.musediagnostics.taal.app.databinding.ItemSavedRecordingBinding
-import com.musediagnostics.taal.app.ui.graphshare.GraphShareFeature
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -16,10 +14,7 @@ class SavedRecordingAdapter(
     private val files: List<File>,
     private val onPlay: (File) -> Unit,
     private val onShare: (File) -> Unit,
-    private val onDelete: (File) -> Unit,
-    // Defaulted so this constructor stays source-compatible with any other caller — the only
-    // caller today (SavedRecordingsFragment) always passes one explicitly.
-    private val onShareWithGraph: (File) -> Unit = {}
+    private val onDelete: (File) -> Unit
 ) : RecyclerView.Adapter<SavedRecordingAdapter.ViewHolder>() {
 
     inner class ViewHolder(val binding: ItemSavedRecordingBinding) :
@@ -65,14 +60,10 @@ class SavedRecordingAdapter(
 
         b.root.setOnClickListener { onPlay(file) }
         b.playButton.setOnClickListener { onPlay(file) }
+        // shareButton alone now does what onShareWithGraph used to (wav+pdf bundle) — see
+        // SavedRecordingsFragment.onShare. The separate shareWithGraphButton is retired: never
+        // set VISIBLE here, so it stays at its XML default (android:visibility="gone").
         b.shareButton.setOnClickListener { onShare(file) }
-        // Gated exactly like SegmentationFeature: gone by default in XML, only ever flipped
-        // VISIBLE here, listener only ever registered here — flag off reproduces pre-feature
-        // behavior exactly. shareButton above is untouched either way.
-        if (GraphShareFeature.ENABLED) {
-            b.shareWithGraphButton.visibility = View.VISIBLE
-            b.shareWithGraphButton.setOnClickListener { onShareWithGraph(file) }
-        }
         b.deleteButton.setOnClickListener { onDelete(file) }
     }
 

@@ -1,8 +1,6 @@
 package com.musediagnostics.taal.app.ui.graphshare
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.Canvas
 import android.graphics.pdf.PdfDocument
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -11,15 +9,13 @@ import kotlin.math.max
 import kotlin.math.min
 
 /**
- * Two thin adapters over the ONE [PcgGraphStripRenderer] — PNG (single tall bitmap) and PDF
- * (paginated) — so the two formats are drawn by the same code and can never visually disagree.
- * Both run on [Dispatchers.Default]: rendering a 300s recording's full strip is CPU/graphics
- * work, never called from the main thread, same posture as
- * [com.musediagnostics.taal.app.ui.segmentation.writeSegmentationPdf].
+ * PDF export adapter over [PcgGraphStripRenderer] — the graph share bundle is wav + pdf only
+ * (no PNG, per explicit request; the PNG path this object used to also offer was removed along
+ * with its only caller, GraphShareBundler). Runs on [Dispatchers.Default]: rendering a 300s
+ * recording's full strip is CPU/graphics work, never called from the main thread, same posture
+ * as [com.musediagnostics.taal.app.ui.segmentation.writeSegmentationPdf].
  */
 object GraphShareExporter {
-
-    private const val PNG_CANVAS_WIDTH_PX = 1600f
 
     // A4 landscape @ 72dpi, matching SegmentationPdfExporter's page choice.
     private const val PDF_PAGE_WIDTH_PT = 842
@@ -31,28 +27,6 @@ object GraphShareExporter {
     private const val PDF_HEADER_HEIGHT_PT = 46f
     private const val PDF_ROW_SPACING_PT = 10f
     private const val PDF_FOOTER_HEIGHT_PT = 20f
-
-    suspend fun writePng(
-        context: Context,
-        samples: FloatArray,
-        sampleRate: Float,
-        fullScale: Float,
-        durationSecs: Float,
-        title: String,
-        subtitle: String,
-        out: OutputStream
-    ) = withContext(Dispatchers.Default) {
-        val layout = PcgStripLayout(durationSecs = durationSecs, canvasWidthPx = PNG_CANVAS_WIDTH_PX)
-        val bitmap = Bitmap.createBitmap(
-            layout.canvasWidthPx.toInt().coerceAtLeast(1),
-            layout.totalHeightPx.toInt().coerceAtLeast(1),
-            Bitmap.Config.ARGB_8888
-        )
-        val canvas = Canvas(bitmap)
-        PcgGraphStripRenderer(context).render(canvas, layout, samples, sampleRate, fullScale, title, subtitle)
-        bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
-        bitmap.recycle()
-    }
 
     suspend fun writePdf(
         context: Context,

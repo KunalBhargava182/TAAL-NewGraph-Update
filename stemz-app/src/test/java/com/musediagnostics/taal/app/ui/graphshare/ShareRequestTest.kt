@@ -24,14 +24,14 @@ class ShareRequestTest {
     }
 
     @Test
-    fun `audioWithGraph is the new multi-file SEND_MULTIPLE shape with exactly three files`() {
+    fun `audioWithGraph is the multi-file SEND_MULTIPLE shape with exactly two files, no PNG`() {
         val request = ShareRequest.audioWithGraph(
-            wavPath = "a.wav", pngPath = "a.png", pdfPath = "a.pdf", displayName = "Heartbeat_01"
+            wavPath = "a.wav", pdfPath = "a.pdf", displayName = "Heartbeat_01"
         )
 
         assertEquals(ShareAction.SEND_MULTIPLE, request.action)
-        assertEquals(3, request.attachmentPaths.size)
-        assertEquals(listOf("a.wav", "a.png", "a.pdf"), request.attachmentPaths)
+        assertEquals(2, request.attachmentPaths.size)
+        assertEquals(listOf("a.wav", "a.pdf"), request.attachmentPaths)
     }
 
     @Test
@@ -39,7 +39,7 @@ class ShareRequestTest {
         // A cheap guard against someone "simplifying" the two factories into one constant later
         // and silently changing the legacy single-file share's anti-transcode MIME type.
         val single = ShareRequest.audioOnly("a.wav", "a")
-        val multi = ShareRequest.audioWithGraph("a.wav", "a.png", "a.pdf", "a")
+        val multi = ShareRequest.audioWithGraph("a.wav", "a.pdf", "a")
         org.junit.Assert.assertNotEquals(single.mimeType, multi.mimeType)
     }
 }

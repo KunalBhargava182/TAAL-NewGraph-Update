@@ -16,6 +16,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.musediagnostics.taal.app.R
 import com.musediagnostics.taal.app.databinding.FragmentSavedRecordingsBinding
 import com.musediagnostics.taal.app.ui.graphshare.GraphShareBundler
+import com.musediagnostics.taal.app.ui.graphshare.GraphShareFeature
 import com.musediagnostics.taal.app.ui.graphshare.GraphShareResult
 import com.musediagnostics.taal.app.ui.graphshare.ShareAction
 import com.musediagnostics.taal.app.ui.graphshare.ShareRequest
@@ -75,8 +76,12 @@ class SavedRecordingsFragment : Fragment() {
                     }
                     findNavController().navigate(R.id.action_savedRecordings_to_pcgScaleReview, bundle)
                 },
-                onShare = { file -> shareRecording(file) },
-                onShareWithGraph = { file -> shareRecordingWithGraph(file) },
+                // GraphShareFeature.ENABLED is the rollback switch: flip it false to restore
+                // the plain audio-only shareRecording() on this same button with zero other
+                // changes, same convention as SegmentationFeature elsewhere in this app.
+                onShare = { file ->
+                    if (GraphShareFeature.ENABLED) shareRecordingWithGraph(file) else shareRecording(file)
+                },
                 onDelete = { file -> confirmDelete(file) }
             )
         }
@@ -125,13 +130,11 @@ class SavedRecordingsFragment : Fragment() {
     }
 
     /**
-     * New, separate share action — audio + PNG/PDF graph strip (whole recording, Clean Graph
-     * ON, matching what the Review screen shows by default). Entirely additive: does not call,
-     * modify, or share state with [shareRecording] above, which keeps its exact original
-     * behavior. Gated by `GraphShareFeature.ENABLED` inside [SavedRecordingAdapter] (same
-     * gone-by-default-in-XML pattern as [com.musediagnostics.taal.app.ui.segmentation.SegmentationFeature]) —
-     * if that flag is ever flipped off, the button that calls this is never shown and this
-     * function is simply never invoked.
+     * The share button's action as of 2026-09-22: audio + PDF graph strip (whole recording,
+     * Clean Graph ON, matching what the Review screen shows by default) instead of just the
+     * audio file — see the `onShare` callback in [loadRecordings]. [shareRecording] below is
+     * kept, unmodified, as the `GraphShareFeature.ENABLED == false` fallback (the rollback
+     * switch), not called from anywhere else.
      */
     private fun shareRecordingWithGraph(file: File) {
         if (_binding == null) return
