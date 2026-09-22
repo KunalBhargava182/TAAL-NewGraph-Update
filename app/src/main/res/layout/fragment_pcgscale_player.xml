@@ -56,6 +56,24 @@
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
+        <!-- Shown only for an already-saved recording, since that's when a saved _raw.wav
+             companion is guaranteed to exist on disk to analyse — see
+             PcgScalePlayerFragment.kt's isInSavedDir check. Gated in code by
+             SegmentationFeature.ENABLED. -->
+        <ImageButton
+            android:id="@+id/analyzeButton"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Analyze Heart Sounds"
+            android:padding="5dp"
+            android:src="@drawable/fragment_player"
+            android:tint="#128CB2"
+            android:visibility="gone"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@id/eqButton"
+            app:layout_constraintTop_toTopOf="parent" />
+
     </androidx.constraintlayout.widget.ConstraintLayout>
 
     <TextView
@@ -143,6 +161,46 @@
 
     </com.google.android.material.card.MaterialCardView>
 
+    <!-- Display-only Clean Graph toggle: runs PcgDisplayFilter on the already-decoded
+         in-memory samples; playback audio and the file are unaffected. denoiseOnBadge is a
+         single rectangular tap-toggle (both the control and its own ON/OFF indicator), not
+         a switch + separate label. Ported from stemz-app's PcgScalePlayerFragment. -->
+    <LinearLayout
+        android:id="@+id/denoiseRow"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="4dp"
+        android:layout_marginEnd="16dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/ampSliderContainer">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Clean Graph"
+            android:textColor="#333333"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/denoiseOnBadge"
+            android:layout_width="60dp"
+            android:layout_height="30dp"
+            android:background="@drawable/bg_status_pill_on"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:text="ON"
+            android:textColor="@color/white"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+    </LinearLayout>
+
     <TextView
         android:id="@+id/scaleCaption"
         android:layout_width="0dp"
@@ -156,7 +214,7 @@
         android:textSize="9sp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/ampSliderContainer" />
+        app:layout_constraintTop_toBottomOf="@id/denoiseRow" />
 
     <com.musediagnostics.taal.app.ecg.pcgscale.PcgScaleWaveformView
         android:id="@+id/pcgScaleWaveformView"

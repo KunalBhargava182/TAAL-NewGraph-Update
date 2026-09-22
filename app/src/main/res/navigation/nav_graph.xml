@@ -3,9 +3,12 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/nav_graph"
-    app:startDestination="@id/pcgScaleRecordingFragment">
-    <!-- TEMP: flipped to pcgScaleRecordingFragment for on-device testing (2026-08-25).
-         Revert to @id/recordingFragment before shipping. -->
+    app:startDestination="@id/recordingFragment">
+    <!-- Flipped to production recordingFragment (2026-09-16) for a one-off test of the
+         production recorder/player/save flow, per explicit request. PcgScale remains fully
+         functional and reachable via the taalapp://pcgscale deep link; flip this attribute
+         back to @id/pcgScaleRecordingFragment to resume PcgScale-family development/testing
+         (see git history for that value/comment). -->
 
     <!-- Splash Screen -->
     <fragment
@@ -181,15 +184,12 @@
     <!-- Main App Flow -->
     <fragment
         android:id="@+id/recordingFragment"
-        android:name="com.musediagnostics.taal.app.ui.recording.RecordingFragment"
+        android:name="com.musediagnostics.taal.app.ui.recording.ProductionRecordingFragment"
         android:label="@string/new_recording"
-        tools:layout="@layout/fragment_recording">
+        tools:layout="@layout/fragment_production_recording">
         <action
             android:id="@+id/action_recording_to_player"
             app:destination="@id/playerFragment" />
-        <action
-            android:id="@+id/action_recording_to_addPatient"
-            app:destination="@id/addPatientFragment" />
         <action
             android:id="@+id/action_recording_to_profile"
             app:destination="@id/profileFragment" />
@@ -206,7 +206,7 @@
             app:destination="@id/recordingLibraryFragment" />
         <action
             android:id="@+id/action_recording_to_savedRecordings"
-            app:destination="@id/savedRecordingsFragment" />
+            app:destination="@id/productionSavedRecordingsFragment" />
         <action
             android:id="@+id/action_recording_to_newRecording"
             app:destination="@id/newRecordingFragment" />
@@ -221,9 +221,9 @@
 
     <fragment
         android:id="@+id/playerFragment"
-        android:name="com.musediagnostics.taal.app.ui.player.PlayerFragment"
+        android:name="com.musediagnostics.taal.app.ui.player.ProductionPlayerFragment"
         android:label="@string/play_recording"
-        tools:layout="@layout/fragment_player">
+        tools:layout="@layout/fragment_production_player">
         <argument
             android:name="recordingId"
             android:defaultValue="-1"
@@ -247,13 +247,57 @@
             android:id="@+id/action_player_to_crop"
             app:destination="@id/cropRecordingFragment" />
         <action
-            android:id="@+id/action_player_to_addPatient"
-            app:destination="@id/addPatientFragment" />
-        <action
             android:id="@+id/action_player_to_saveRecording"
-            app:destination="@id/saveRecordingFragment" />
+            app:destination="@id/productionSaveRecordingFragment" />
         <action
             android:id="@+id/action_player_to_segmentationReport"
+            app:destination="@id/segmentationReportFragment" />
+    </fragment>
+
+    <!-- Production's own Save screen (2026-09-16) — dedicated fork of saveRecordingFragment so
+         production never lands on PcgScale's shared saved-recordings list. -->
+    <fragment
+        android:id="@+id/productionSaveRecordingFragment"
+        android:name="com.musediagnostics.taal.app.ui.recording.ProductionSaveRecordingFragment"
+        android:label="Save Recording"
+        tools:layout="@layout/fragment_production_save_recording">
+        <action
+            android:id="@+id/action_productionSaveRecording_to_productionSavedRecordings"
+            app:destination="@id/productionSavedRecordingsFragment" />
+    </fragment>
+
+    <!-- Production's own Saved Recordings list (2026-09-16) — dedicated fork of
+         savedRecordingsFragment; opens productionReviewFragment instead of PcgScaleReview. -->
+    <fragment
+        android:id="@+id/productionSavedRecordingsFragment"
+        android:name="com.musediagnostics.taal.app.ui.library.ProductionSavedRecordingsFragment"
+        android:label="Saved Recordings"
+        tools:layout="@layout/fragment_production_saved_recordings">
+        <action
+            android:id="@+id/action_productionSavedRecordings_to_productionReview"
+            app:destination="@id/productionReviewFragment" />
+    </fragment>
+
+    <!-- Production's own read-only review screen (2026-09-16) — dedicated fork of the old
+         PlayerFragment isNewRecording=false branch; V7 MPAndroidChart look, no Clean Graph. -->
+    <fragment
+        android:id="@+id/productionReviewFragment"
+        android:name="com.musediagnostics.taal.app.ui.player.ProductionReviewFragment"
+        android:label="Review Recording"
+        tools:layout="@layout/fragment_production_review">
+        <argument
+            android:name="filePath"
+            android:defaultValue=""
+            app:argType="string" />
+        <argument
+            android:name="filterName"
+            android:defaultValue="HEART"
+            app:argType="string" />
+        <action
+            android:id="@+id/action_productionReview_to_equalizer"
+            app:destination="@id/equalizerFragment" />
+        <action
+            android:id="@+id/action_productionReview_to_segmentationReport"
             app:destination="@id/segmentationReportFragment" />
     </fragment>
 
@@ -331,17 +375,6 @@
         <action
             android:id="@+id/action_library_to_editRecording"
             app:destination="@id/editRecordingFragment" />
-    </fragment>
-
-    <fragment
-        android:id="@+id/addPatientFragment"
-        android:name="com.musediagnostics.taal.app.ui.patient.AddPatientFragment"
-        android:label="@string/add_new_patient"
-        tools:layout="@layout/fragment_add_patient">
-        <argument
-            android:name="recordingFilePath"
-            android:defaultValue=""
-            app:argType="string" />
     </fragment>
 
     <fragment
@@ -426,10 +459,6 @@
             android:name="isNewRecording"
             android:defaultValue="false"
             app:argType="boolean" />
-
-        <action
-            android:id="@+id/action_testPlayer_to_addPatient"
-            app:destination="@id/addPatientFragment" />
     </fragment>
 
     <!-- Save Recording Screen -->
@@ -516,9 +545,6 @@
             android:id="@+id/action_calibratedPlayer_to_equalizer"
             app:destination="@id/equalizerFragment" />
         <action
-            android:id="@+id/action_calibratedPlayer_to_addPatient"
-            app:destination="@id/addPatientFragment" />
-        <action
             android:id="@+id/action_calibratedPlayer_to_saveRecording"
             app:destination="@id/saveRecordingFragment" />
     </fragment>
@@ -574,9 +600,6 @@
             android:id="@+id/action_fullTimeOnPlayer_to_equalizer"
             app:destination="@id/equalizerFragment" />
         <action
-            android:id="@+id/action_fullTimeOnPlayer_to_addPatient"
-            app:destination="@id/addPatientFragment" />
-        <action
             android:id="@+id/action_fullTimeOnPlayer_to_saveRecording"
             app:destination="@id/saveRecordingFragment" />
     </fragment>
@@ -627,11 +650,11 @@
             android:id="@+id/action_pcgScalePlayer_to_equalizer"
             app:destination="@id/equalizerFragment" />
         <action
-            android:id="@+id/action_pcgScalePlayer_to_addPatient"
-            app:destination="@id/addPatientFragment" />
-        <action
             android:id="@+id/action_pcgScalePlayer_to_saveRecording"
             app:destination="@id/saveRecordingFragment" />
+        <action
+            android:id="@+id/action_pcgScalePlayer_to_segmentationReport"
+            app:destination="@id/segmentationReportFragment" />
     </fragment>
 
     <!-- PcgScale Review — reviewing an already-saved recording (from SavedRecordingsFragment).
@@ -652,6 +675,9 @@
         <action
             android:id="@+id/action_pcgScaleReview_to_equalizer"
             app:destination="@id/equalizerFragment" />
+        <action
+            android:id="@+id/action_pcgScaleReview_to_segmentationReport"
+            app:destination="@id/segmentationReportFragment" />
     </fragment>
 
 </navigation>

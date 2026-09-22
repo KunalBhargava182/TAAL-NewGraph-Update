@@ -123,14 +123,19 @@ class PcgScaleRecordingFragment : Fragment() {
         private const val TRACE_LINE_WIDTH_DP = 2.0f
     }
 
+    // Set only by checkPermissionAndRecord() — the proactive on-open request below launches
+    // the same permissionLauncher but must NOT auto-start a recording on grant.
+    private var startRecordingAfterPermission = false
+
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) {
-            startRecording()
-        } else {
+            if (startRecordingAfterPermission) startRecording()
+        } else if (startRecordingAfterPermission) {
             Toast.makeText(requireContext(), "Audio permission required", Toast.LENGTH_SHORT).show()
         }
+        startRecordingAfterPermission = false
     }
 
     override fun onCreateView(
@@ -150,6 +155,7 @@ class PcgScaleRecordingFragment : Fragment() {
         observeState()
         setupConnectionReceiver()
         updateScaleCaption()
+        requestAudioPermissionIfNeeded()
 
         requireActivity().onBackPressedDispatcher.addCallback(
             viewLifecycleOwner,
@@ -232,7 +238,7 @@ class PcgScaleRecordingFragment : Fragment() {
                 val clampNote = if (amplitudeScale.isClampedAtMin()) " (MIN-CLAMPED: input very quiet)" else ""
                 String.format(
                     "sr=%d Hz · peakRMS=%.4f · Y=±%.3f%s",
-                    actualSampleRate.toInt(), amplitudeScale.meanPeakRms(), appliedFullScale, clampNote
+                    actualSampleRate.toInt(), amplitudeScale.typicalPeakAmplitude(), appliedFullScale, clampNote
                 )
             } else {
                 "1 large box = 1 s · 1 small box = 0.2 s · Y: auto (60% fill, RMS)"
@@ -240,8 +246,8 @@ class PcgScaleRecordingFragment : Fragment() {
     }
 
     private fun setupPreAmpSlider() {
-        binding.ampSlider.value = (viewModel.preAmpDb.value ?: 5).toFloat()
-        binding.ampLabel.text = "${viewModel.preAmpDb.value ?: 5} dB"
+        binding.ampSlider.value = (viewModel.preAmpDb.value ?: 10).toFloat()
+        binding.ampLabel.text = "${viewModel.preAmpDb.value ?: 10} dB"
 
         binding.ampSlider.addOnChangeListener { _, value, _ ->
             val db = value.toInt()
@@ -412,7 +418,7 @@ class PcgScaleRecordingFragment : Fragment() {
                     putString("filePath", filteredPath)
                     putString("rawFilePath", rawPath)
                     putString("filterName", filterName)
-                    putInt("preAmpDb", viewModel.preAmpDb.value ?: 5)
+                    putInt("preAmpDb", viewModel.preAmpDb.value ?: 10)
                 }
                 findNavController().navigate(R.id.action_pcgScaleRecording_to_pcgScalePlayer, bundle)
             }
@@ -513,6 +519,20 @@ class PcgScaleRecordingFragment : Fragment() {
         ) {
             startRecording()
         } else {
+            startRecordingAfterPermission = true
+            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    /** Asks for RECORD_AUDIO as soon as this (startDestination) screen opens, rather than
+     *  waiting for the user to tap Start Recording. Does not auto-start a recording on grant —
+     *  see startRecordingAfterPermission. A no-op once already granted, and Android itself
+     *  won't re-show the system dialog if the user already denied it before. */
+    private fun requestAudioPermissionIfNeeded() {
+        if (ContextCompat.checkSelfPermission(
+                requireContext(), Manifest.permission.RECORD_AUDIO
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
             permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
         }
     }
@@ -566,7 +586,7 @@ class PcgScaleRecordingFragment : Fragment() {
                 setFilteredAudioFilePath(filteredFilePath)
                 setRecordingTime(300)
                 setPlayback(false)
-                setPreAmplification(viewModel.preAmpDb.value ?: 5)
+                setPreAmplification(viewModel.preAmpDb.value ?: 10)
                 if (filterName == "CUSTOM") {
                     setCustomBandpass(
                         viewModel.customLowCut!!.toDouble(),
@@ -612,19 +632,12 @@ class PcgScaleRecordingFragment : Fragment() {
                         }
                     }
 
-                    override fun onSilentRecordingDetected(isFirstSinceConnect: Boolean) {
-                        if (!isFirstSinceConnect) return
-                        activity?.runOnUiThread {
-                            val act = activity ?: return@runOnUiThread
-                            if (act.isFinishing || act.isDestroyed) return@runOnUiThread
-                            android.app.AlertDialog.Builder(act)
-                                .setTitle("Ready to Capture")
-                                .setMessage("Your TAAL device has been detected and is now ready. Please discard this recording and start a new one.")
-                                .setPositiveButton("OK", null)
-                                .setCancelable(false)
-                                .show()
-                        }
-                    }
+                    // onSilentRecordingDetected defaults to a no-op in TaalRecorder.OnInfoListener
+                    // (same call this app's production RecordingFragment made — see that
+                    // file's comment for the false-positive history on this hardware).
+                    // Ported from stemz-app's PcgScaleRecordingFragment, which never
+                    // overrides this callback: the "Ready to Capture" dialog proved
+                    // unreliable/false-positive in testing and was intentionally dropped here.
 
                     override fun onProgressUpdate(
                         sampleRate: Int, bufferSize: Int, timeStamp: Double, data: FloatArray
@@ -655,7 +668,7 @@ class PcgScaleRecordingFragment : Fragment() {
                         // data the trace draws, or the fill fraction would depend on the
                         // slider position. Same tradeoff note as the Calibrated fork's
                         // COMPENSATE_PREAMP_IN_DISPLAY doc.
-                        val preAmpDb = viewModel.preAmpDb.value ?: 5
+                        val preAmpDb = viewModel.preAmpDb.value ?: 10
                         val preAmpGain = Math.pow(10.0, preAmpDb / 20.0).toFloat()
                         val displayData = if (COMPENSATE_PREAMP_IN_DISPLAY && preAmpGain > 1.001f) {
                             FloatArray(data.size) { i -> data[i] / preAmpGain }
@@ -735,7 +748,7 @@ class PcgScaleRecordingFragment : Fragment() {
                 putString("filterName", filterName)
                 // So the Player can undo this recording's actual pre-amp gain and both draw
                 // and RMS-measure the same true-acoustic-level trace the recorder showed live.
-                putInt("preAmpDb", viewModel.preAmpDb.value ?: 5)
+                putInt("preAmpDb", viewModel.preAmpDb.value ?: 10)
             }
             findNavController().navigate(R.id.action_pcgScaleRecording_to_pcgScalePlayer, bundle)
         }
@@ -840,9 +853,9 @@ class PcgScaleRecordingFragment : Fragment() {
         if (taalRecorder == null) {
             resetToIdle()
         }
-        viewModel.setPreAmp(5)
-        binding.ampSlider.value = 5f
-        binding.ampLabel.text = "5 dB"
+        viewModel.setPreAmp(10)
+        binding.ampSlider.value = 10f
+        binding.ampLabel.text = "10 dB"
 
         binding.pcgScaleWaveformView.recomputeVisibleSeconds()
         binding.pcgScaleWaveformView.chart.invalidate()

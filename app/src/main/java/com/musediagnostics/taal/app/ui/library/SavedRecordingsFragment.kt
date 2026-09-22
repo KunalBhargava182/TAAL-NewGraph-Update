@@ -1,17 +1,25 @@
 package com.musediagnostics.taal.app.ui.library
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.core.content.FileProvider
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.musediagnostics.taal.app.R
 import com.musediagnostics.taal.app.databinding.FragmentSavedRecordingsBinding
+import com.musediagnostics.taal.app.ui.graphshare.GraphShareBundler
+import com.musediagnostics.taal.app.ui.graphshare.GraphShareResult
+import com.musediagnostics.taal.app.ui.graphshare.ShareAction
+import com.musediagnostics.taal.app.ui.graphshare.ShareRequest
+import kotlinx.coroutines.launch
 import java.io.File
 
 class SavedRecordingsFragment : Fragment() {
@@ -68,25 +76,103 @@ class SavedRecordingsFragment : Fragment() {
                     findNavController().navigate(R.id.action_savedRecordings_to_pcgScaleReview, bundle)
                 },
                 onShare = { file -> shareRecording(file) },
+                onShareWithGraph = { file -> shareRecordingWithGraph(file) },
                 onDelete = { file -> confirmDelete(file) }
             )
         }
     }
 
     private fun shareRecording(file: File) {
+        // The receiving app reads the filename off the actual file it gets via the content
+        // URI (EXTRA_TITLE/EXTRA_SUBJECT are not filenames, just text fields some apps show
+        // elsewhere) — the on-disk name is "{FILTER}_{userInput}_filtered.wav", which would
+        // show the recipient filter/suffix cruft instead of the name the user actually typed
+        // when saving. So share a cleanly-named copy instead of the original file.
+        val filterName = extractFilterName(file.nameWithoutExtension)
+        val displayName = file.nameWithoutExtension
+            .removePrefix("${filterName}_")
+            .removeSuffix("_filtered")
+
+        val shareDir = File(file.parentFile, ".share_tmp").also { it.mkdirs() }
+        shareDir.listFiles()?.forEach { it.delete() } // drop any leftover from a previous share
+        val shareFile = File(shareDir, "$displayName.wav")
+        try {
+            file.copyTo(shareFile, overwrite = true)
+        } catch (e: Exception) {
+            Toast.makeText(requireContext(), "Unable to prepare file for sharing", Toast.LENGTH_SHORT).show()
+            return
+        }
+
         val uri = FileProvider.getUriForFile(
             requireContext(),
             "${requireContext().packageName}.fileprovider",
-            file
+            shareFile
         )
         val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "audio/wav"
+            // Generic type, not "audio/wav" — several apps (WhatsApp included) treat an
+            // "audio/*" share as a voice-note/media attachment and transcode it (e.g. to
+            // AAC) instead of passing the original bytes through. A generic type routes
+            // it through their "send as document/file" path instead, which doesn't
+            // recompress. The ".wav" in the filename still tells the receiving app what
+            // it is.
+            type = "application/octet-stream"
             putExtra(Intent.EXTRA_STREAM, uri)
-            putExtra(Intent.EXTRA_SUBJECT, file.nameWithoutExtension)
-            putExtra(Intent.EXTRA_TITLE, file.nameWithoutExtension)
+            putExtra(Intent.EXTRA_SUBJECT, displayName)
+            putExtra(Intent.EXTRA_TITLE, displayName)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        startActivity(Intent.createChooser(intent, file.nameWithoutExtension))
+        startActivity(Intent.createChooser(intent, displayName))
+    }
+
+    /**
+     * New, separate share action — audio + PNG/PDF graph strip (whole recording, Clean Graph
+     * ON, matching what the Review screen shows by default). Entirely additive: does not call,
+     * modify, or share state with [shareRecording] above, which keeps its exact original
+     * behavior. Gated by `GraphShareFeature.ENABLED` inside [SavedRecordingAdapter] (same
+     * gone-by-default-in-XML pattern as [com.musediagnostics.taal.app.ui.segmentation.SegmentationFeature]) —
+     * if that flag is ever flipped off, the button that calls this is never shown and this
+     * function is simply never invoked.
+     */
+    private fun shareRecordingWithGraph(file: File) {
+        if (_binding == null) return
+        binding.shareGraphProgressOverlay.visibility = View.VISIBLE
+        viewLifecycleOwner.lifecycleScope.launch {
+            val result = GraphShareBundler.buildShareRequest(requireContext().applicationContext, file)
+            if (_binding == null) return@launch
+            binding.shareGraphProgressOverlay.visibility = View.GONE
+            when (result) {
+                is GraphShareResult.Success -> launchShareRequest(result.request)
+                is GraphShareResult.Failure -> Toast.makeText(
+                    requireContext(), result.reason, Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
+    /** Turns a pure [ShareRequest] descriptor into the real Android Intent and launches the
+     *  chooser — the only place this new feature builds an actual Intent/Uri, kept separate
+     *  from [shareRecording]'s own Intent-building code above. */
+    private fun launchShareRequest(request: ShareRequest) {
+        val authority = "${requireContext().packageName}.fileprovider"
+        val uris: List<Uri> = request.attachmentPaths.map { path ->
+            FileProvider.getUriForFile(requireContext(), authority, File(path))
+        }
+        if (uris.isEmpty()) return
+
+        val intent = when (request.action) {
+            ShareAction.SEND -> Intent(Intent.ACTION_SEND).apply {
+                putExtra(Intent.EXTRA_STREAM, uris.first())
+            }
+            ShareAction.SEND_MULTIPLE -> Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
+            }
+        }.apply {
+            type = request.mimeType
+            request.subject?.let { putExtra(Intent.EXTRA_SUBJECT, it) }
+            request.title?.let { putExtra(Intent.EXTRA_TITLE, it) }
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        startActivity(Intent.createChooser(intent, request.chooserTitle))
     }
 
     private fun confirmDelete(file: File) {

@@ -33,7 +33,7 @@ import com.musediagnostics.taal.app.R
 import java.io.File
 // import java.io.FileOutputStream  // AI downsampling disabled
 // import java.io.RandomAccessFile  // AI downsampling disabled
-import com.musediagnostics.taal.app.databinding.FragmentRecordingBinding
+import com.musediagnostics.taal.app.databinding.FragmentProductionRecordingBinding
 import com.musediagnostics.taal.app.dsp.HeartBpmCalculator
 import com.musediagnostics.taal.app.ui.MainActivity
 import com.musediagnostics.taal.utils.TaalConnectionBroadcastReceiver
@@ -44,9 +44,9 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class RecordingFragment : Fragment() {
+class ProductionRecordingFragment : Fragment() {
 
-    private var _binding: FragmentRecordingBinding? = null
+    private var _binding: FragmentProductionRecordingBinding? = null
     private val binding get() = _binding!!
     private val viewModel: RecordingViewModel by viewModels()
 
@@ -105,7 +105,7 @@ class RecordingFragment : Fragment() {
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
-        _binding = FragmentRecordingBinding.inflate(inflater, container, false)
+        _binding = FragmentProductionRecordingBinding.inflate(inflater, container, false)
         return binding.root
     }
 
@@ -642,29 +642,11 @@ class RecordingFragment : Fragment() {
                         }
                     }
 
-                    override fun onSilentRecordingDetected(isFirstSinceConnect: Boolean) {
-                        // Only shown for the first recording since this physical USB
-                        // connection began — the known cold-start quirk on some
-                        // budget-chipset phones. Not shown for later recordings on the
-                        // same connection (that variant proved unreliable/false-positive
-                        // in testing and was intentionally dropped, 2026-08-14).
-                        if (!isFirstSinceConnect) return
-
-                        // Fires after the recording has already finished — by now the
-                        // user may already be on PlayerFragment reviewing it, so this
-                        // dialog is anchored to the Activity window (not this fragment's
-                        // view) so it shows on top regardless of which screen is current.
-                        activity?.runOnUiThread {
-                            val act = activity ?: return@runOnUiThread
-                            if (act.isFinishing || act.isDestroyed) return@runOnUiThread
-                            android.app.AlertDialog.Builder(act)
-                                .setTitle("Ready to Capture")
-                                .setMessage("Your TAAL device has been detected and is now ready. Please discard this recording and start a new one.")
-                                .setPositiveButton("OK", null)
-                                .setCancelable(false)
-                                .show()
-                        }
-                    }
+                    // onSilentRecordingDetected defaults to a no-op in TaalRecorder.OnInfoListener.
+                    // The "Ready to Capture" dialog this used to show proved unreliable/
+                    // false-positive in testing (a documented Samsung SM-A066B false-positive —
+                    // see PcgScaleRecordingFragment.kt's matching removal) and was removed here
+                    // for the same reason, now that this screen is the live startDestination.
 
                     override fun onProgressUpdate(
                         sampleRate: Int, bufferSize: Int, timeStamp: Double, data: FloatArray
@@ -928,10 +910,8 @@ class RecordingFragment : Fragment() {
     //     dialog.show(parentFragmentManager, "emergency_save")
     // }
 
-    // private fun navigateToAddPatient() {
-    //     val bundle = Bundle().apply { putString("recordingFilePath", viewModel.currentRecordingPath) }
-    //     findNavController().navigate(R.id.action_recording_to_addPatient, bundle)
-    // }
+    // navigateToAddPatient() removed — AddPatientFragment and action_recording_to_addPatient
+    // no longer exist (whole flow deleted, 2026-09-09).
 
     // ── DownsamplingStream inner class (DISABLED — AI downsampling disabled) ──
     //

@@ -40,6 +40,9 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
+        <!-- No Analyze Heart Sounds here — a brand-new recording's raw companion isn't inside
+             filesDir/saved/ yet, so segmentation can never run on it. See ProductionReviewFragment
+             for the analyze entry point, which only ever opens on an already-saved file. -->
         <ImageButton
             android:id="@+id/eqButton"
             android:layout_width="40dp"
@@ -47,26 +50,6 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="Equalizer"
             android:src="@drawable/ic_equalizer"
-            android:visibility="gone"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
-
-        <!-- Shown only for an already-saved recording, since that's when a saved _raw.wav
-             companion is guaranteed to exist on disk to analyse. Gated in code by
-             SegmentationFeature.ENABLED — flip that one flag to hide this whole feature.
-             Lives in the top bar (not pinned to the bottom of the screen) so it can never
-             overlap the circular play button below. -->
-        <ImageButton
-            android:id="@+id/analyzeButton"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Analyze Heart Sounds"
-            android:padding="6dp"
-            android:src="@drawable/ic_heart"
-            android:tint="#128CB2"
-            android:visibility="gone"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent" />

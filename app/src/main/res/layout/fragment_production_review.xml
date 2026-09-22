@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Fork of fragment_pcgscale_player.xml (not modified) for reviewing an already-saved
-     recording: same waveform/grid look, no Save/Discard bar (nothing left to save — the file
-     is already in filesDir/saved/), so playButton sits directly above the bottom edge. -->
+<!-- Fork of fragment_production_player.xml for reviewing an ALREADY-SAVED recording: same V7
+     waveform look, no Save/Discard bar (nothing left to save), so playButton sits directly
+     above the bottom edge. Mirrors fragment_pcgscale_review.xml's relationship to
+     fragment_pcgscale_player.xml. -->
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
@@ -11,7 +12,7 @@
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/topBar"
         android:layout_width="match_parent"
-        android:layout_height="40dp"
+        android:layout_height="56dp"
         android:background="@color/white"
         android:elevation="2dp"
         android:paddingStart="@dimen/spacing_md"
@@ -20,8 +21,8 @@
 
         <ImageButton
             android:id="@+id/backButton"
-            android:layout_width="26dp"
-            android:layout_height="26dp"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="Back"
             android:scaleType="centerInside"
@@ -34,9 +35,9 @@
             android:id="@+id/screenTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="PCG Scale Review"
+            android:text="Review Recording"
             android:textColor="@color/text_primary"
-            android:textSize="14sp"
+            android:textSize="18sp"
             android:textStyle="bold"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
@@ -45,30 +46,29 @@
 
         <ImageButton
             android:id="@+id/eqButton"
-            android:layout_width="28dp"
-            android:layout_height="28dp"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="Equalizer"
             android:src="@drawable/ic_equalizer"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintEnd_toStartOf="@id/analyzeButton"
             app:layout_constraintTop_toTopOf="parent" />
 
         <!-- Shown only when a saved _raw.wav companion exists on disk to analyse — see
-             PcgScaleReviewFragment.kt's isInSavedDir check. Gated in code by
-             SegmentationFeature.ENABLED. -->
+             ProductionReviewFragment.kt. Gated in code by SegmentationFeature.ENABLED. -->
         <ImageButton
             android:id="@+id/analyzeButton"
-            android:layout_width="30dp"
-            android:layout_height="30dp"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="Analyze Heart Sounds"
-            android:padding="5dp"
-            android:src="@drawable/fragment_player"
+            android:padding="6dp"
+            android:src="@drawable/ic_heart"
             android:tint="#128CB2"
             android:visibility="gone"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toStartOf="@id/eqButton"
+            app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
@@ -78,9 +78,9 @@
         style="@style/TaalText.Timer"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
+        android:layout_marginTop="15dp"
         android:text="@string/timer_default"
-        android:textSize="15sp"
+        android:textSize="20sp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/topBar" />
@@ -91,10 +91,10 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="16dp"
-        android:layout_marginTop="4dp"
+        android:layout_marginTop="6dp"
         android:layout_marginEnd="16dp"
         app:cardBackgroundColor="@color/white"
-        app:cardCornerRadius="10dp"
+        app:cardCornerRadius="12dp"
         app:cardElevation="2dp"
         app:strokeColor="#E0E0E0"
         app:strokeWidth="1dp"
@@ -112,14 +112,14 @@
                 android:layout_height="wrap_content"
                 android:gravity="center_vertical"
                 android:orientation="horizontal"
-                android:paddingStart="10dp"
-                android:paddingTop="0dp"
-                android:paddingEnd="10dp"
+                android:paddingStart="12dp"
+                android:paddingTop="4dp"
+                android:paddingEnd="12dp"
                 android:paddingBottom="0dp">
 
                 <ImageView
-                    android:layout_width="14dp"
-                    android:layout_height="14dp"
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
                     android:contentDescription="Amplification"
                     android:src="@drawable/ic_volume_up"
                     app:tint="#128CB2" />
@@ -138,10 +138,10 @@
                     app:haloColor="#1A128CB2"
                     app:labelBehavior="gone"
                     app:thumbColor="#128CB2"
-                    app:thumbRadius="5dp"
+                    app:thumbRadius="7dp"
                     app:trackColorActive="#128CB2"
                     app:trackColorInactive="#C8E6F5"
-                    app:trackHeight="2dp" />
+                    app:trackHeight="3dp" />
 
                 <TextView
                     android:id="@+id/ampLabel"
@@ -154,77 +154,21 @@
                     android:textStyle="bold" />
 
             </LinearLayout>
+
         </LinearLayout>
 
     </com.google.android.material.card.MaterialCardView>
 
-    <!-- Denoise toggle: PcgDisplayFilter.processOffline() display chain (click/USB-glitch
-         removal, zero-phase 20-500 Hz band + hum notches, transient-protected gate). Runs on
-         the already-decoded in-memory samples; playback audio and the file itself are
-         unaffected — display only. denoiseOnBadge is a single rectangular tap-toggle (both
-         the control and its own ON/OFF indicator), not a switch + separate label. Ported
-         from stemz-app's PcgScaleReviewFragment. -->
-    <LinearLayout
-        android:id="@+id/denoiseRow"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="4dp"
-        android:layout_marginEnd="16dp"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/ampSliderContainer">
-
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Clean Graph"
-            android:textColor="#333333"
-            android:textSize="12sp" />
-
-        <TextView
-            android:id="@+id/denoiseOnBadge"
-            android:layout_width="60dp"
-            android:layout_height="30dp"
-            android:background="@drawable/bg_status_pill_on"
-            android:clickable="true"
-            android:focusable="true"
-            android:gravity="center"
-            android:text="ON"
-            android:textColor="@color/white"
-            android:textSize="12sp"
-            android:textStyle="bold" />
-
-    </LinearLayout>
-
-    <TextView
-        android:id="@+id/scaleCaption"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="2dp"
-        android:layout_marginEnd="16dp"
-        android:gravity="center"
-        android:text="1 large box = 1 s · 1 small box = 0.2 s · Y: auto (60% fill, RMS) · scroll to browse"
-        android:textColor="#999999"
-        android:textSize="9sp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/denoiseRow" />
-
-    <com.musediagnostics.taal.app.ecg.pcgscale.PcgScaleWaveformView
-        android:id="@+id/pcgScaleWaveformView"
+    <com.github.mikephil.charting.charts.LineChart
+        android:id="@+id/waveformChart"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:layout_marginTop="2dp"
-        android:layout_marginBottom="2dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="8dp"
         app:layout_constraintBottom_toTopOf="@id/actionText"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/scaleCaption" />
+        app:layout_constraintTop_toBottomOf="@id/ampSliderContainer" />
 
     <ProgressBar
         android:id="@+id/waveformLoadingIndicator"
@@ -232,28 +176,28 @@
         android:layout_height="48dp"
         android:indeterminateTint="#128CB2"
         android:visibility="gone"
-        app:layout_constraintBottom_toBottomOf="@id/pcgScaleWaveformView"
-        app:layout_constraintEnd_toEndOf="@id/pcgScaleWaveformView"
-        app:layout_constraintStart_toStartOf="@id/pcgScaleWaveformView"
-        app:layout_constraintTop_toTopOf="@id/pcgScaleWaveformView" />
+        app:layout_constraintBottom_toBottomOf="@id/waveformChart"
+        app:layout_constraintEnd_toEndOf="@id/waveformChart"
+        app:layout_constraintStart_toStartOf="@id/waveformChart"
+        app:layout_constraintTop_toTopOf="@id/waveformChart" />
 
     <TextView
         android:id="@+id/actionText"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="4dp"
+        android:layout_marginBottom="8dp"
         android:text="@string/play_recording"
         android:textColor="@color/text_primary"
-        android:textSize="12sp"
+        android:textSize="16sp"
         app:layout_constraintBottom_toTopOf="@id/playButton"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent" />
 
     <ImageButton
         android:id="@+id/playButton"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_marginBottom="20dp"
+        android:layout_width="@dimen/record_button_size"
+        android:layout_height="@dimen/record_button_size"
+        android:layout_marginBottom="24dp"
         android:background="@drawable/bg_record_button"
         android:contentDescription="Play"
         android:elevation="8dp"

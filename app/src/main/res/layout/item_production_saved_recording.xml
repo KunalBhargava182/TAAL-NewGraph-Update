@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Fork of item_saved_recording.xml for the production-only Saved Recordings list
+     (2026-09-16) — identical row, minus the share-with-graph button: production's flow never
+     shows that feature. shareButton's audio-only share is unchanged. -->
 <com.google.android.material.card.MaterialCardView
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -84,7 +87,7 @@
             app:layout_constraintTop_toTopOf="parent"
             app:tint="@color/teal_primary" />
 
-        <!-- Share button (audio only — existing, untouched behavior) -->
+        <!-- Share button (audio only) -->
         <ImageButton
             android:id="@+id/shareButton"
             android:layout_width="36dp"
@@ -95,25 +98,6 @@
             android:padding="6dp"
             android:scaleType="centerInside"
             android:src="@drawable/ic_share"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toStartOf="@id/shareWithGraphButton"
-            app:layout_constraintTop_toTopOf="parent"
-            app:tint="#128CB2" />
-
-        <!-- Share with graph button — new, separate action (audio + PNG/PDF graph strip).
-             Hidden unless GraphShareFeature.ENABLED (see SavedRecordingAdapter.kt); the plain
-             shareButton above is completely unaffected by this feature. -->
-        <ImageButton
-            android:id="@+id/shareWithGraphButton"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:layout_marginStart="2dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Share with graph"
-            android:padding="6dp"
-            android:scaleType="centerInside"
-            android:src="@drawable/ic_share_graph"
-            android:visibility="gone"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toStartOf="@id/deleteButton"
             app:layout_constraintTop_toTopOf="parent"

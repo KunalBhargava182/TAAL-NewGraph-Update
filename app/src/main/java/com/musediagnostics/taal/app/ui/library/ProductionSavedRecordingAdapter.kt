@@ -1,32 +1,31 @@
 package com.musediagnostics.taal.app.ui.library
 
 import android.view.LayoutInflater
-import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.musediagnostics.taal.app.R
-import com.musediagnostics.taal.app.databinding.ItemSavedRecordingBinding
-import com.musediagnostics.taal.app.ui.graphshare.GraphShareFeature
+import com.musediagnostics.taal.app.databinding.ItemProductionSavedRecordingBinding
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-class SavedRecordingAdapter(
+/**
+ * Fork of [SavedRecordingAdapter] for production's own Saved Recordings list (2026-09-16) —
+ * identical row content, minus the share-with-graph button (that feature is PcgScale-only).
+ */
+class ProductionSavedRecordingAdapter(
     private val files: List<File>,
     private val onPlay: (File) -> Unit,
     private val onShare: (File) -> Unit,
-    private val onDelete: (File) -> Unit,
-    // Defaulted so this constructor stays source-compatible with any other caller — the only
-    // caller today (SavedRecordingsFragment) always passes one explicitly.
-    private val onShareWithGraph: (File) -> Unit = {}
-) : RecyclerView.Adapter<SavedRecordingAdapter.ViewHolder>() {
+    private val onDelete: (File) -> Unit
+) : RecyclerView.Adapter<ProductionSavedRecordingAdapter.ViewHolder>() {
 
-    inner class ViewHolder(val binding: ItemSavedRecordingBinding) :
+    inner class ViewHolder(val binding: ItemProductionSavedRecordingBinding) :
         RecyclerView.ViewHolder(binding.root)
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-        val binding = ItemSavedRecordingBinding.inflate(
+        val binding = ItemProductionSavedRecordingBinding.inflate(
             LayoutInflater.from(parent.context), parent, false
         )
         return ViewHolder(binding)
@@ -37,12 +36,11 @@ class SavedRecordingAdapter(
         val b = holder.binding
 
         // Filename format: "{FILTER}_{userInput}_filtered.wav"
-        // Extract filter from the prefix, then show only the user's input as the name.
-        val baseName = file.nameWithoutExtension          // e.g. "LUNGS_20240321_filtered"
-        val filterName = extractFilter(baseName)          // e.g. "LUNGS"
+        val baseName = file.nameWithoutExtension
+        val filterName = extractFilter(baseName)
         val displayName = baseName
-            .removePrefix("${filterName}_")              // strip "LUNGS_"
-            .removeSuffix("_filtered")                   // strip "_filtered"
+            .removePrefix("${filterName}_")
+            .removeSuffix("_filtered")
         b.fileName.text = displayName
 
         val durationSecs = getWavDuration(file)
@@ -65,13 +63,6 @@ class SavedRecordingAdapter(
         b.root.setOnClickListener { onPlay(file) }
         b.playButton.setOnClickListener { onPlay(file) }
         b.shareButton.setOnClickListener { onShare(file) }
-        // Gated exactly like SegmentationFeature: gone by default in XML, only ever flipped
-        // VISIBLE here, listener only ever registered here — flag off reproduces pre-feature
-        // behavior exactly. shareButton above is untouched either way.
-        if (GraphShareFeature.ENABLED) {
-            b.shareWithGraphButton.visibility = View.VISIBLE
-            b.shareWithGraphButton.setOnClickListener { onShareWithGraph(file) }
-        }
         b.deleteButton.setOnClickListener { onDelete(file) }
     }
 

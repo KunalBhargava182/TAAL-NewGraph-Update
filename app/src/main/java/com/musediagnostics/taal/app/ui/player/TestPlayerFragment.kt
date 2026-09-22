@@ -64,8 +64,8 @@ class TestPlayerFragment : Fragment() {
         binding.playButton.setOnClickListener { togglePlayback() }
 
         binding.saveButton.setOnClickListener {
-            val bundle = Bundle().apply { putString("recordingFilePath", filePath) }
-            findNavController().navigate(R.id.action_testPlayer_to_addPatient, bundle)
+            Toast.makeText(requireContext(), "Recording already saved", Toast.LENGTH_SHORT).show()
+            findNavController().navigateUp()
         }
 
         binding.discardButton.setOnClickListener {

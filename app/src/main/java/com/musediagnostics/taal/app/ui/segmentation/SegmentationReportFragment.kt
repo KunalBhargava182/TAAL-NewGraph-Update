@@ -14,6 +14,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
@@ -21,6 +22,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import com.musediagnostics.taal.app.R
 import com.musediagnostics.taal.app.databinding.FragmentSegmentationReportBinding
+import com.musediagnostics.taal.app.ecg.pcgscale.PcgDisplayFilter
 import com.musediagnostics.taal.segmentation.SegmentationOutcome
 import com.musediagnostics.taal.segmentation.TaalCardiacSegmentation
 import com.musediagnostics.taal.segmentation.heartRateBpm
@@ -59,6 +61,15 @@ class SegmentationReportFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        binding.backButton.setOnClickListener { goToSavedRecordings() }
+
+        // The device/gesture back action must land in the same place as the on-screen
+        // back button (Saved Recordings, not Player) — without this callback it would
+        // fall through to the default navigateUp() behavior instead.
+        requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() = goToSavedRecordings()
+        })
+
         val rawFilePath = arguments?.getString("rawFilePath") ?: ""
         val rawFile = File(rawFilePath)
         if (rawFilePath.isEmpty() || !rawFile.exists()) {
@@ -73,7 +84,16 @@ class SegmentationReportFragment : Fragment() {
             val (audio, sampleRate) = withContext(Dispatchers.Default) { readWavAsFloatArray(rawFile) }
             val outcome = segmenter?.segmentRawWav(rawFile, verboseLogging = true)
             if (_binding == null || outcome == null) return@launch
-            showResult(outcome, audio, sampleRate)
+            // The chart draws a DISPLAY-conditioned copy of the raw audio (click removal,
+            // zero-phase 20–500 Hz band + hum notches, transient-protected gate) — the raw
+            // file was unreadable under its rumble/hum floor. Segmentation itself still ran
+            // on the untouched raw file above; because the filter is zero-phase, every
+            // S1/S2 stays at its true time, so the overlay alignment is unaffected.
+            val displayAudio = withContext(Dispatchers.Default) {
+                PcgDisplayFilter.processOffline(audio, sampleRate.toFloat())
+            }
+            if (_binding == null) return@launch
+            showResult(outcome, displayAudio, sampleRate)
         }
     }
 
@@ -98,8 +118,9 @@ class SegmentationReportFragment : Fragment() {
             currentWindowSizeSec = resultDurationSec
             currentWindowStart = 0.0
 
-            // Pass the same audio that was fed to segmentation — the overlay is aligned by time,
-            // so a different array would misplace the bands while still looking plausible.
+            // The overlay is aligned by time, so the chart audio must be sample-aligned with
+            // what segmentation saw: it is — the display copy is a zero-phase filtering of the
+            // same array (see onViewCreated), same length, no shift.
             binding.pcgChart.setRecording(audio, sampleRate, result)
             binding.chartCard.visibility = View.VISIBLE
 
@@ -172,6 +193,10 @@ class SegmentationReportFragment : Fragment() {
                 binding.resultStatusHeadline.text = "Trustworthy segmentation"
                 binding.resultStatusHeadline.setTextColor(ContextCompat.getColor(ctx, R.color.text_primary))
                 binding.resultStatusSubtext.visibility = View.GONE
+                // Hidden per request (2026-09-02) — success-state row only; the Low
+                // confidence / No heart sounds / Unavailable rows below stay visible
+                // since those carry actionable info. Kept wired, not removed.
+                binding.resultStatusRow.visibility = View.GONE
             }
             is SegmentationOutcome.TooWeak -> {
                 binding.resultStatusIcon.setImageResource(R.drawable.ic_info)
@@ -261,6 +286,23 @@ class SegmentationReportFragment : Fragment() {
     private fun toast(message: String) {
         if (!isAdded) return
         Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
+    }
+
+    // Always lands on the caller's own saved-recordings list, not just "up" — this screen is
+    // reached from either PcgScaleReviewFragment or ProductionReviewFragment, each with its
+    // own separate list screen, so a plain navigateUp() would land back on the review screen
+    // instead. returnDestination lets each caller say which list that is; defaults to the
+    // original savedRecordingsFragment (PcgScale's) so that path's behavior is unchanged.
+    // Falls back to a direct navigate() if that destination isn't on the back stack for some
+    // reason. Shared by the on-screen back button and the device/gesture back callback so
+    // both behave identically.
+    private fun goToSavedRecordings() {
+        val nav = findNavController()
+        val returnDestinationId = arguments?.getInt("returnDestination", R.id.savedRecordingsFragment)
+            ?: R.id.savedRecordingsFragment
+        if (!nav.popBackStack(returnDestinationId, false)) {
+            nav.navigate(returnDestinationId)
+        }
     }
 
     override fun onDestroyView() {

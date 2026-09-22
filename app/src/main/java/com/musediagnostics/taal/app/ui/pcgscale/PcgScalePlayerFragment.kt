@@ -19,8 +19,10 @@ import com.musediagnostics.taal.TaalPlayer
 import com.musediagnostics.taal.app.R
 import com.musediagnostics.taal.app.databinding.FragmentPcgscalePlayerBinding
 import com.musediagnostics.taal.app.ecg.pcgscale.PcgAmplitudeScale
+import com.musediagnostics.taal.app.ecg.pcgscale.PcgDisplayFilter
 import com.musediagnostics.taal.app.ecg.pcgscale.PcgScaleWaveformView
 import com.musediagnostics.taal.app.ui.player.PlayerSaveDiscardDialog
+import com.musediagnostics.taal.app.ui.segmentation.SegmentationFeature
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -61,6 +63,16 @@ class PcgScalePlayerFragment : Fragment() {
     // wherever the chart snaps back to its start-centered framing.
     private var displayedPlaybackTime = 0f
 
+    // Clean Graph (denoise) toggle — ported from stemz-app's PcgScalePlayerFragment: both
+    // sample-array versions are cached so toggling is instant after the first compute.
+    // Display only — playback always plays the file on disk regardless of the switch.
+    private var originalSamples: FloatArray? = null
+    private var denoisedSamples: FloatArray? = null
+    private var fileSampleRateForRender: Float = INPUT_SAMPLE_RATE
+    private var pixelsPerSecondForRender: Float = -1f
+    private var recordingDurationSecs: Int = 0
+    private var denoiseEnabled = false
+
     companion object {
         private const val INPUT_SAMPLE_RATE = 44100f
 
@@ -97,8 +109,26 @@ class PcgScalePlayerFragment : Fragment() {
 
         binding.saveDiscardBar.visibility = if (isNewRecording) View.VISIBLE else View.GONE
 
+        // Same gate as production PlayerFragment's "Analyze Heart Sounds" button: only offered
+        // once the file is inside filesDir/saved/ with a saved _raw.wav companion on disk — a
+        // brand-new, not-yet-saved recording (the normal way this screen is reached) naturally
+        // fails this and keeps the button hidden. Ported from stemz-app's PcgScalePlayerFragment.
+        if (SegmentationFeature.ENABLED) {
+            val rawFilePath = arguments?.getString("rawFilePath") ?: ""
+            val savedDir = File(requireContext().filesDir, "saved")
+            val isInSavedDir = File(filePath).parentFile?.absolutePath == savedDir.absolutePath
+            if (isInSavedDir && rawFilePath.isNotEmpty() && File(rawFilePath).exists()) {
+                binding.analyzeButton.visibility = View.VISIBLE
+                binding.analyzeButton.setOnClickListener {
+                    val bundle = Bundle().apply { putString("rawFilePath", rawFilePath) }
+                    findNavController().navigate(R.id.action_pcgScalePlayer_to_segmentationReport, bundle)
+                }
+            }
+        }
+
         setupWaveformChart()
         setupAmpSlider()
+        setupDenoiseSwitch()
         updateScaleCaption()
 
         if (filePath.isNotEmpty()) {
@@ -127,11 +157,21 @@ class PcgScalePlayerFragment : Fragment() {
             togglePlayback(filePath)
         }
 
-        // Production meaning restored (the Calibrated fork had repurposed this slot for graph
-        // calibration, which this screen doesn't have): Save → Add Patient.
+        // Save routes a fresh recording through SaveRecordingFragment — the only code that
+        // actually renames the temp files into filesDir/saved/ (and copies them to device
+        // storage). popUpToDestination must be set explicitly: SaveRecordingFragment defaults
+        // to popping up to production's recordingFragment, which isn't on this back stack when
+        // the session started from pcgScaleRecordingFragment — an unset value here would
+        // silently no-op the popUpTo.
         binding.saveButton.setOnClickListener {
-            val bundle = Bundle().apply { putString("recordingFilePath", filePath) }
-            findNavController().navigate(R.id.action_pcgScalePlayer_to_addPatient, bundle)
+            val rawFilePath = arguments?.getString("rawFilePath") ?: ""
+            val bundle = Bundle().apply {
+                putString("filePath", filePath)
+                putString("rawFilePath", rawFilePath)
+                putString("filterName", filterName)
+                putInt("popUpToDestination", R.id.pcgScaleRecordingFragment)
+            }
+            findNavController().navigate(R.id.action_pcgScalePlayer_to_saveRecording, bundle)
         }
 
         binding.discardButton.setOnClickListener {
@@ -211,6 +251,7 @@ class PcgScalePlayerFragment : Fragment() {
      *    re-bucketing exists or is needed — the window never changes).
      */
     private fun loadFullWaveform(filePath: String, pixelsPerSecond: Float, recordedPreAmpDb: Int) {
+        pixelsPerSecondForRender = pixelsPerSecond
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
             val file = File(filePath)
             if (!file.exists()) return@launch
@@ -248,43 +289,134 @@ class PcgScalePlayerFragment : Fragment() {
                 }
             }
 
-            // Whole-file 60%-fill axis scale — "sampled mean peaks across the whole recording".
-            // Streamed through an instance (rather than computeFullScaleForFile) so the
-            // diagnostics below can also read meanPeakRms/isClampedAtMin for the caption.
-            val fileScale = PcgAmplitudeScale(fileSampleRate)
-            fileScale.addSamples(samples)
-            fileScale.flushPartialWindow()
-            val fullScale = fileScale.targetFullScale()
-
-            // Fixed-density bucket: sampleRate / (pixelsPerSecond * 2) puts ~one min/max pair
-            // per horizontal pixel of the fixed window (algebraically identical to
-            // deriveBucketSizeForVisibleRange for this window). The MAX_TOTAL_POINTS ceiling
-            // bounds memory on long files — see that constant's doc.
-            val derivedBucket = if (pixelsPerSecond > 0f) {
-                maxOf(1, (fileSampleRate / (pixelsPerSecond * 2f)).roundToInt())
-            } else -1
-            val ceilingBucket = maxOf(1, totalSamples / (MAX_TOTAL_POINTS / 2))
-            val bucketSize = if (derivedBucket > 0) maxOf(derivedBucket, ceilingBucket) else ceilingBucket
-            val entries = PcgScaleWaveformView.downsampleMinMax(samples, bucketSize) { idx ->
-                idx.toFloat() / fileSampleRate
-            }
-
             withContext(Dispatchers.Main) {
                 if (_binding == null) return@withContext
-                val chart = binding.pcgScaleWaveformView.chart
-                chart.axisLeft.axisMinimum = -fullScale
-                chart.axisLeft.axisMaximum = fullScale
-                // Same on-device diagnostics idea as the recorder's live caption: the file's
-                // real sample rate (from the WAV header) and the applied scale, with an
-                // explicit marker when the clamp floor — not the measurement — set the axis
-                // (i.e. a very quiet recording that CANNOT reach 60% fill; seen on a study
-                // Samsung unit's input path).
-                val clampNote = if (fileScale.isClampedAtMin()) " (MIN-CLAMPED: file very quiet)" else ""
-                binding.scaleCaption.text = String.format(
-                    "1 large box = 1 s · sr=%d Hz · Y=±%.3f%s · scroll to browse",
-                    fileSampleRate.toInt(), fullScale, clampNote
-                )
-                renderWaveformEntries(ArrayList(entries), durationSecs)
+                originalSamples = samples
+                fileSampleRateForRender = fileSampleRate
+                recordingDurationSecs = durationSecs
+                setDenoiseToggleEnabled(true)
+                // Default ON, matching stemz-app's PcgScalePlayerFragment — go straight
+                // through the same path a manual tap takes so the file opens already cleaned.
+                onDenoiseToggled(true)
+            }
+        }
+    }
+
+    /** Everything the chart needs for one version (original or denoised) of the samples. */
+    private class RenderPayload(
+        val fullScale: Float,
+        val minClamped: Boolean,
+        val entries: ArrayList<Entry>,
+        val bucketSize: Int
+    )
+
+    /** Whole-file 60%-fill axis scale + downsample bucket for either sample array version. */
+    private fun computeRenderPayload(samples: FloatArray, sampleRate: Float): RenderPayload {
+        // Whole-file 60%-fill axis scale — "sampled mean peaks across the whole recording".
+        // Streamed through an instance (rather than computeFullScaleForFile) so the caption
+        // can also read isClampedAtMin.
+        val fileScale = PcgAmplitudeScale(sampleRate)
+        fileScale.addSamples(samples)
+        fileScale.flushPartialWindow()
+        val fullScale = fileScale.targetFullScale()
+
+        // Fixed-density bucket: sampleRate / (pixelsPerSecond * 2) puts ~one min/max pair
+        // per horizontal pixel of the fixed window (algebraically identical to
+        // deriveBucketSizeForVisibleRange for this window). The MAX_TOTAL_POINTS ceiling
+        // bounds memory on long files — see that constant's doc.
+        val derivedBucket = if (pixelsPerSecondForRender > 0f) {
+            maxOf(1, (sampleRate / (pixelsPerSecondForRender * 2f)).roundToInt())
+        } else -1
+        val ceilingBucket = maxOf(1, samples.size / (MAX_TOTAL_POINTS / 2))
+        val bucketSize = if (derivedBucket > 0) maxOf(derivedBucket, ceilingBucket) else ceilingBucket
+        val entries = PcgScaleWaveformView.downsampleMinMax(samples, bucketSize) { idx ->
+            idx.toFloat() / sampleRate
+        }
+        return RenderPayload(fullScale, fileScale.isClampedAtMin(), ArrayList(entries), bucketSize)
+    }
+
+    private fun applyRenderPayload(payload: RenderPayload, sampleRate: Float, durationSecs: Int) {
+        if (_binding == null) return
+        val chart = binding.pcgScaleWaveformView.chart
+        chart.axisLeft.axisMinimum = -payload.fullScale
+        chart.axisLeft.axisMaximum = payload.fullScale
+        // Same on-device diagnostics idea as the recorder's live caption: the file's real
+        // sample rate (from the WAV header) and the applied scale, with an explicit marker
+        // when the clamp floor — not the measurement — set the axis (a very quiet recording
+        // that CANNOT reach 60% fill; seen on a study Samsung unit's input path).
+        val clampNote = if (payload.minClamped) " (MIN-CLAMPED: file very quiet)" else ""
+        binding.scaleCaption.text = String.format(
+            "1 large box = 1 s · sr=%d Hz · Y=±%.3f%s · scroll to browse",
+            sampleRate.toInt(), payload.fullScale, clampNote
+        )
+        renderWaveformEntries(payload.entries, durationSecs)
+    }
+
+    /** Display-only PcgDisplayFilter Clean Graph toggle: a single rectangular button that is
+     *  itself the control (tap flips state) and its own indicator (its text and fill read
+     *  "ON"/"OFF" for whichever state is active). Disabled until the file finishes decoding
+     *  (there is nothing to filter yet). Ported from stemz-app's PcgScalePlayerFragment. */
+    private fun setupDenoiseSwitch() {
+        setDenoiseToggleEnabled(false)
+        binding.denoiseOnBadge.setOnClickListener { onDenoiseToggled(!denoiseEnabled) }
+    }
+
+    private fun setDenoiseToggleEnabled(enabled: Boolean) {
+        binding.denoiseOnBadge.isEnabled = enabled
+        binding.denoiseOnBadge.alpha = if (enabled) 1f else 0.4f
+    }
+
+    /** Repaints the toggle button itself for the given state — text and fill both read
+     *  "ON"/"OFF" so the state never depends on reading a thumb position or color alone. */
+    private fun updateDenoiseBadge(enabled: Boolean) {
+        if (_binding == null) return
+        binding.denoiseOnBadge.text = if (enabled) "ON" else "OFF"
+        binding.denoiseOnBadge.setBackgroundResource(
+            if (enabled) R.drawable.bg_status_pill_on else R.drawable.bg_status_pill_off
+        )
+        binding.denoiseOnBadge.setTextColor(
+            if (enabled) Color.WHITE else Color.parseColor("#757575")
+        )
+    }
+
+    /**
+     * Toggle ON with no cached filtered version yet runs [PcgDisplayFilter] (click removal,
+     * zero-phase 20–500 Hz band + hum notches, transient-protected gate) on the
+     * already-decoded original samples on Dispatchers.Default (CPU-bound work), showing
+     * waveformLoadingIndicator for the few seconds a 300s file can take. Every other
+     * transition (ON with a cache hit, or OFF back to the original) is synchronous — both
+     * arrays are already in memory, so it's just a re-bucket + re-render. Playback is
+     * untouched either way — see the field doc on [originalSamples].
+     */
+    private fun onDenoiseToggled(enabled: Boolean) {
+        denoiseEnabled = enabled
+        updateDenoiseBadge(enabled)
+        val original = originalSamples ?: return
+        val durationSecs = recordingDurationSecs
+        val rate = fileSampleRateForRender
+
+        if (!enabled) {
+            applyRenderPayload(computeRenderPayload(original, rate), rate, durationSecs)
+            return
+        }
+
+        val cached = denoisedSamples
+        if (cached != null) {
+            applyRenderPayload(computeRenderPayload(cached, rate), rate, durationSecs)
+            return
+        }
+
+        binding.waveformLoadingIndicator.visibility = View.VISIBLE
+        setDenoiseToggleEnabled(false)
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Default) {
+            val cleaned = PcgDisplayFilter.processOffline(original, rate)
+            val payload = computeRenderPayload(cleaned, rate)
+            withContext(Dispatchers.Main) {
+                if (_binding == null) return@withContext
+                denoisedSamples = cleaned
+                binding.waveformLoadingIndicator.visibility = View.GONE
+                setDenoiseToggleEnabled(true)
+                applyRenderPayload(payload, rate, durationSecs)
             }
         }
     }
@@ -410,9 +542,12 @@ class PcgScalePlayerFragment : Fragment() {
     private fun showSaveDiscardDialog(filePath: String) {
         PlayerSaveDiscardDialog { action ->
             when (action) {
+                // filePath already points inside filesDir/saved/ here (this branch only runs
+                // when isNewRecording == false, i.e. an already-saved recording reopened) —
+                // there is nothing left to save, so this just confirms and backs out.
                 PlayerSaveDiscardDialog.Action.SAVE -> {
-                    val bundle = Bundle().apply { putString("recordingFilePath", filePath) }
-                    findNavController().navigate(R.id.action_pcgScalePlayer_to_addPatient, bundle)
+                    Toast.makeText(requireContext(), "Recording already saved", Toast.LENGTH_SHORT).show()
+                    findNavController().navigateUp()
                 }
 
                 PlayerSaveDiscardDialog.Action.DISCARD -> {

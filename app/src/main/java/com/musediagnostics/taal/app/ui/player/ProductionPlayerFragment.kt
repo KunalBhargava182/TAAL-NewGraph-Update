@@ -17,16 +17,22 @@ import com.musediagnostics.taal.InvalidFileNameException
 import com.musediagnostics.taal.PreFilter
 import com.musediagnostics.taal.TaalPlayer
 import com.musediagnostics.taal.app.R
-import com.musediagnostics.taal.app.databinding.FragmentPlayerBinding
-import com.musediagnostics.taal.app.ui.segmentation.SegmentationFeature
+import com.musediagnostics.taal.app.databinding.FragmentProductionPlayerBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-class PlayerFragment : Fragment() {
+/**
+ * Production Player — reviews a BRAND-NEW recording just made by [ProductionRecordingFragment],
+ * always straight off the recorder with a temp file not yet in filesDir/saved/. Save/Discard
+ * only; there is nothing here to review from the saved list — that's
+ * [ProductionReviewFragment]'s job (2026-09-16 split, mirroring the PcgScalePlayer/
+ * PcgScaleReview split so each screen has exactly one reason to exist).
+ */
+class ProductionPlayerFragment : Fragment() {
 
-    private var _binding: FragmentPlayerBinding? = null
+    private var _binding: FragmentProductionPlayerBinding? = null
     private val binding get() = _binding!!
     private var player: TaalPlayer? = null
     private var isPlaying = false
@@ -39,7 +45,7 @@ class PlayerFragment : Fragment() {
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
-        _binding = FragmentPlayerBinding.inflate(inflater, container, false)
+        _binding = FragmentProductionPlayerBinding.inflate(inflater, container, false)
         return binding.root
     }
 
@@ -47,31 +53,7 @@ class PlayerFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         val filePath = arguments?.getString("filePath") ?: ""
-        val isNewRecording = arguments?.getBoolean("isNewRecording", false) ?: false
         val filterName = arguments?.getString("filterName") ?: "HEART"
-        // val aiTestingFilePath = arguments?.getString("aiTestingFilePath") ?: ""  // AI downsampling disabled
-        // val extraAiFilePaths = arguments?.getStringArrayList("extraAiFilePaths") ?: arrayListOf()  // AI downsampling disabled
-
-        binding.saveDiscardBar.visibility = if (isNewRecording) View.VISIBLE else View.GONE
-
-        // Only offered for a file actually inside filesDir/saved/ — checked by directory, not
-        // the isNewRecording flag: some existing callers (e.g. RecordingFragment's
-        // playPauseButton) navigate here without setting isNewRecording, which would otherwise
-        // make an in-progress temp recording look identical to a saved one.
-        if (SegmentationFeature.ENABLED) {
-            val savedDir = File(requireContext().filesDir, "saved")
-            val isInSavedDir = File(filePath).parentFile?.absolutePath == savedDir.absolutePath
-            if (isInSavedDir && filePath.contains("_filtered.wav")) {
-                val savedRawPath = filePath.replace("_filtered.wav", "_raw.wav")
-                if (File(savedRawPath).exists()) {
-                    binding.analyzeButton.visibility = View.VISIBLE
-                    binding.analyzeButton.setOnClickListener {
-                        val bundle = Bundle().apply { putString("rawFilePath", savedRawPath) }
-                        findNavController().navigate(R.id.action_player_to_segmentationReport, bundle)
-                    }
-                }
-            }
-        }
 
         setupWaveformChart()
         setupAmpSlider()
@@ -101,25 +83,18 @@ class PlayerFragment : Fragment() {
         }
 
         binding.saveButton.setOnClickListener {
-            if (isNewRecording) {
-                val rawFilePath = arguments?.getString("rawFilePath") ?: ""
-                val bundle = Bundle().apply {
-                    putString("filePath", filePath)
-                    putString("rawFilePath", rawFilePath)
-                    putString("filterName", filterName)
-                }
-                findNavController().navigate(R.id.action_player_to_saveRecording, bundle)
-            } else {
-                showSaveDiscardDialog(filePath)
+            val rawFilePath = arguments?.getString("rawFilePath") ?: ""
+            val bundle = Bundle().apply {
+                putString("filePath", filePath)
+                putString("rawFilePath", rawFilePath)
+                putString("filterName", filterName)
+                putInt("popUpToDestination", R.id.recordingFragment)
             }
+            findNavController().navigate(R.id.action_player_to_saveRecording, bundle)
         }
 
         binding.discardButton.setOnClickListener {
-            if (isNewRecording) {
-                showDiscardConfirmation(filePath)
-            } else {
-                showSaveDiscardDialog(filePath)
-            }
+            showDiscardConfirmation(filePath)
         }
     }
 
@@ -256,7 +231,6 @@ class PlayerFragment : Fragment() {
                                 "%02d:%02d", totalSecs / 60, totalSecs % 60
                             )
 
-                            // FIX 2: Dynamic centering that strictly anchors Y to 0f
                             val chart = binding.waveformChart
                             val currentVisibleRange = chart.visibleXRange
                             val halfRange = currentVisibleRange / 2f
@@ -280,7 +254,6 @@ class PlayerFragment : Fragment() {
                             binding.actionText.text = getString(R.string.play_recording)
                             binding.playButton.setImageResource(R.drawable.ic_play_circle)
 
-                            // FIX 3: Snap graph back to the beginning gracefully
                             val chart = binding.waveformChart
                             chart.centerViewTo(
                                 chart.visibleXRange / 2f,
@@ -305,7 +278,6 @@ class PlayerFragment : Fragment() {
             binding.actionText.text = getString(R.string.play_recording)
             binding.playButton.setImageResource(R.drawable.ic_play_circle)
 
-            // FIX 4: Snap graph back to the beginning gracefully when manually stopped
             val chart = binding.waveformChart
             chart.centerViewTo(
                 chart.visibleXRange / 2f,
@@ -314,7 +286,6 @@ class PlayerFragment : Fragment() {
             )
         } else {
             try {
-                // RESET GRAPH: Snap back to the beginning gracefully when played
                 val chart = binding.waveformChart
                 chart.centerViewTo(
                     chart.visibleXRange / 2f,
@@ -337,43 +308,16 @@ class PlayerFragment : Fragment() {
 
     private fun showDiscardConfirmation(filePath: String) {
         val rawFilePath = arguments?.getString("rawFilePath") ?: ""
-        // val aiTestingFilePath = arguments?.getString("aiTestingFilePath") ?: ""  // AI downsampling disabled
-        // val extraPaths = arguments?.getStringArrayList("extraAiFilePaths") ?: arrayListOf()  // AI downsampling disabled
         com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
             .setTitle("Discard Recording")
             .setMessage("Are you sure you want to discard this recording? It will be permanently deleted.")
             .setPositiveButton("Discard") { _, _ ->
-                try { java.io.File(filePath).delete() } catch (_: Exception) {}
+                try { File(filePath).delete() } catch (_: Exception) {}
                 if (rawFilePath.isNotEmpty()) {
-                    try { java.io.File(rawFilePath).delete() } catch (_: Exception) {}
+                    try { File(rawFilePath).delete() } catch (_: Exception) {}
                 }
-                // if (aiTestingFilePath.isNotEmpty()) {  // AI downsampling disabled
-                //     try { java.io.File(aiTestingFilePath).delete() } catch (_: Exception) {}
-                // }
-                // for (path in extraPaths) {  // AI downsampling disabled
-                //     try { java.io.File(path).delete() } catch (_: Exception) {}
-                // }
                 findNavController().navigateUp()
             }.setNegativeButton("Cancel", null).show()
-    }
-
-    private fun showSaveDiscardDialog(filePath: String) {
-        PlayerSaveDiscardDialog { action ->
-            when (action) {
-                PlayerSaveDiscardDialog.Action.SAVE -> {
-                    val bundle = Bundle().apply { putString("recordingFilePath", filePath) }
-                    findNavController().navigate(R.id.action_player_to_addPatient, bundle)
-                }
-
-                PlayerSaveDiscardDialog.Action.DISCARD -> {
-                    try {
-                        java.io.File(filePath).delete()
-                    } catch (_: Exception) {
-                    }
-                    findNavController().navigateUp()
-                }
-            }
-        }.show(parentFragmentManager, "save_discard")
     }
 
     override fun onDestroyView() {

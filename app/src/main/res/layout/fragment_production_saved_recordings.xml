@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Fork of fragment_saved_recordings.xml for production's own list screen (2026-09-16) —
+     identical, minus the share-with-graph progress overlay (that feature doesn't exist on
+     this flow). -->
 <androidx.constraintlayout.widget.ConstraintLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -94,28 +97,5 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/topBar" />
-
-    <!-- "Share with graph" progress overlay — new, additive only, gone by default. Shown while
-         GraphShareBundler decodes/renders (a few seconds for a long recording), so the screen
-         never looks frozen. See SavedRecordingsFragment.shareRecordingWithGraph. -->
-    <FrameLayout
-        android:id="@+id/shareGraphProgressOverlay"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:background="#66000000"
-        android:clickable="true"
-        android:focusable="true"
-        android:visibility="gone"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
-
-        <ProgressBar
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center" />
-
-    </FrameLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

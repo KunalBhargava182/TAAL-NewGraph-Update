@@ -620,9 +620,12 @@ class CalibratedPlayerFragment : Fragment() {
     private fun showSaveDiscardDialog(filePath: String) {
         PlayerSaveDiscardDialog { action ->
             when (action) {
+                // filePath already points inside filesDir/saved/ here (this branch only runs
+                // when isNewRecording == false, i.e. an already-saved recording reopened) —
+                // there is nothing left to save, so this just confirms and backs out.
                 PlayerSaveDiscardDialog.Action.SAVE -> {
-                    val bundle = Bundle().apply { putString("recordingFilePath", filePath) }
-                    findNavController().navigate(R.id.action_calibratedPlayer_to_addPatient, bundle)
+                    Toast.makeText(requireContext(), "Recording already saved", Toast.LENGTH_SHORT).show()
+                    findNavController().navigateUp()
                 }
 
                 PlayerSaveDiscardDialog.Action.DISCARD -> {
