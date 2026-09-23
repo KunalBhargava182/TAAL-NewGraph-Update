@@ -31,16 +31,21 @@ dependencies {
 
     // `api` so the host app resolves ONNX Runtime transitively and does not have to declare it.
     //
-    // 1.19.2 is a FLOOR, not a preference. The model is exported at ONNX IR version 10, and
+    // 1.18 is a FLOOR, not a preference. The model is exported at ONNX IR version 10, and
     // ONNX Runtime 1.17.x supports at most IR 9 — on 1.17.x `OrtSession` throws
     // ORT_INVALID_ARGUMENT for every recording, `TcnSegmenterRunner` construction fails, and a
     // caller following the recommended `runCatching { ... }.getOrNull()` pattern sees a null
     // segmenter and reports "no heart sounds" on every capture. It never loads once, and the
     // failure looks exactly like a capture-quality problem.
     //
+    // Bumped 1.19.2 -> 1.29.0 to pick up the libonnxruntime4j_jni.so 16KB-page alignment fix
+    // (upstream PR #24947, merged after 1.19.2 shipped) — 1.19.2's JNI .so wasn't 16KB-aligned,
+    // so on 16KB-page devices (some Android 15/16 hardware) the native lib may fail to load and
+    // segmentation becomes unavailable. Same bump as StemzAppBranch's 01ddf76 (2026-09-04).
+    //
     // If you must pin a different version, use >= 1.18 and check the model's IR version first:
     //   od -An -tu1 -N4 tcn_c200_cardiac_seg.onnx
-    api("com.microsoft.onnxruntime:onnxruntime-android:1.19.2")
+    api("com.microsoft.onnxruntime:onnxruntime-android:1.29.0")
 
     // For the TaalCardiacSegmentation bridge (com.musediagnostics.taal.segmentation): segment()
     // dispatches onto Dispatchers.Default itself so callers never need their own dispatcher hop.
