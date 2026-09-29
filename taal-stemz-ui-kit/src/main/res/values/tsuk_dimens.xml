@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <dimen name="tsuk_corner_radius_lg">25dp</dimen>
+    <dimen name="tsuk_corner_radius_sm">8dp</dimen>
+    <dimen name="tsuk_spacing_lg">24dp</dimen>
+    <dimen name="tsuk_spacing_md">16dp</dimen>
+</resources>

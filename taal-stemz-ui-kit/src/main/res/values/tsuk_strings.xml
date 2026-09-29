@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="tsuk_bpm_format">%d BPM</string>
+    <string name="tsuk_play_recording">Play Recording</string>
+    <string name="tsuk_start_recording">Start Recording</string>
+    <string name="tsuk_stop_recording">Stop Recording</string>
+    <string name="tsuk_timer_default">00:00:00</string>
+</resources>

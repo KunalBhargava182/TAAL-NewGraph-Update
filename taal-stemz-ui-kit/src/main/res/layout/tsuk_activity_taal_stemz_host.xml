@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Host for every taal-stemz-ui-kit screen; StemzHostActivity puts a NavHostFragment here. -->
+<androidx.fragment.app.FragmentContainerView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/stemzNavHost"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/tsuk_white" />

@@ -1,6 +1,6 @@
 ---
 name: supermaster-docs
-description: "Use whenever starting work in any Gradle module of this TAAL monorepo (read the module's master doc first) and whenever finishing a change that affects how a module works (log it there too) — a feature, a wiring change, a bug fix that changes behavior, a new/renamed/removed file or screen. Also use to create a module's master doc if it doesn't have one yet, or to run a full re-audit of one. Triggers on: starting a task in app/, stemz-app/, lungs-app/, visualizertaal-app/, taal-core/, taal-ui-kit/, taal-segmentation/, taal-segmentation-core/; finishing an edit in one of those; 'update the docs', 'check the master doc', 'supermaster'."
+description: "Use whenever starting work in any Gradle module of this TAAL monorepo (read the module's master doc first) and whenever finishing a change that affects how a module works (log it there too) — a feature, a wiring change, a bug fix that changes behavior, a new/renamed/removed file or screen. Also use to create a module's master doc if it doesn't have one yet, or to run a full re-audit of one. Triggers on: starting a task in app/, stemz-app/, lungs-app/, visualizertaal-app/, taal-core/, taal-ui-kit/, taal-segmentation/, taal-segmentation-core/, taal-stemz-core/, taal-stemz-ui-kit/; finishing an edit in one of those; 'update the docs', 'check the master doc', 'supermaster'."
 ---
 
 # /supermaster-docs
@@ -29,6 +29,8 @@ name, upper-cased, hyphens→underscores:
 | `taal-ui-kit` | `SUPERMASTER_TAAL_UI_KIT.md` |
 | `taal-segmentation` | `SUPERMASTER_TAAL_SEGMENTATION.md` |
 | `taal-segmentation-core` | `SUPERMASTER_TAAL_SEGMENTATION_CORE.md` |
+| `taal-stemz-core` | `SUPERMASTER_TAAL_STEMZ_CORE.md` |
+| `taal-stemz-ui-kit` | `SUPERMASTER_TAAL_STEMZ_UI_KIT.md` |
 
 Root `docs/../SUPERMASTER.md` (repo root, no module suffix) is the whole-monorepo index —
 skim it for orientation across modules, but it is NOT where module-specific detail belongs.

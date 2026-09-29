@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Merged into the integrating app automatically. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Only used on Android 8–9 to copy saved recordings to Music/<folder>; not needed on 10+. -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
+    <uses-feature
+        android:name="android.hardware.usb.host"
+        android:required="false" />
+
+    <application>
+
+        <!-- Own authority (…taalstemz.fileprovider) so it never clashes with the host app's
+             own FileProvider. Used by the Saved Recordings share button. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.taalstemz.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/tsuk_file_paths" />
+        </provider>
+
+        <activity
+            android:name=".TaalRecorderActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/tsuk_Theme.Taal"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name=".TaalPlayerActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/tsuk_Theme.Taal" />
+
+        <activity
+            android:name=".TaalSavedRecordingsActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/tsuk_Theme.Taal" />
+
+    </application>
+
+</manifest>

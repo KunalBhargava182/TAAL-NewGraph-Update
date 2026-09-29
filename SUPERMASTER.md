@@ -153,7 +153,9 @@ dedicated `docs/master/SUPERMASTER_<MODULE>.md` file — read the relevant one b
 module's code, and update it (not just this file) after any change. See root `CLAUDE.md` for the
 full rule. Files: `SUPERMASTER_APP.md`, `SUPERMASTER_STEMZ_APP.md`, `SUPERMASTER_LUNGS_APP.md`,
 `SUPERMASTER_VISUALIZERTAAL_APP.md`, `SUPERMASTER_TAAL_CORE.md`, `SUPERMASTER_TAAL_UI_KIT.md`,
-`SUPERMASTER_TAAL_SEGMENTATION.md`, `SUPERMASTER_TAAL_SEGMENTATION_CORE.md`.
+`SUPERMASTER_TAAL_SEGMENTATION.md`, `SUPERMASTER_TAAL_SEGMENTATION_CORE.md`,
+`SUPERMASTER_TAAL_STEMZ_CORE.md`, `SUPERMASTER_TAAL_STEMZ_UI_KIT.md` (stemz-only client SDKs,
+added 2026-09-25 on `StemzAppBranch`: `taal-stemz-core.aar` + `taal-stemz-ui-kit.aar`).
 
 This file remains the whole-monorepo entry point/index; the deeper docs below (and the
 per-module files above) are where module-specific detail actually lives — check their own

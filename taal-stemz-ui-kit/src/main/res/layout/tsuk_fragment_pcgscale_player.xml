@@ -1,0 +1,293 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fork of fragment_calibrated_player.xml (not modified) for the PcgScale Review screen.
+     Differences: the waveform view is PcgScaleWaveformView (time-defined 1s/0.2s grid with
+     second labels, scroll-only), the graph-calibration status row is gone (no pinch
+     calibration exists here), and the bottom bar's second slot is a real Save button again
+     (the Calibrated fork had repurposed it as calibration Apply). -->
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#F8F9FA">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/topBar"
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:background="@color/tsuk_white"
+        android:elevation="2dp"
+        android:paddingStart="@dimen/tsuk_spacing_md"
+        android:paddingEnd="@dimen/tsuk_spacing_md"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <ImageButton
+            android:id="@+id/backButton"
+            android:layout_width="26dp"
+            android:layout_height="26dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Back"
+            android:scaleType="centerInside"
+            android:src="@drawable/tsuk_ic_arrow_back"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <TextView
+            android:id="@+id/screenTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Review Recording"
+            android:textColor="@color/tsuk_text_primary"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <!-- Shown only for an already-saved recording, since that's when a saved _raw.wav
+             companion is guaranteed to exist on disk to analyse — see
+             PcgScalePlayerFragment.kt's isInSavedDir check. Gated in code by
+             SegmentationFeature.ENABLED. -->
+        <ImageButton
+            android:id="@+id/analyzeButton"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Analyze Heart Sounds"
+            android:padding="5dp"
+            android:src="@drawable/tsuk_fragment_player"
+            android:tint="#128CB2"
+            android:visibility="gone"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <TextView
+        android:id="@+id/timerText"
+        style="@style/tsuk_TaalText.Timer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="@string/tsuk_timer_default"
+        android:textSize="15sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/topBar" />
+
+    <!-- Compact Amp Slider Card -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/ampSliderContainer"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="4dp"
+        android:layout_marginEnd="16dp"
+        app:cardBackgroundColor="@color/tsuk_white"
+        app:cardCornerRadius="10dp"
+        app:cardElevation="2dp"
+        app:strokeColor="#E0E0E0"
+        app:strokeWidth="1dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/timerText">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="10dp"
+                android:paddingTop="0dp"
+                android:paddingEnd="10dp"
+                android:paddingBottom="0dp">
+
+                <ImageView
+                    android:layout_width="14dp"
+                    android:layout_height="14dp"
+                    android:contentDescription="Amplification"
+                    android:src="@drawable/tsuk_ic_volume_up"
+                    app:tint="#128CB2" />
+
+                <com.google.android.material.slider.Slider
+                    android:id="@+id/ampSlider"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:layout_marginEnd="4dp"
+                    android:layout_weight="1"
+                    android:stepSize="1"
+                    android:value="5"
+                    android:valueFrom="0"
+                    android:valueTo="30"
+                    app:haloColor="#1A128CB2"
+                    app:labelBehavior="gone"
+                    app:thumbColor="#128CB2"
+                    app:thumbRadius="5dp"
+                    app:trackColorActive="#128CB2"
+                    app:trackColorInactive="#C8E6F5"
+                    app:trackHeight="2dp" />
+
+                <TextView
+                    android:id="@+id/ampLabel"
+                    android:layout_width="40dp"
+                    android:layout_height="wrap_content"
+                    android:gravity="end"
+                    android:text="5 dB"
+                    android:textColor="#128CB2"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+
+            </LinearLayout>
+        </LinearLayout>
+
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- Display-only denoise toggle (parity with the Review screen, re-added 2026-09-04):
+         runs PcgDisplayFilter on the already-decoded in-memory samples; playback audio and
+         the file are unaffected. denoiseOnBadge is a single rectangular tap-toggle (both the
+         control and its own ON/OFF indicator), not a switch + separate label. -->
+    <LinearLayout
+        android:id="@+id/denoiseRow"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="4dp"
+        android:layout_marginEnd="16dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/ampSliderContainer">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Clean Graph"
+            android:textColor="#333333"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/denoiseOnBadge"
+            android:layout_width="60dp"
+            android:layout_height="30dp"
+            android:background="@drawable/tsuk_bg_status_pill_on"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:text="ON"
+            android:textColor="@color/tsuk_white"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/scaleCaption"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="2dp"
+        android:layout_marginEnd="16dp"
+        android:gravity="center"
+        android:text="1 large box = 1 s · 1 small box = 0.2 s"
+        android:textColor="#999999"
+        android:textSize="9sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/denoiseRow" />
+
+    <com.musediagnostics.taal.stemz.uikit.graph.PcgScaleWaveformView
+        android:id="@+id/pcgScaleWaveformView"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginTop="2dp"
+        android:layout_marginBottom="2dp"
+        app:layout_constraintBottom_toTopOf="@id/actionText"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/scaleCaption" />
+
+    <ProgressBar
+        android:id="@+id/waveformLoadingIndicator"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:indeterminateTint="#128CB2"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="@id/pcgScaleWaveformView"
+        app:layout_constraintEnd_toEndOf="@id/pcgScaleWaveformView"
+        app:layout_constraintStart_toStartOf="@id/pcgScaleWaveformView"
+        app:layout_constraintTop_toTopOf="@id/pcgScaleWaveformView" />
+
+    <TextView
+        android:id="@+id/actionText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="4dp"
+        android:text="@string/tsuk_play_recording"
+        android:textColor="@color/tsuk_text_primary"
+        android:textSize="12sp"
+        app:layout_constraintBottom_toTopOf="@id/playButton"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <ImageButton
+        android:id="@+id/playButton"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_marginBottom="10dp"
+        android:background="@drawable/tsuk_bg_record_button"
+        android:contentDescription="Play"
+        android:elevation="8dp"
+        android:padding="0dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/tsuk_ic_play_circle"
+        app:layout_constraintBottom_toTopOf="@id/saveDiscardBar"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:tint="@color/tsuk_white" />
+
+    <LinearLayout
+        android:id="@+id/saveDiscardBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginBottom="12dp"
+        android:orientation="horizontal"
+        app:layout_constraintBottom_toBottomOf="parent">
+
+        <Button
+            android:id="@+id/discardButton"
+            android:layout_width="0dp"
+            android:layout_height="38dp"
+            android:layout_marginEnd="8dp"
+            android:layout_weight="1"
+            android:background="@drawable/tsuk_bg_button_outlined"
+            android:text="Discard"
+            android:textAllCaps="false"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/saveButton"
+            android:layout_width="0dp"
+            android:layout_height="38dp"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:background="@drawable/tsuk_bg_button_teal"
+            android:text="Save"
+            android:textAllCaps="false"
+            android:textColor="@color/tsuk_white"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

@@ -1,0 +1,550 @@
+package com.musediagnostics.taal.stemz.uikit.player
+
+import android.graphics.Color
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.Toast
+import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
+import androidx.navigation.fragment.findNavController
+import com.github.mikephil.charting.components.YAxis
+import com.github.mikephil.charting.data.Entry
+import com.github.mikephil.charting.data.LineData
+import com.github.mikephil.charting.data.LineDataSet
+import com.musediagnostics.taal.stemz.InvalidFileNameException
+import com.musediagnostics.taal.stemz.PreFilter
+import com.musediagnostics.taal.stemz.TaalPlayer
+import com.musediagnostics.taal.stemz.uikit.R
+import com.musediagnostics.taal.stemz.uikit.databinding.TsukFragmentPcgscalePlayerBinding
+import com.musediagnostics.taal.stemz.graph.PcgAmplitudeScale
+import com.musediagnostics.taal.stemz.dsp.PcgDisplayFilter
+import com.musediagnostics.taal.stemz.uikit.graph.PcgScaleWaveformView
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+import kotlin.math.roundToInt
+
+/**
+ * Review screen for a brand-new recording (reached only from the recorder): the whole file on
+ * the PcgScale time grid (1 large box = 1 s, 1 small box = 0.2 s; drag to scroll, zoom is
+ * impossible by design so box widths stay trustworthy), a Y axis computed once from the whole
+ * file (typical heart-sound peaks fill ~60% of the half-height), the Clean Graph toggle (default
+ * ON, display only), playback, and Save / Discard.
+ */
+internal class PcgScalePlayerFragment : Fragment() {
+
+    private var _binding: TsukFragmentPcgscalePlayerBinding? = null
+    private val binding get() = _binding!!
+    private var player: TaalPlayer? = null
+    private var isPlaying = false
+
+    private var currentWindowSeconds = 4f
+
+    // Smoothed camera-follow position during playback — see onPlaybackProgress. Reset to 0
+    // wherever the chart snaps back to its start-centered framing.
+    private var displayedPlaybackTime = 0f
+
+    // Denoise toggle (parity with PcgScaleReviewFragment, re-added 2026-09-04 for full
+    // feature parity with app): both sample-array versions are cached so toggling is
+    // instant after the first compute. Display only — playback always plays the file on
+    // disk regardless of the switch.
+    private var originalSamples: FloatArray? = null
+    private var denoisedSamples: FloatArray? = null
+    private var fileSampleRateForRender: Float = INPUT_SAMPLE_RATE
+    private var pixelsPerSecondForRender: Float = -1f
+    private var recordingDurationSecs: Int = 0
+    private var denoiseEnabled = false
+
+    companion object {
+        private const val INPUT_SAMPLE_RATE = 44100f
+
+        // Total-point ceiling across the WHOLE decoded file. Deliberately much larger than the
+        // Calibrated player's 3000: that budget assumed Fix-D re-bucketing would restore
+        // density wherever the user zoomed, which this screen doesn't have — here the bucket
+        // is fixed at load, so per-pixel quality must hold at EVERY scroll position of the
+        // fixed window. MPAndroidChart only renders the visible X range, so draw cost stays
+        // bounded by the window; this ceiling bounds memory (~120k Entry ≈ a few MB) and, at
+        // the 300s max recording length, still leaves ~1.5 points per pixel in a 4s window.
+        private const val MAX_TOTAL_POINTS = 120_000
+
+        // Same smoothing as the Calibrated player.
+        private const val FOLLOW_SMOOTHING = 0.15f
+        // Halved from the Calibrated player's 3.0 (explicit user request — ledger Fix 4, re-applied).
+        private const val TRACE_LINE_WIDTH_DP = 1.5f
+
+        // FIX 2026-09-02: shared tag — see taal-core's capture/playback logging.
+        private const val TAG = "TAAL_AUDIO_DEBUG"
+    }
+
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
+    ): View {
+        _binding = TsukFragmentPcgscalePlayerBinding.inflate(inflater, container, false)
+        return binding.root
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        val filePath = arguments?.getString("filePath") ?: ""
+        val filterName = arguments?.getString("filterName") ?: "LITE"
+        // The dB the recorder actually used for this file, if known (0 = not passed / unknown,
+        // meaning no compensation is applied).
+        val recordedPreAmpDb = arguments?.getInt("preAmpDb", 0) ?: 0
+
+        android.util.Log.i(TAG, "════════ PLAYER SCREEN OPENED ════════ " +
+            "filter=$filterName recordedPreAmpDb=$recordedPreAmpDb " +
+            "filtered=$filePath raw=${arguments?.getString("rawFilePath") ?: "(none)"}")
+
+        // Always a brand-new recording here, so Save/Discard is always shown. Heart-sound
+        // analysis is offered on the saved-recording review screen, once the file is saved.
+        binding.saveDiscardBar.visibility = View.VISIBLE
+
+        setupWaveformChart()
+        setupAmpSlider()
+        setupDenoiseSwitch()
+        updateScaleCaption()
+
+        if (filePath.isNotEmpty()) {
+            // Main-thread snapshot of the horizontal density before the IO coroutine (Fix C
+            // heritage) — null before first layout; loadFullWaveform falls back to the
+            // point-budget bucket in that case.
+            val pixelsPerSecond = binding.pcgScaleWaveformView.currentTimeScale()?.pixelsPerSecond ?: -1f
+            loadFullWaveform(filePath, pixelsPerSecond, recordedPreAmpDb)
+            setupPlayer(filePath, filterName)
+        }
+
+        binding.backButton.setOnClickListener {
+            findNavController().navigateUp()
+        }
+
+        binding.playButton.setOnClickListener {
+            if (filePath.isEmpty()) {
+                Toast.makeText(requireContext(), "No recording to play", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            togglePlayback(filePath)
+        }
+
+        // Save → name it (SaveRecordingFragment moves both temp files into filesDir/saved/).
+        binding.saveButton.setOnClickListener {
+            val rawFilePath = arguments?.getString("rawFilePath") ?: ""
+            val bundle = Bundle().apply {
+                putString("filePath", filePath)
+                putString("rawFilePath", rawFilePath)
+                putString("filterName", filterName)
+            }
+            findNavController().navigate(R.id.action_pcgScalePlayer_to_saveRecording, bundle)
+        }
+
+        binding.discardButton.setOnClickListener { showDiscardConfirmation(filePath) }
+    }
+
+    private fun setupAmpSlider() {
+        binding.ampSlider.addOnChangeListener { _, value, _ ->
+            val db = value.toInt()
+            binding.ampLabel.text = "$db dB"
+            player?.setPreAmplification(db.toFloat())
+        }
+    }
+
+    private fun setupWaveformChart() {
+        val waveformView = binding.pcgScaleWaveformView
+        val chart = waveformView.chart
+
+        // Neutral axis until the whole-file RMS scale lands (loadFullWaveform applies it once).
+        chart.axisLeft.axisMinimum = -PcgAmplitudeScale.DEFAULT_INITIAL_FULL_SCALE
+        chart.axisLeft.axisMaximum = PcgAmplitudeScale.DEFAULT_INITIAL_FULL_SCALE
+
+        // Scroll-only: drag pans through the recording; scaling is off AND the range lock in
+        // PcgScaleWaveformView pins the window on both bounds, so time cannot distort even if
+        // a scale gesture slipped through. NOTE: the waveform view owns the chart's gesture
+        // listener (grid sync) — do not call chart.setOnChartGestureListener here.
+        chart.setTouchEnabled(true)
+        chart.isDragEnabled = true
+        chart.setScaleXEnabled(false)
+        chart.setScaleYEnabled(false)
+
+        waveformView.onVisibleSecondsChanged = { seconds ->
+            currentWindowSeconds = seconds
+            if (chart.data == null) {
+                resetToDummyData()
+            } else {
+                // Window changed on rotation/resize — re-pin the lock and re-center.
+                waveformView.applyRangeLock()
+                chart.centerViewTo(seconds / 2f, 0f, YAxis.AxisDependency.LEFT)
+                waveformView.syncGridToChart()
+                chart.invalidate()
+            }
+        }
+        waveformView.recomputeVisibleSeconds()
+        if (chart.data == null) resetToDummyData()
+    }
+
+    private fun resetToDummyData() {
+        if (_binding == null) return
+        val dummyDataSet = LineDataSet(listOf(Entry(0f, 0f), Entry(currentWindowSeconds, 0f)), "").apply {
+            color = Color.TRANSPARENT
+            setDrawCircles(false)
+            setDrawValues(false)
+        }
+        binding.pcgScaleWaveformView.chart.data = LineData(dummyDataSet)
+        binding.pcgScaleWaveformView.syncGridToChart()
+        binding.pcgScaleWaveformView.chart.invalidate()
+    }
+
+    private fun updateScaleCaption() {
+        if (_binding == null) return
+        binding.scaleCaption.text = "1 large box = 1 s · 1 small box = 0.2 s"
+    }
+
+    /**
+     * PcgScale counterpart of the Calibrated fork's loadFullWaveform(). Same WAV-header
+     * sample-rate parsing (bytes 24-27, little-endian, fallback 44100) and pre-amp undo;
+     * then, new here:
+     *  - the whole-file 60%-fill axis scale is computed from the decoded (compensated)
+     *    samples and applied once, before the trace is shown;
+     *  - the min/max bucket comes from the fixed pixels-per-second density (no Fix-D
+     *    re-bucketing exists or is needed — the window never changes).
+     * Also caches the decoded samples for the Denoise toggle (see field docs).
+     */
+    private fun loadFullWaveform(filePath: String, pixelsPerSecond: Float, recordedPreAmpDb: Int) {
+        pixelsPerSecondForRender = pixelsPerSecond
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+            val file = File(filePath)
+            if (!file.exists()) {
+                // FIX 2026-09-02: silent return -> empty graph with no explanation.
+                android.util.Log.e(TAG, "════════ PLAYER LOAD FAILED ════════ file does not exist: $filePath")
+                return@launch
+            }
+            android.util.Log.i(TAG, "════════ PLAYER LOAD ════════ file=${file.name} " +
+                "bytes=${file.length()} recordedPreAmpDb=$recordedPreAmpDb")
+            val bytes = file.readBytes()
+
+            val fileSampleRate: Float = if (bytes.size >= 28) {
+                val rate = ((bytes[24].toInt() and 0xff) or
+                        ((bytes[25].toInt() and 0xff) shl 8) or
+                        ((bytes[26].toInt() and 0xff) shl 16) or
+                        ((bytes[27].toInt() and 0xff) shl 24))
+                if (rate > 0) rate.toFloat() else INPUT_SAMPLE_RATE
+            } else INPUT_SAMPLE_RATE
+
+            val dataSize = bytes.size - 44
+            val totalSamples = dataSize / 2
+            // roundToInt, not toInt/truncate: AudioRecord startup latency (varies by device/
+            // USB hardware) can shave a fraction of a second off the captured sample count
+            // relative to the auto-stop timer's wall-clock 15s, which would otherwise floor a
+            // 14.9xx-second capture down to a displayed "14".
+            val durationSecs = (totalSamples / fileSampleRate).roundToInt()
+
+            val samples = FloatArray(totalSamples)
+            var i = 0
+            while (i < totalSamples) {
+                val bytePos = 44 + i * 2
+                if (bytePos + 1 >= bytes.size) break
+                val low = bytes[bytePos].toInt() and 0xFF
+                val high = bytes[bytePos + 1].toInt() shl 8
+                samples[i] = (high or low).toShort().toFloat() / 32768f
+                i++
+            }
+
+            // Undo the recorder's pre-amp gain BEFORE both the RMS scale computation and the
+            // entry building — the 60% fill must be measured on the same data that is drawn.
+            if (recordedPreAmpDb > 0) {
+                val preAmpGain = Math.pow(10.0, recordedPreAmpDb / 20.0).toFloat()
+                if (preAmpGain > 1.001f) {
+                    for (j in samples.indices) samples[j] = samples[j] / preAmpGain
+                }
+            }
+
+            val payload = computeRenderPayload(samples, fileSampleRate)
+
+            // FIX 2026-09-02: the full decode + axis derivation in one line. minClamped is
+            // the key one — it says the MIN_FULL_SCALE floor, not the measured signal, set
+            // the Y axis, which is exactly the quiet-capture regime under investigation.
+            var pk = 0f
+            var sumSq = 0.0
+            for (s in samples) {
+                val a = kotlin.math.abs(s)
+                if (a > pk) pk = a
+                sumSq += s.toDouble() * s.toDouble()
+            }
+            val rms = if (samples.isNotEmpty()) kotlin.math.sqrt(sumSq / samples.size) else 0.0
+            android.util.Log.i(TAG, "PLAYER decoded — headerRate=${fileSampleRate.toInt()}Hz " +
+                "totalSamples=$totalSamples durationSecs=$durationSecs " +
+                "dataPeak=$pk dataRms=$rms (after preAmp undo of ${recordedPreAmpDb}dB) " +
+                "fullScale=${payload.fullScale} minClamped=${payload.minClamped} " +
+                "peakFillOfAxis=${"%.1f".format(if (payload.fullScale > 0f) 100.0 * pk / payload.fullScale else 0.0)}% " +
+                "bucketSize=${payload.bucketSize} entries=${payload.entries.size}")
+
+            withContext(Dispatchers.Main) {
+                if (_binding == null) return@withContext
+                originalSamples = samples
+                fileSampleRateForRender = fileSampleRate
+                recordingDurationSecs = durationSecs
+                setDenoiseToggleEnabled(true)
+                // Default ON (2026-09-04 request) — go straight through the same path a
+                // manual tap takes so the file opens already denoised.
+                onDenoiseToggled(true)
+            }
+        }
+    }
+
+    /** Everything the chart needs for one version (original or denoised) of the samples. */
+    private class RenderPayload(
+        val fullScale: Float,
+        val minClamped: Boolean,
+        val entries: ArrayList<Entry>,
+        val bucketSize: Int
+    )
+
+    private fun computeRenderPayload(samples: FloatArray, sampleRate: Float): RenderPayload {
+        // Whole-file 60%-fill axis scale — "sampled mean peaks across the whole recording".
+        // Streamed through an instance (rather than computeFullScaleForFile) so the caption
+        // can also read isClampedAtMin.
+        val fileScale = PcgAmplitudeScale(sampleRate)
+        fileScale.addSamples(samples)
+        fileScale.flushPartialWindow()
+        val fullScale = fileScale.targetFullScale()
+
+        // Fixed-density bucket: sampleRate / (pixelsPerSecond * 2) puts ~one min/max pair
+        // per horizontal pixel of the fixed window (algebraically identical to
+        // deriveBucketSizeForVisibleRange for this window). The MAX_TOTAL_POINTS ceiling
+        // bounds memory on long files — see that constant's doc.
+        val derivedBucket = if (pixelsPerSecondForRender > 0f) {
+            maxOf(1, (sampleRate / (pixelsPerSecondForRender * 2f)).roundToInt())
+        } else -1
+        val ceilingBucket = maxOf(1, samples.size / (MAX_TOTAL_POINTS / 2))
+        val bucketSize = if (derivedBucket > 0) maxOf(derivedBucket, ceilingBucket) else ceilingBucket
+        val entries = PcgScaleWaveformView.downsampleMinMax(samples, bucketSize) { idx ->
+            idx.toFloat() / sampleRate
+        }
+        return RenderPayload(fullScale, fileScale.isClampedAtMin(), ArrayList(entries), bucketSize)
+    }
+
+    private fun applyRenderPayload(payload: RenderPayload, durationSecs: Int) {
+        if (_binding == null) return
+        val chart = binding.pcgScaleWaveformView.chart
+        chart.axisLeft.axisMinimum = -payload.fullScale
+        chart.axisLeft.axisMaximum = payload.fullScale
+        updateScaleCaption()
+        renderWaveformEntries(payload.entries, durationSecs)
+    }
+
+    /** Display-only PcgDisplayFilter denoise toggle: a single rectangular button that is
+     *  itself the control (tap flips state) and its own indicator (its text and fill read
+     *  "ON"/"OFF" for whichever state is active). Disabled until the file finishes decoding
+     *  (there is nothing to filter yet). */
+    private fun setupDenoiseSwitch() {
+        setDenoiseToggleEnabled(false)
+        binding.denoiseOnBadge.setOnClickListener { onDenoiseToggled(!denoiseEnabled) }
+    }
+
+    private fun setDenoiseToggleEnabled(enabled: Boolean) {
+        binding.denoiseOnBadge.isEnabled = enabled
+        binding.denoiseOnBadge.alpha = if (enabled) 1f else 0.4f
+    }
+
+    /** Repaints the toggle button itself for the given state — text and fill both read
+     *  "ON"/"OFF" so the state never depends on reading a thumb position or color alone. */
+    private fun updateDenoiseBadge(enabled: Boolean) {
+        if (_binding == null) return
+        binding.denoiseOnBadge.text = if (enabled) "ON" else "OFF"
+        binding.denoiseOnBadge.setBackgroundResource(
+            if (enabled) R.drawable.tsuk_bg_status_pill_on else R.drawable.tsuk_bg_status_pill_off
+        )
+        binding.denoiseOnBadge.setTextColor(
+            if (enabled) Color.WHITE else Color.parseColor("#757575")
+        )
+    }
+
+    /**
+     * Same contract as PcgScaleReviewFragment.onDenoiseToggled: the first ON runs
+     * [PcgDisplayFilter] on the decoded samples off the main thread (spinner shown); every
+     * other transition is a synchronous re-bucket of an array already in memory. The axis is
+     * recomputed for whichever version is shown, so a cleaned trace gets a correctly
+     * smaller axis and therefore draws larger — never smaller — than the raw one. Playback
+     * always plays the original file on disk regardless of the switch.
+     */
+    private fun onDenoiseToggled(enabled: Boolean) {
+        denoiseEnabled = enabled
+        updateDenoiseBadge(enabled)
+        val original = originalSamples ?: return
+        val durationSecs = recordingDurationSecs
+        val rate = fileSampleRateForRender
+        android.util.Log.i(TAG, "PLAYER denoise toggled -> $enabled " +
+            "(cached=${denoisedSamples != null}, samples=${original.size})")
+
+        if (!enabled) {
+            applyRenderPayload(computeRenderPayload(original, rate), durationSecs)
+            return
+        }
+
+        val cached = denoisedSamples
+        if (cached != null) {
+            applyRenderPayload(computeRenderPayload(cached, rate), durationSecs)
+            return
+        }
+
+        binding.waveformLoadingIndicator.visibility = View.VISIBLE
+        setDenoiseToggleEnabled(false)
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Default) {
+            val startMs = System.currentTimeMillis()
+            val cleaned = PcgDisplayFilter.processOffline(original, rate)
+            android.util.Log.i(TAG, "PLAYER display filter computed in " +
+                "${System.currentTimeMillis() - startMs}ms (${original.size} samples)")
+            val payload = computeRenderPayload(cleaned, rate)
+            withContext(Dispatchers.Main) {
+                if (_binding == null) return@withContext
+                denoisedSamples = cleaned
+                binding.waveformLoadingIndicator.visibility = View.GONE
+                setDenoiseToggleEnabled(true)
+                applyRenderPayload(payload, durationSecs)
+            }
+        }
+    }
+
+    private fun renderWaveformEntries(entries: ArrayList<Entry>, durationSecs: Int) {
+        binding.timerText.text = String.format("%02d:%02d", durationSecs / 60, durationSecs % 60)
+        // Ledger Fix 3, re-applied: give the grid the file's real end so it can never be
+        // scrolled/flung past where the trace stops — see PcgScaleWaveformView.syncGridToChart.
+        binding.pcgScaleWaveformView.totalDurationSeconds = durationSecs.toFloat()
+        val dataSet = LineDataSet(entries, "Waveform").apply {
+            color = Color.parseColor("#2D7DD2")
+            setDrawCircles(false)
+            setDrawValues(false)
+            lineWidth = TRACE_LINE_WIDTH_DP
+            mode = LineDataSet.Mode.LINEAR
+        }
+        val waveformView = binding.pcgScaleWaveformView
+        val chart = waveformView.chart
+        chart.data = LineData(dataSet)
+        // Range locks are stored against the data's axis range — re-pin now that real data is in.
+        waveformView.applyRangeLock()
+        chart.centerViewTo(currentWindowSeconds / 2f, 0f, YAxis.AxisDependency.LEFT)
+        waveformView.syncGridToChart()
+        chart.invalidate()
+    }
+
+    private fun setupPlayer(filePath: String, filterName: String) {
+        try {
+            player = TaalPlayer(requireContext()).apply {
+                setDataSource(filePath)
+                val fileName = File(filePath).name
+                // FIX 2026-09-02: whether playback re-applies the preset filter. A file
+                // already written filtered must NOT be filtered again — this line says which
+                // branch was taken, so double-filtering is visible instead of inferred.
+                val skipFilter = fileName.contains("_filtered") || fileName.contains("_8k_downsampling")
+                android.util.Log.i(TAG, "PLAYER setupPlayer — file=$fileName " +
+                    "preFilterOnPlayback=${if (skipFilter) "SKIPPED (already-filtered file)" else filterName}")
+                if (!skipFilter) {
+                    val preFilter = try { PreFilter.valueOf(filterName) } catch (_: Exception) { PreFilter.LITE }
+                    setPreFilter(preFilter)
+                }
+                onPlaybackProgress = { timestamp, _ ->
+                    activity?.runOnUiThread {
+                        if (isAdded && _binding != null) {
+                            // Audio timer stays exact — only the camera follow is smoothed.
+                            val totalSecs = timestamp.toInt()
+                            binding.timerText.text = String.format("%02d:%02d", totalSecs / 60, totalSecs % 60)
+
+                            // Same eased follow as the Calibrated player. The window is
+                            // range-locked, so this only translates — never rescales — time.
+                            displayedPlaybackTime += (timestamp.toFloat() - displayedPlaybackTime) * FOLLOW_SMOOTHING
+
+                            val waveformView = binding.pcgScaleWaveformView
+                            val chart = waveformView.chart
+                            val halfRange = chart.visibleXRange / 2f
+                            val centerX = if (displayedPlaybackTime < halfRange) halfRange else displayedPlaybackTime
+                            chart.centerViewTo(centerX, 0f, YAxis.AxisDependency.LEFT)
+                            // Programmatic camera move — sync the grid's labels by hand.
+                            waveformView.syncGridToChart()
+                        }
+                    }
+                }
+                onPlaybackComplete = {
+                    activity?.runOnUiThread {
+                        if (isAdded && _binding != null) {
+                            isPlaying = false
+                            binding.actionText.text = getString(R.string.tsuk_play_recording)
+                            binding.playButton.setImageResource(R.drawable.tsuk_ic_play_circle)
+
+                            displayedPlaybackTime = 0f
+                            val waveformView = binding.pcgScaleWaveformView
+                            val chart = waveformView.chart
+                            chart.centerViewTo(chart.visibleXRange / 2f, 0f, YAxis.AxisDependency.LEFT)
+                            waveformView.syncGridToChart()
+                        }
+                    }
+                }
+            }
+        } catch (e: InvalidFileNameException) {
+            Toast.makeText(requireContext(), "Cannot open recording", Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            Toast.makeText(requireContext(), "Error: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun togglePlayback(filePath: String) {
+        android.util.Log.i(TAG, "PLAYER play button — ${if (isPlaying) "STOPPING" else "STARTING"} playback")
+        if (isPlaying) {
+            player?.stop()
+            isPlaying = false
+            binding.actionText.text = getString(R.string.tsuk_play_recording)
+            binding.playButton.setImageResource(R.drawable.tsuk_ic_play_circle)
+
+            displayedPlaybackTime = 0f
+            val waveformView = binding.pcgScaleWaveformView
+            val chart = waveformView.chart
+            chart.centerViewTo(chart.visibleXRange / 2f, 0f, YAxis.AxisDependency.LEFT)
+            waveformView.syncGridToChart()
+        } else {
+            try {
+                displayedPlaybackTime = 0f
+                val waveformView = binding.pcgScaleWaveformView
+                val chart = waveformView.chart
+                chart.centerViewTo(chart.visibleXRange / 2f, 0f, YAxis.AxisDependency.LEFT)
+                waveformView.syncGridToChart()
+
+                player?.prepare()
+                player?.start()
+                isPlaying = true
+                binding.actionText.text = getString(R.string.tsuk_stop_recording)
+                binding.playButton.setImageResource(R.drawable.tsuk_ic_recording_stop)
+            } catch (e: Exception) {
+                isPlaying = false
+                Toast.makeText(requireContext(), "Playback error: ${e.message}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private fun showDiscardConfirmation(filePath: String) {
+        val rawFilePath = arguments?.getString("rawFilePath") ?: ""
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Discard Recording")
+            .setMessage("Are you sure you want to discard this recording? It will be permanently deleted.")
+            .setPositiveButton("Discard") { _, _ ->
+                try { File(filePath).delete() } catch (_: Exception) {}
+                if (rawFilePath.isNotEmpty()) {
+                    try { File(rawFilePath).delete() } catch (_: Exception) {}
+                }
+                findNavController().navigateUp()
+            }.setNegativeButton("Cancel", null).show()
+    }
+
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        try {
+            player?.onPlaybackProgress = null
+            player?.onPlaybackComplete = null
+            player?.stop()
+            player?.release()
+        } catch (_: Exception) {
+        }
+        _binding = null
+    }
+}

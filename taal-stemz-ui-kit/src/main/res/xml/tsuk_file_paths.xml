@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Only the UI kit's own saved-recordings folder (and its share temp subfolder) is exposed. -->
+<paths>
+    <files-path name="taal_stemz_saved" path="saved/" />
+</paths>

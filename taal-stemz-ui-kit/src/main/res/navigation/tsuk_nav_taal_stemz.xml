@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- All taal-stemz-ui-kit screens. The start destination is chosen at runtime by the entry
+     activity (StemzHostActivity): recorder, saved-recording review, or saved list. -->
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/tsuk_nav_taal_stemz"
+    app:startDestination="@id/pcgScaleRecordingFragment">
+
+    <fragment
+        android:id="@+id/pcgScaleRecordingFragment"
+        android:name="com.musediagnostics.taal.stemz.uikit.recording.PcgScaleRecordingFragment"
+        android:label="TAAL Recorder"
+        tools:layout="@layout/tsuk_fragment_pcgscale_recording">
+        <action
+            android:id="@+id/action_pcgScaleRecording_to_pcgScalePlayer"
+            app:destination="@id/pcgScalePlayerFragment" />
+        <action
+            android:id="@+id/action_pcgScaleRecording_to_savedRecordings"
+            app:destination="@id/savedRecordingsFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/pcgScalePlayerFragment"
+        android:name="com.musediagnostics.taal.stemz.uikit.player.PcgScalePlayerFragment"
+        android:label="Review Recording"
+        tools:layout="@layout/tsuk_fragment_pcgscale_player">
+        <argument
+            android:name="filePath"
+            android:defaultValue=""
+            app:argType="string" />
+        <argument
+            android:name="rawFilePath"
+            android:defaultValue=""
+            app:argType="string" />
+        <argument
+            android:name="filterName"
+            android:defaultValue="LITE"
+            app:argType="string" />
+        <argument
+            android:name="preAmpDb"
+            android:defaultValue="0"
+            app:argType="integer" />
+        <action
+            android:id="@+id/action_pcgScalePlayer_to_saveRecording"
+            app:destination="@id/saveRecordingFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/saveRecordingFragment"
+        android:name="com.musediagnostics.taal.stemz.uikit.player.SaveRecordingFragment"
+        android:label="Save Recording"
+        tools:layout="@layout/tsuk_fragment_save_recording">
+        <argument
+            android:name="filePath"
+            android:defaultValue=""
+            app:argType="string" />
+        <argument
+            android:name="rawFilePath"
+            android:defaultValue=""
+            app:argType="string" />
+        <argument
+            android:name="filterName"
+            android:defaultValue="LITE"
+            app:argType="string" />
+        <action
+            android:id="@+id/action_saveRecording_to_savedRecordings"
+            app:destination="@id/savedRecordingsFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/savedRecordingsFragment"
+        android:name="com.musediagnostics.taal.stemz.uikit.player.SavedRecordingsFragment"
+        android:label="Saved Recordings"
+        tools:layout="@layout/tsuk_fragment_saved_recordings">
+        <action
+            android:id="@+id/action_savedRecordings_to_pcgScaleReview"
+            app:destination="@id/pcgScaleReviewFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/pcgScaleReviewFragment"
+        android:name="com.musediagnostics.taal.stemz.uikit.player.PcgScaleReviewFragment"
+        android:label="Review Recording"
+        tools:layout="@layout/tsuk_fragment_pcgscale_review">
+        <argument
+            android:name="filePath"
+            android:defaultValue=""
+            app:argType="string" />
+        <argument
+            android:name="filterName"
+            android:defaultValue="LITE"
+            app:argType="string" />
+        <action
+            android:id="@+id/action_pcgScaleReview_to_segmentationReport"
+            app:destination="@id/segmentationReportFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/segmentationReportFragment"
+        android:name="com.musediagnostics.taal.stemz.uikit.segmentation.SegmentationReportFragment"
+        android:label="Heart Sound Analysis"
+        tools:layout="@layout/tsuk_fragment_segmentation_report">
+        <argument
+            android:name="rawFilePath"
+            android:defaultValue=""
+            app:argType="string" />
+        <action
+            android:id="@+id/action_segmentationReport_to_segmentationFullScreen"
+            app:destination="@id/segmentationFullScreenFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/segmentationFullScreenFragment"
+        android:name="com.musediagnostics.taal.stemz.uikit.segmentation.SegmentationFullScreenFragment"
+        android:label="Full Segmentation"
+        tools:layout="@layout/tsuk_fragment_segmentation_fullscreen" />
+
+</navigation>

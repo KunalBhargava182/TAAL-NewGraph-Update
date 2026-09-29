@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <color name="tsuk_background">#F5F5F5</color>
+    <color name="tsuk_blue_primary">#4A90D9</color>
+    <color name="tsuk_divider">#E0E0E0</color>
+    <color name="tsuk_input_background">#F0F0F0</color>
+    <color name="tsuk_red_primary">#E85555</color>
+    <color name="tsuk_success_green">#4CAF50</color>
+    <color name="tsuk_surface">#FFFFFF</color>
+    <color name="tsuk_teal_dark">#1FA3A3</color>
+    <color name="tsuk_teal_primary">#2ABFBF</color>
+    <color name="tsuk_text_hint">#BBBBBB</color>
+    <color name="tsuk_text_primary">#333333</color>
+    <color name="tsuk_text_secondary">#999999</color>
+    <color name="tsuk_warning_orange">#FF9800</color>
+    <color name="tsuk_waveform_blue">#2D7DD2</color>
+    <color name="tsuk_white">#FFFFFF</color>
+</resources>

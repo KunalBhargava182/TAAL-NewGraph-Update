@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000">
+
+    <com.musediagnostics.taal.stemz.uikit.segmentation.PcgSegmentationView
+        android:id="@+id/fullScreenChart"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:layout_margin="12dp"
+        android:background="#66000000"
+        android:orientation="horizontal"
+        android:padding="4dp">
+
+        <Button
+            android:id="@+id/zoomFullButton"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="6dp"
+            android:text="Full"
+            android:textAllCaps="false"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp" />
+
+        <Button
+            android:id="@+id/zoom10Button"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="6dp"
+            android:text="10s"
+            android:textAllCaps="false"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp" />
+
+        <Button
+            android:id="@+id/zoom5Button"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="6dp"
+            android:text="5s"
+            android:textAllCaps="false"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp" />
+
+    </LinearLayout>
+
+    <ImageButton
+        android:id="@+id/closeButton"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_gravity="top|end"
+        android:layout_margin="12dp"
+        android:background="#66000000"
+        android:contentDescription="Close"
+        android:padding="8dp"
+        android:src="@drawable/tsuk_ic_close"
+        app:tint="#FFFFFF" />
+
+    <!-- Hidden per request (2026-09-02) — kept in layout, not removed. -->
+    <TextView
+        android:id="@+id/disclaimerText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="6dp"
+        android:text="Research/test output only — not a medical device."
+        android:textColor="#99FFFFFF"
+        android:textSize="9sp"
+        android:visibility="gone" />
+
+</FrameLayout>

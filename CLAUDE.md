@@ -14,7 +14,8 @@ docs/master/SUPERMASTER_<MODULE>.md
 
 where `<MODULE>` is the module's name from `settings.gradle.kts`, upper-cased with underscores
 for hyphens: `APP`, `STEMZ_APP`, `LUNGS_APP`, `VISUALIZERTAAL_APP`, `TAAL_CORE`, `TAAL_UI_KIT`,
-`TAAL_SEGMENTATION`, `TAAL_SEGMENTATION_CORE`.
+`TAAL_SEGMENTATION`, `TAAL_SEGMENTATION_CORE`, `TAAL_STEMZ_CORE`, `TAAL_STEMZ_UI_KIT`
+(the last two are the stemz-only client SDKs; they exist on `StemzAppBranch`).
 
 There is also a repo-wide `SUPERMASTER.md` at the root — read that first for orientation across
 the whole monorepo, then read the specific module file(s) for whatever you're about to touch.
